@@ -14,7 +14,7 @@ export interface GameInfo {
 export const GAME_CATALOG: Record<GameType, GameInfo> = {
   chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true },
   xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
-  tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: false },
+  tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: false },
 };
 
@@ -40,15 +40,25 @@ export type HostColor = 'random' | 'white' | 'black';
 export type HandicapId = 'none' | 'chariot' | 'horse' | 'cannon' | 'two-horses';
 export const HANDICAPS: HandicapId[] = ['none', 'chariot', 'horse', 'cannon', 'two-horses'];
 
+// Per-turn time limit for card games; on expiry the player passes (or leads their lowest card).
+export type TurnTimerId = 'none' | '15' | '30' | '60';
+export const TURN_TIMERS: Record<TurnTimerId, number | null> = { none: null, '15': 15_000, '30': 30_000, '60': 60_000 };
+
+// Optional tien len house rules the host can switch on.
+export type HouseRuleId = 'no-two-finish' | 'no-stack-chop' | 'four-pairs-anytime' | 'penalties';
+export const HOUSE_RULES: HouseRuleId[] = ['no-two-finish', 'no-stack-chop', 'four-pairs-anytime', 'penalties'];
+
 // Settings the host picks before starting a game.
 export interface RoomOptions {
   timeControl: TimeControlId;
   // The host's side in the first game; rematches swap sides.
   hostColor: HostColor;
   handicap: HandicapId;
+  turnTimer: TurnTimerId;
+  houseRules: HouseRuleId[];
 }
 
-export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none' };
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [] };
 
 export interface PlayerInfo {
   id: string;
@@ -85,10 +95,14 @@ export interface RoomView {
   hostId: string;
   players: PlayerInfo[];
   spectators: PlayerInfo[];
+  // Players who left during the current game, so logs and results can still name them.
+  departed: { id: string; name: string }[];
   status: RoomStatus;
   options: RoomOptions;
   // Seated players who asked for another game.
   rematchVotes: string[];
+  // Running scores across the games played in this room, best first.
+  tally: TallyEntry[];
   chat: ChatMessage[];
   game: unknown;
 }
@@ -98,6 +112,8 @@ export type MoveResult<S> = { ok: true; state: S } | { ok: false; error: ErrorCo
 // Server-supplied context, so game logic stays pure and testable with a fake clock.
 export interface GameContext {
   now: number;
+  // Source of randomness for shuffling; the server passes a cryptographic one.
+  random?: () => number;
 }
 
 // Each game is a set of pure functions: the server owns the real state,
@@ -116,4 +132,14 @@ export interface GameDefinition<S, M, V> {
   deadline?(state: S): number | null;
   // Settles a flag fall once the deadline has passed; returns the state unchanged otherwise.
   timeout?(state: S, ctx: GameContext): S;
+  // Points each player earned in a finished game, for the room's running scoreboard.
+  points?(state: S): Record<string, { points: number; place: number }> | null;
+}
+
+export interface TallyEntry {
+  id: string;
+  name: string;
+  games: number;
+  wins: number;
+  points: number;
 }

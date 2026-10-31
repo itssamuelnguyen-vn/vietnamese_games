@@ -1,4 +1,4 @@
-import type { ChessEndReason, ErrorCode, GameType, HandicapId, HostColor, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { ChessEndReason, ComboType, ErrorCode, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -87,6 +87,7 @@ export const vi = {
 
   room: {
     codeLabel: 'Mã phòng',
+    close: 'Đóng',
     copyLink: 'Chép link mời',
     linkCopied: 'Đã chép link mời',
     share: 'Chia sẻ',
@@ -285,6 +286,177 @@ export const vi = {
       aborted: 'Ván bị hủy vì không đi nước đầu',
       abandoned: 'Đối thủ đã bỏ đi',
     } satisfies Record<XiangqiEndReason, string>,
+  },
+
+  tienlen: {
+    combos: {
+      single: 'lẻ',
+      pair: 'đôi',
+      triple: 'sám',
+      quad: 'tứ quý',
+      straight: 'sảnh',
+      'pair-run': 'đôi thông',
+    } satisfies Record<ComboType, string>,
+    instantWins: {
+      'four-twos': 'Tứ quý heo',
+      dragon: 'Sảnh rồng',
+      'six-pairs': '6 đôi',
+      'five-pair-run': '5 đôi thông',
+    } satisfies Record<InstantWinKind, string>,
+    // Place names by number of players: 2 → nhất, bét; 4 → nhất, nhì, ba, bét.
+    place: (place: number, players: number) => (place === players ? 'bét' : ['nhất', 'nhì', 'ba'][place - 1]),
+    log: {
+      play: (who: string, combo: string, cards: string) => `${who} đánh ${combo} ${cards}`,
+      chop: (who: string, combo: string, cards: string) => `${who} chặt bằng ${combo} ${cards}!`,
+      autoPlay: (who: string, cards: string) => `${who} hết giờ, tự đánh ${cards}`,
+      pass: (who: string) => `${who} bỏ lượt`,
+      autoPass: (who: string) => `${who} hết giờ, tự bỏ lượt`,
+      finish: (who: string, place: string) => `${who} về ${place}!`,
+      round: (who: string) => `Vòng mới, ${who} đi trước`,
+      left: (who: string) => `${who} đã rời bàn`,
+      frozen: (who: string) => `${who} bị cóng!`,
+    },
+    // Pieces of a log row: the player's name and the cards are rendered separately.
+    logParts: {
+      played: (combo: string) => `đánh ${combo}`,
+      chopped: (combo: string) => `chặt bằng ${combo}!`,
+      autoPlayed: 'hết giờ, tự đánh',
+      passed: 'bỏ lượt',
+      autoPassed: 'hết giờ, tự bỏ lượt',
+      finished: (place: string) => `về ${place}!`,
+      left: 'đã rời bàn',
+      frozen: 'bị cóng!',
+      newRound: (who: string) => `Vòng mới · ${who} đi trước`,
+    },
+    offline: (names: string) => `${names} đã mất kết nối`,
+    removeIn: (s: number) => `Có thể loại khỏi bàn sau ${s} giây nếu không quay lại.`,
+    removeNow: 'Đã mất kết nối quá lâu, có thể loại khỏi bàn (xếp bét).',
+    remove: 'Loại khỏi bàn',
+    houseRulesLabel: 'Luật thêm (bấm để bật/tắt)',
+    houseRules: {
+      'no-two-finish': 'Không được về bằng heo',
+      'no-stack-chop': 'Không chặt chồng',
+      'four-pairs-anytime': '4 đôi thông chặt không cần lượt',
+      penalties: 'Tính điểm: thối heo, thối hàng, cóng',
+    } satisfies Record<HouseRuleId, string>,
+    houseRuleDetails: {
+      'no-two-finish': 'Không được về bằng heo: lượt đánh hết bài cuối cùng không được có heo.',
+      'no-stack-chop': 'Không chặt chồng: bộ vừa dùng để chặt thì không ai chặt lại được nữa.',
+      'four-pairs-anytime': '4 đôi thông chặt được heo hoặc hàng bất cứ lúc nào, kể cả khi chưa tới lượt hay đã bỏ lượt.',
+      penalties:
+        'Tính điểm: người về bét bị thối heo (heo đen −1, heo đỏ −2) và thối hàng (tứ quý, đôi thông −3). Ai chưa đánh được lá nào khi có người về nhất thì bị cóng (−2) và xếp bét.',
+    } satisfies Record<HouseRuleId, string>,
+    extraRulesTitle: 'Luật thêm của bàn này',
+    noExtraRules: 'Bàn này không bật luật thêm nào.',
+    stackedChop: 'Bàn này không cho chặt chồng',
+    twoFinish: 'Bàn này không cho về bằng heo',
+    chopNow: 'Bạn có thể chặt ngay bằng 4 đôi thông!',
+    frozenTag: 'Cóng',
+    penalties: {
+      frozen: 'Cóng',
+      'black-two': 'Thối heo đen',
+      'red-two': 'Thối heo đỏ',
+      quad: 'Thối tứ quý',
+      'pair-run': 'Thối đôi thông',
+    } satisfies Record<PenaltyKind, string>,
+    points: (n: number) => `${n > 0 ? '+' : ''}${n} điểm`,
+    scoreboard: 'Bảng điểm',
+    scoreGames: 'Ván',
+    scoreWins: 'Nhất',
+    scorePoints: 'Điểm',
+    showScoreboard: 'Hiện bảng điểm',
+    hideScoreboard: 'Ẩn bảng điểm',
+    play: 'Đánh',
+    pass: 'Bỏ lượt',
+    clear: 'Bỏ chọn',
+    sortByRank: 'Xếp theo số',
+    sortBySuit: 'Xếp theo chất',
+    yourTurn: 'Lượt của bạn',
+    yourLead: 'Bạn được đánh bộ bất kỳ.',
+    turnOf: (name: string) => `Lượt của ${name}`,
+    mustPlay: (card: string) => `Nước đầu tiên phải có lá ${card}.`,
+    beatThis: (who: string) => `Chặn bài của ${who} hoặc bỏ lượt.`,
+    pickCards: 'Chọn lá bài rồi bấm Đánh, hoặc bấm đúp một lá để chọn nhanh cả bộ.',
+    hint: 'Gợi ý',
+    noHint: 'Không có bộ nào chặn được, bỏ lượt nhé.',
+    invalidCombo: 'Các lá đã chọn không thành bộ',
+    cannotBeat: 'Bộ này không chặn được bài trên bàn',
+    cardsLeft: (n: number) => `${n} lá`,
+    passed: 'Bỏ lượt',
+    left: 'Đã rời',
+    tableEmpty: 'Bàn trống',
+    played: (who: string) => `${who} vừa đánh`,
+    history: 'Diễn biến',
+    noHistory: 'Ván đấu bắt đầu.',
+    resultTitle: 'Kết quả',
+    youPlaced: (place: string) => `Bạn về ${place}!`,
+    youLast: 'Bạn về bét rồi',
+    cleared: 'Hết bài',
+    showLog: 'Hiện diễn biến',
+    hideLog: 'Ẩn diễn biến',
+    instant: (who: string, kind: string) => `${who} tới trắng: ${kind}!`,
+    remaining: 'Bài còn lại',
+    spectating: 'Bạn đang xem ván đấu.',
+    turnTimer: 'Thời gian mỗi lượt',
+    turnTimers: { none: 'Không giới hạn', '15': '15 giây', '30': '30 giây', '60': '60 giây' } satisfies Record<TurnTimerId, string>,
+    rulesButton: 'Luật chơi',
+    rulesTitle: 'Luật Tiến lên miền Nam',
+    rulesIntro: 'Đây là luật của bàn chơi này. Mỗi nơi chơi một kiểu, nên đọc qua trước khi bắt đầu nhé.',
+    rules: [
+      {
+        title: 'Chuẩn bị',
+        items: ['2 đến 4 người, mỗi người 13 lá từ bộ bài 52 lá.', 'Không tính tiền hay điểm: chỉ xếp hạng nhất, nhì, ba, bét.'],
+      },
+      {
+        title: 'Thứ tự bài',
+        items: ['Số: 3 < 4 < 5 < … < 10 < J < Q < K < A < 2 (heo).', 'Chất (khi cùng số): ♠ bích < ♣ chuồn < ♦ rô < ♥ cơ.'],
+      },
+      {
+        title: 'Ai đi trước',
+        items: [
+          'Ván đầu: người cầm lá nhỏ nhất (thường là 3♠) đi trước, và nước đầu phải có lá đó.',
+          'Các ván sau: người về nhất ván trước đi trước, đánh bộ bất kỳ.',
+        ],
+      },
+      {
+        title: 'Các bộ bài',
+        items: [
+          'Lẻ: 1 lá. Đôi: 2 lá cùng số. Sám: 3 lá cùng số. Tứ quý: 4 lá cùng số.',
+          'Sảnh: từ 3 lá liên tiếp trở lên, ví dụ 5-6-7. Sảnh không được có heo (2).',
+          'Đôi thông: từ 3 đôi liên tiếp trở lên, ví dụ 33-44-55. Không được có heo.',
+        ],
+      },
+      {
+        title: 'Chặn bài',
+        items: [
+          'Phải đánh bộ cùng loại, cùng số lá, và lá cao nhất lớn hơn lá cao nhất trên bàn.',
+          'Không chặn được hoặc không muốn chặn thì bỏ lượt. Đã bỏ lượt thì phải chờ hết vòng mới được đánh tiếp.',
+          'Khi mọi người đều bỏ lượt, người đánh cuối cùng được đi tiếp và đánh bộ bất kỳ.',
+        ],
+      },
+      {
+        title: 'Chặt',
+        items: [
+          '3 đôi thông chặt được 1 heo.',
+          'Tứ quý chặt được 1 heo, đôi heo, hoặc 3 đôi thông.',
+          '4 đôi thông chặt được 1 heo, đôi heo, 3 đôi thông, hoặc tứ quý.',
+          'Bộ chặt lớn hơn cùng loại chặt được bộ chặt nhỏ hơn (tứ quý lớn hơn chặt tứ quý nhỏ hơn…).',
+          'Chỉ được chặt khi đến lượt mình.',
+        ],
+      },
+      {
+        title: 'Tới trắng',
+        items: ['Ngay khi chia bài, ai có một trong các bộ sau thì thắng luôn: tứ quý heo, sảnh rồng (3 đến A), 6 đôi, hoặc 5 đôi thông.'],
+      },
+      {
+        title: 'Kết thúc',
+        items: [
+          'Ai đánh hết bài trước về nhất; những người còn lại chơi tiếp để xếp nhì, ba. Người cuối cùng còn bài về bét.',
+          'Hết thời gian lượt: tự bỏ lượt, hoặc tự đánh lá nhỏ nhất nếu đang được đi đầu.',
+          'Rời bàn giữa ván: xếp bét, những người còn lại chơi tiếp.',
+        ],
+      },
+    ],
   },
 
   errors: {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChessView } from '@vg/shared';
+import type { ChessView, TienLenView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -28,7 +28,7 @@ describe('RoomManager', () => {
 
   it('refuses unavailable games and blank names', () => {
     const rooms = new RoomManager();
-    expect(rooms.create(A, 'An', 'tienlen')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    expect(rooms.create(A, 'An', 'typhu')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
     expect(rooms.create(A, '   ', 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
@@ -212,6 +212,104 @@ describe('RoomManager', () => {
     });
   });
 
+  describe('tien len', () => {
+    const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+
+    // A deterministic three-player table; skips seeds whose deal is an instant win (~3% of deals).
+    function tableOfThree(options: object = {}) {
+      vi.useFakeTimers();
+      for (let seed = 1; ; seed++) {
+        const updates: string[] = [];
+        const rooms = new RoomManager({ random: seeded(seed), onAutoUpdate: (room) => updates.push(room.status) });
+        const created = rooms.create(A, 'An', 'tienlen');
+        if (!created.ok) throw new Error(created.error);
+        rooms.join(B, 'Bob', created.room.code);
+        rooms.join(C, 'Chi', created.room.code);
+        rooms.setOptions(A, options);
+        const started = rooms.start(A);
+        if (!started.ok) throw new Error(started.error);
+        const view = (id: string) => rooms.view(started.room, id, allOnline).game as TienLenView;
+        if (!view(A).result) return { rooms, room: started.room, view, updates };
+      }
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('seats up to four players and deals to all of them', () => {
+      const { view } = tableOfThree();
+      expect(view(A).seats.map((s) => s.cards)).toEqual([13, 13, 13]);
+      expect(view(A).result).toBeNull();
+    });
+
+    it('keeps playing when one of three players leaves, and still knows their name', () => {
+      const { rooms, room, view } = tableOfThree();
+      rooms.leave(C);
+      expect(room.status).toBe('playing');
+      expect(view(A).seats.find((s) => s.id === C)?.out).toBe(true);
+      expect(rooms.view(room, A, allOnline).departed).toEqual([{ id: C, name: 'Chi' }]);
+      rooms.move(view(A).turn!, { type: 'pass' });
+      // A new game forgets who left the previous one.
+      rooms.leave(B);
+      expect(room.status).toBe('finished');
+      rooms.join(C, 'Chi', room.code);
+      rooms.start(A);
+      expect(rooms.view(room, A, allOnline).departed).toEqual([]);
+    });
+
+    it('adds each finished game to the room scoreboard once', () => {
+      const { rooms, room } = tableOfThree();
+      rooms.leave(B);
+      rooms.leave(C);
+      const tally = rooms.view(room, A, allOnline).tally;
+      expect(tally.map((e) => [e.name, e.games, e.wins, e.points])).toEqual([
+        ['An', 1, 1, 2],
+        ['Chi', 1, 0, 0],
+        ['Bob', 1, 0, -2],
+      ]);
+      // Viewing again doesn't count the game twice.
+      expect(rooms.view(room, A, allOnline).tally[0].games).toBe(1);
+    });
+
+    it('a game decided on the deal finishes at once so a rematch can start', () => {
+      // Find a seed whose deal is an instant win.
+      for (let seed = 1; seed < 500; seed++) {
+        const rooms = new RoomManager({ random: seeded(seed) });
+        const created = rooms.create(A, 'An', 'tienlen');
+        if (!created.ok) throw new Error();
+        rooms.join(B, 'Bob', created.room.code);
+        rooms.start(A);
+        if ((rooms.view(created.room, A, allOnline).game as TienLenView).result) {
+          expect(created.room.status).toBe('finished');
+          expect(rooms.view(created.room, A, allOnline).tally).toHaveLength(2);
+          expect(rooms.start(A).ok).toBe(true);
+          return;
+        }
+      }
+      throw new Error('no instant-win seed found');
+    });
+
+    it('removes a player who has been offline for a minute while the others play on', () => {
+      const { rooms, room, view } = tableOfThree();
+      const offline = (id: string) => (id === C ? Date.now() - 60_000 : null);
+      expect(rooms.claimWin(A, (id) => (id === C ? Date.now() - 59_000 : null))).toEqual({ ok: false, error: 'CLAIM_TOO_EARLY' });
+      expect(rooms.claimWin(A, offline).ok).toBe(true);
+      expect(room.status).toBe('playing');
+      expect(view(A).seats.find((s) => s.id === C)?.out).toBe(true);
+      expect(view(A).turn).not.toBe(C);
+    });
+
+    it('moves the game on by itself when a turn runs out', () => {
+      const { view, updates } = tableOfThree({ turnTimer: '15' });
+      const first = view(A).turn;
+      vi.advanceTimersByTime(15_000);
+      expect(updates).toEqual(['playing']);
+      expect(view(A).turn).not.toBe(first);
+      expect(view(A).log.at(-1)).toMatchObject({ kind: 'play', auto: true });
+    });
+  });
+
   describe('chat', () => {
     it('stores trimmed messages from players and spectators', () => {
       const { rooms, code } = roomWithTwo();
@@ -271,15 +369,17 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none' });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [] });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none' });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [] });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { handicap: 'horse' }).ok).toBe(true);
       expect(rooms.setOptions(A, { timeControl: '3+2' }).ok).toBe(true);
       rooms.start(A);

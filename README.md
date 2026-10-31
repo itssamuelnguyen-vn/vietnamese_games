@@ -10,7 +10,7 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 |---|---|
 | Chess | Playable: clocks, draw offers, takebacks, premoves, promotion picker, move review, opening names, PGN/FEN export, sounds |
 | Xiangqi | Playable: own rules engine (perft-verified), Asian rules (no legal moves loses, perpetual check loses, repetition and 60-move draws), Vietnamese and WXF notation, file numbers, opening names, captured pieces, FEN/PGN export, Chinese or letter piece labels, handicap (odds) games, same clocks/draws/takebacks as chess |
-| Tiến lên miền Nam | Planned |
+| Tiến lên miền Nam | Playable: 2-4 players, house rules shown in-app (Luật chơi), chops, instant wins, full ranking, per-turn timer, optional house rules and scoring, room scoreboard, hints, drag-to-arrange hand |
 | Property-trading game | Planned (original design, not a Monopoly clone) |
 
 ## Running locally

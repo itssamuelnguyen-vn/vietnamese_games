@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { GAME_CATALOG, HANDICAPS, TIME_CONTROLS, type HostColor, type RoomOptions, type RoomView, type TimeControlId } from '@vg/shared';
+import { GAME_CATALOG, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -141,6 +141,42 @@ export function ChessOptionsPicker({ room }: { room: RoomView }) {
           onPick={(handicap) => set({ handicap })}
         />
       )}
+    </>
+  );
+}
+
+export function TienLenOptionsPicker({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const locked = room.hostId !== room.you || room.status === 'playing';
+
+  async function set(options: Partial<RoomOptions>) {
+    const r = await api.options(options);
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+
+  const rules = room.options.houseRules;
+  const toggle = (rule: HouseRuleId) => set({ houseRules: rules.includes(rule) ? rules.filter((r) => r !== rule) : [...rules, rule] });
+
+  return (
+    <>
+      <ChipGroup
+        label={t.tienlen.turnTimer}
+        options={Object.keys(TURN_TIMERS) as TurnTimerId[]}
+        value={room.options.turnTimer}
+        labelOf={(id) => t.tienlen.turnTimers[id]}
+        disabled={locked}
+        onPick={(turnTimer) => set({ turnTimer })}
+      />
+      <div className="time-picker">
+        <span className="field-label">{t.tienlen.houseRulesLabel}</span>
+        <div className="chip-group" role="group" aria-label={t.tienlen.houseRulesLabel}>
+          {HOUSE_RULES.map((rule) => (
+            <button key={rule} className="chip toggle" aria-pressed={rules.includes(rule)} disabled={locked} onClick={() => toggle(rule)}>
+              {t.tienlen.houseRules[rule]}
+            </button>
+          ))}
+        </div>
+      </div>
     </>
   );
 }

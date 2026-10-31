@@ -1,11 +1,13 @@
-import { GAME_CATALOG, type ChessView, type RoomView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type ChessView, type RoomView, type TienLenView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
 import { XiangqiGame } from '../games/xiangqi/XiangqiGame';
+import { TienLenGame } from '../games/tienlen/TienLenGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { ChatCard, ChessOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
+import { ChatCard, ChessOptionsPicker, TienLenOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
+import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
 
@@ -26,6 +28,7 @@ export function RoomScreen({ room }: Props) {
 
   if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
   if (room.gameType === 'xiangqi') return <XiangqiGame room={room} view={room.game as XiangqiView} onLeave={leave} />;
+  if (room.gameType === 'tienlen') return <TienLenGame room={room} view={room.game as TienLenView} onLeave={leave} />;
   return null;
 }
 
@@ -55,9 +58,12 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           <p className="eyebrow">{t.room.waitingTitle}</p>
           <h1>{gameName}</h1>
         </div>
-        <button className="btn btn-ghost" onClick={onLeave}>
-          <ExitIcon /> {t.room.leave}
-        </button>
+        <div className="waiting-actions">
+          <RulesButton gameType={room.gameType} houseRules={room.options.houseRules} wide />
+          <button className="btn btn-ghost" onClick={onLeave}>
+            <ExitIcon /> {t.room.leave}
+          </button>
+        </div>
       </header>
 
       <div className="waiting-grid">
@@ -122,6 +128,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           </p>
 
           {(room.gameType === 'chess' || room.gameType === 'xiangqi') && <ChessOptionsPicker room={room} />}
+          {room.gameType === 'tienlen' && <TienLenOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>
