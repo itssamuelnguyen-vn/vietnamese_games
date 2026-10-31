@@ -1,11 +1,23 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { GAME_CATALOG, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
+import { CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
 import { toast } from './Toaster';
-import { CopyIcon, CrownIcon, QrIcon, SendIcon } from './icons';
+import { ChevronRightIcon, CopyIcon, CrownIcon, QrIcon, SendIcon } from './icons';
+import { loadSetting, saveSetting } from '../settings';
+
+// The host fills or frees seats with bots between games.
+export async function addBot(t: Strings) {
+  const r = await api.addBot();
+  if (!r.ok) toast(t.errors[r.error]);
+}
+
+export async function removeBot(t: Strings, id: string) {
+  const r = await api.removeBot(id);
+  if (!r.ok) toast(t.errors[r.error]);
+}
 
 export function inviteLink(code: string) {
   return `${location.origin}/?room=${code}`;
@@ -64,9 +76,11 @@ interface PlayersCardProps {
   room: RoomView;
   // Extra line under each player's name, e.g. their colour in chess.
   subtitle?: (playerId: string) => ReactNode;
+  // Per-player colours when a game draws players in fixed colours.
+  colorOf?: (playerId: string) => string | undefined;
 }
 
-export function PlayersCard({ room, subtitle }: PlayersCardProps) {
+export function PlayersCard({ room, subtitle, colorOf }: PlayersCardProps) {
   const { t } = useI18n();
   const info = GAME_CATALOG[room.gameType];
   return (
@@ -80,7 +94,7 @@ export function PlayersCard({ room, subtitle }: PlayersCardProps) {
       <ul className="player-list">
         {room.players.map((p) => (
           <li key={p.id} className={p.id === room.you ? 'me' : ''}>
-            <Avatar id={p.id} name={p.name} size={40} online={p.connected} />
+            <Avatar id={p.id} name={p.name} size={40} online={p.connected} color={colorOf?.(p.id)} />
             <div className="player-list-text">
               <span className="player-list-name">
                 {p.name} {p.id === room.you && <span className="muted">{t.room.youSuffix}</span>}
@@ -92,11 +106,22 @@ export function PlayersCard({ room, subtitle }: PlayersCardProps) {
                     <CrownIcon /> {t.room.host}
                   </span>
                 )}
+                {p.bot && <span className="tag">🤖 {t.room.botTag}</span>}
               </span>
             </div>
+            {p.bot && room.hostId === room.you && room.status !== 'playing' && (
+              <button className="seat-remove" onClick={() => removeBot(t, p.id)} aria-label={t.room.removeBot} title={t.room.removeBot}>
+                ×
+              </button>
+            )}
           </li>
         ))}
       </ul>
+      {info.bots && room.hostId === room.you && room.status !== 'playing' && room.players.length < info.maxPlayers && (
+        <button className="btn btn-secondary btn-sm" onClick={() => addBot(t)}>
+          🤖 {t.room.addBot}
+        </button>
+      )}
       <p className="spectator-line muted small">
         {t.room.spectators} · {room.spectators.length ? room.spectators.map((s) => s.name).join(', ') : t.room.noSpectators}
       </p>
@@ -127,10 +152,30 @@ export function ChessOptionsPicker({ room }: { room: RoomView }) {
         label={t.room.hostColor}
         options={['random', 'white', 'black'] as HostColor[]}
         value={room.options.hostColor}
-        labelOf={(c) => (room.gameType === 'xiangqi' ? t.xiangqi.hostColors[c] : t.room.hostColors[c])}
+        labelOf={(c) => (room.gameType === 'xiangqi' ? t.xiangqi.hostColors[c] : room.gameType === 'caro' ? t.caro.hostColors[c] : t.room.hostColors[c])}
         disabled={locked}
         onPick={(hostColor) => set({ hostColor })}
       />
+      {room.gameType === 'caro' && (
+        <>
+          <ChipGroup
+            label={t.caro.sizeLabel}
+            options={CARO_SIZE_IDS}
+            value={room.options.caroSize}
+            labelOf={(id) => t.caro.sizes[id]}
+            disabled={locked}
+            onPick={(caroSize) => set({ caroSize })}
+          />
+          <ChipGroup
+            label={t.caro.blockLabel}
+            options={['on', 'off'] as ('on' | 'off')[]}
+            value={room.options.caroBlock ? 'on' : 'off'}
+            labelOf={(v) => (v === 'on' ? t.caro.blockOn : t.caro.blockOff)}
+            disabled={locked}
+            onPick={(v) => set({ caroBlock: v === 'on' })}
+          />
+        </>
+      )}
       {room.gameType === 'xiangqi' && (
         <ChipGroup
           label={t.xiangqi.handicapLabel}
@@ -159,14 +204,7 @@ export function TienLenOptionsPicker({ room }: { room: RoomView }) {
 
   return (
     <>
-      <ChipGroup
-        label={t.tienlen.turnTimer}
-        options={Object.keys(TURN_TIMERS) as TurnTimerId[]}
-        value={room.options.turnTimer}
-        labelOf={(id) => t.tienlen.turnTimers[id]}
-        disabled={locked}
-        onPick={(turnTimer) => set({ turnTimer })}
-      />
+      <TurnTimerPicker room={room} locked={locked} />
       <div className="time-picker">
         <span className="field-label">{t.tienlen.houseRulesLabel}</span>
         <div className="chip-group" role="group" aria-label={t.tienlen.houseRulesLabel}>
@@ -255,5 +293,102 @@ export function ChatCard({ room, recipient }: { room: RoomView; recipient?: stri
         </button>
       </form>
     </section>
+  );
+}
+
+// Running scores across the games played in this room; collapsible, remembered per browser.
+export function ScoreboardPanel({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const me = room.you;
+  const [open, setOpen] = useState(() => loadSetting('vg:scores') !== 'closed');
+  function toggle() {
+    saveSetting('vg:scores', open ? 'closed' : 'open');
+    setOpen(!open);
+  }
+  if (room.tally.length === 0) return null;
+  return (
+    <section className={`card panel tl-score-panel ${open ? 'open' : 'closed'}`}>
+      <button className="panel-toggle" aria-expanded={open} onClick={toggle} title={open ? t.room.hideScoreboard : t.room.showScoreboard}>
+        <h2>{t.room.scoreboard}</h2>
+        <ChevronRightIcon className="panel-chevron" />
+      </button>
+      {open && (
+        <table className="tl-scores">
+          <thead>
+            <tr>
+              <th />
+              <th />
+              <th>{t.room.scoreGames}</th>
+              <th>{t.room.scoreWins}</th>
+              <th>{t.room.scorePoints}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {room.tally.map((entry, i) => (
+              <tr key={entry.id} className={entry.id === me ? 'mine' : ''}>
+                <td className="muted">{i + 1}</td>
+                <td className="tl-scores-name">{entry.id === me ? t.room.you : entry.name}</td>
+                <td>{entry.games}</td>
+                <td>{entry.wins}</td>
+                <td className={entry.points > 0 ? 'up' : entry.points < 0 ? 'down' : ''}>
+                  {entry.points > 0 ? '+' : ''}
+                  {entry.points}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+// Per-turn time limit for turn-based games without a chess clock.
+function TurnTimerPicker({ room, locked }: { room: RoomView; locked: boolean }) {
+  const { t } = useI18n();
+  async function set(options: Partial<RoomOptions>) {
+    const r = await api.options(options);
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <ChipGroup
+      label={t.tienlen.turnTimer}
+      options={Object.keys(TURN_TIMERS) as TurnTimerId[]}
+      value={room.options.turnTimer}
+      labelOf={(id) => t.tienlen.turnTimers[id]}
+      disabled={locked}
+      onPick={(turnTimer) => set({ turnTimer })}
+    />
+  );
+}
+
+// Co ti phu only has a turn timer to choose.
+export function TyPhuOptionsPicker({ room }: { room: RoomView }) {
+  return <TurnTimerPicker room={room} locked={room.hostId !== room.you || room.status === 'playing'} />;
+}
+
+// Co ca ngua: a turn timer and optional house rules.
+export function CaNguaOptionsPicker({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const locked = room.hostId !== room.you || room.status === 'playing';
+  const rules = room.options.caNguaRules;
+  async function toggle(rule: CaNguaRuleId) {
+    const r = await api.options({ caNguaRules: rules.includes(rule) ? rules.filter((x) => x !== rule) : [...rules, rule] });
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <>
+      <TurnTimerPicker room={room} locked={locked} />
+      <div className="time-picker">
+        <span className="field-label">{t.cangua.rulesLabel}</span>
+        <div className="chip-group" role="group" aria-label={t.cangua.rulesLabel}>
+          {CANGUA_RULES.map((rule) => (
+            <button key={rule} className="chip toggle" aria-pressed={rules.includes(rule)} disabled={locked} onClick={() => toggle(rule)}>
+              {t.cangua.rules[rule]}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }

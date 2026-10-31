@@ -10,7 +10,7 @@ const cards = (codes: string) => codes.split(' ').map(card);
 const combo = (codes: string) => classify(cards(codes))!;
 
 const ctx = { now: 0 };
-const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [] };
+const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] };
 
 function table(hands: Record<string, string>, extra: Partial<TienLenState> = {}): TienLenState {
   const seats = Object.keys(hands);

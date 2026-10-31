@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChessView, TienLenView } from '@vg/shared';
+import type { CaNguaView, CaroView, ChessView, TienLenView, TyPhuView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -28,7 +28,7 @@ describe('RoomManager', () => {
 
   it('refuses unavailable games and blank names', () => {
     const rooms = new RoomManager();
-    expect(rooms.create(A, 'An', 'typhu')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    expect(rooms.create(A, 'An', 'maubinh')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
     expect(rooms.create(A, '   ', 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
@@ -369,14 +369,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [] });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [] });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
@@ -425,6 +425,156 @@ describe('RoomManager', () => {
       rooms.leave(B);
       vi.advanceTimersByTime(10 * 60_000);
       expect(updates).toEqual([]);
+    });
+  });
+
+  describe('bots', () => {
+    afterEach(() => vi.useRealTimers());
+
+    function typhuRoom(options = {}) {
+      const rooms = new RoomManager({ botDelayMs: 10, ...options });
+      const created = rooms.create(A, 'An', 'typhu');
+      if (!created.ok) throw new Error(created.error);
+      return { rooms, room: created.room };
+    }
+
+    it('only the host adds or removes bots, between games, in games that have them', () => {
+      const { rooms, room } = typhuRoom();
+      rooms.join(B, 'Bob', room.code);
+      expect(rooms.addBot(B)).toEqual({ ok: false, error: 'NOT_HOST' });
+      expect(rooms.addBot(A).ok).toBe(true);
+      expect(rooms.addBot(A).ok).toBe(true);
+      expect(room.players.map((p) => p.name)).toEqual(['An', 'Bob', 'Bot 1', 'Bot 2']);
+      const view = rooms.view(room, A, () => false);
+      expect(view.players.filter((p) => p.bot).every((p) => p.connected)).toBe(true);
+      expect(rooms.removeBot(A, 'bot:1').ok).toBe(true);
+      expect(rooms.removeBot(A, B)).toEqual({ ok: false, error: 'INVALID_MOVE' });
+      expect(rooms.addBot(A).ok).toBe(true);
+      expect(room.players.map((p) => p.id)).toContain('bot:1');
+
+      const chess = rooms.create(C, 'Chi', 'chess');
+      expect(chess.ok && rooms.addBot(C)).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    });
+
+    it('fills the table up to the maximum and not past it', () => {
+      const { rooms } = typhuRoom();
+      for (let i = 0; i < 5; i++) expect(rooms.addBot(A).ok).toBe(true);
+      expect(rooms.addBot(A)).toEqual({ ok: false, error: 'ROOM_FULL' });
+    });
+
+    it('bots play on their own, and a game with one person and bots runs to the end', async () => {
+      vi.useFakeTimers();
+      const updates: string[] = [];
+      const { rooms, room } = typhuRoom({ onAutoUpdate: (r: { status: string }) => updates.push(r.status) });
+      rooms.addBot(A);
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      // Whenever it's the person's turn, they roll and skip buying.
+      for (let i = 0; i < 2000 && room.status === 'playing'; i++) {
+        const view = rooms.view(room, A, allOnline).game as TyPhuView;
+        if (view.turn === A) rooms.move(A, view.phase === 'move' ? { type: 'roll' } : view.phase === 'fly' ? { type: 'stay' } : { type: 'end' });
+        else vi.advanceTimersByTime(10);
+      }
+      expect(room.status).toBe('finished');
+      expect(updates.length).toBeGreaterThan(10);
+      const result = (rooms.view(room, A, allOnline).game as TyPhuView).result!;
+      expect(result.ranking.toSorted()).toEqual([A, 'bot:1', 'bot:2'].toSorted());
+      expect(Object.keys(room.tally)).toHaveLength(3);
+
+      // Bots always agree to a rematch.
+      expect(rooms.requestRematch(A).ok).toBe(true);
+      expect(room.status).toBe('playing');
+    });
+
+    it('people keep sending moves, yet bots still get to act', () => {
+      vi.useFakeTimers();
+      const { rooms, room } = typhuRoom({ botDelayMs: 900 });
+      rooms.join(B, 'Bob', room.code);
+      rooms.addBot(A);
+      rooms.start(A);
+      const turnOf = () => (rooms.view(room, A, allOnline).game as TyPhuView).turn;
+      // Play the people's turns until it's the bot's.
+      for (let i = 0; i < 20 && turnOf() !== 'bot:1'; i++) {
+        const view = rooms.view(room, A, allOnline).game as TyPhuView;
+        rooms.move(view.turn!, view.phase === 'move' ? { type: 'roll' } : view.phase === 'fly' ? { type: 'stay' } : { type: 'end' });
+      }
+      expect(turnOf()).toBe('bot:1');
+      // Borrowing and repaying every half second must not keep postponing the bot.
+      for (let i = 0; i < 4 && turnOf() === 'bot:1'; i++) {
+        rooms.move(B, { type: 'borrow', amount: 50 });
+        vi.advanceTimersByTime(500);
+        rooms.move(B, { type: 'repay', amount: 50 });
+        vi.advanceTimersByTime(500);
+      }
+      expect((rooms.view(room, A, allOnline).game as TyPhuView).log.some((e) => 'player' in e && e.player === 'bot:1')).toBe(true);
+    });
+
+    it('tells spectators when the last person leaves a room of bots', () => {
+      vi.useFakeTimers();
+      const closed: string[][] = [];
+      const { rooms, room } = typhuRoom({ onClosed: (ids: string[]) => closed.push(ids) });
+      // Two bots, so the game goes on without the host and the spectator doesn't take a seat.
+      rooms.addBot(A);
+      rooms.addBot(A);
+      rooms.start(A);
+      rooms.join(C, 'Chi', room.code);
+      rooms.leave(A);
+      expect(closed).toEqual([[C]]);
+      expect(rooms.roomOf(C)).toBeUndefined();
+    });
+
+    it('caro: a bot answers every move until the game ends', () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'caro');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.setOptions(A, { timeControl: 'none', hostColor: 'white' });
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      for (let i = 0; i < 300 && room.status === 'playing'; i++) {
+        const view = rooms.view(room, A, allOnline).game as CaroView;
+        if (view.turn === 'x') {
+          const free = Array.from({ length: view.size * view.size }, (_, c) => c).filter((c) => !view.moves.includes(c));
+          rooms.move(A, { type: 'place', cell: free[0] });
+        } else vi.advanceTimersByTime(10);
+      }
+      expect(room.status).toBe('finished');
+      // Playing the first free cell every time, the person loses to the bot.
+      expect((rooms.view(room, A, allOnline).game as CaroView).result?.winner).toBe('bot:1');
+    });
+
+    it('cờ cá ngựa: bots race a person to the end', () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'cangua');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.setOptions(A, { turnTimer: 'none', caNguaRules: ['jump', 'fast-home'] });
+      expect(rooms.setOptions(A, { caNguaRules: ['bogus'] as never })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      rooms.addBot(A);
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      for (let i = 0; i < 20_000 && room.status === 'playing'; i++) {
+        const view = rooms.view(room, A, allOnline).game as CaNguaView;
+        if (view.turn !== A) vi.advanceTimersByTime(10);
+        else if (view.phase === 'roll') rooms.move(A, { type: 'roll' });
+        else rooms.move(A, { type: 'move', horse: view.choices[0].horse });
+      }
+      expect(room.status).toBe('finished');
+      expect((rooms.view(room, A, allOnline).game as CaNguaView).result?.ranking).toHaveLength(3);
+    });
+
+    it('a room left with only bots closes', () => {
+      vi.useFakeTimers();
+      const { rooms, room } = typhuRoom();
+      rooms.addBot(A);
+      rooms.start(A);
+      expect(rooms.leave(A)).toBeUndefined();
+      expect(rooms.roomOf(A)).toBeUndefined();
+      // Leaving ends the two-seat game, and nothing is left running for the closed room.
+      expect(room.status).toBe('finished');
+      expect(vi.getTimerCount()).toBe(0);
     });
   });
 });

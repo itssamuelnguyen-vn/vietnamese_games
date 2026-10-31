@@ -9,6 +9,11 @@ import {
   TURN_TIMERS,
   chessGame,
   tienlenGame,
+  typhuGame,
+  caroGame,
+  caNguaGame,
+  CARO_SIZE_IDS,
+  CANGUA_RULES,
   xiangqiGame,
   type ChatMessage,
   type TallyEntry,
@@ -28,6 +33,9 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   chess: chessGame,
   xiangqi: xiangqiGame,
   tienlen: tienlenGame,
+  typhu: typhuGame,
+  caro: caroGame,
+  cangua: caNguaGame,
 };
 
 // Uniform in [0, 1) from the OS CSPRNG, so card deals can't be predicted.
@@ -36,7 +44,12 @@ const secureRandom = () => randomInt(2 ** 32) / 2 ** 32;
 interface Player {
   id: string;
   name: string;
+  bot?: boolean;
 }
+
+// Bot ids contain a colon, which real (base64url) player ids never do.
+const BOT_PREFIX = 'bot:';
+const isBot = (id: string) => id.startsWith(BOT_PREFIX);
 
 export interface Room {
   code: string;
@@ -66,6 +79,10 @@ export interface RoomManagerOptions {
   maxRooms?: number;
   // Injectable for deterministic tests; defaults to a cryptographic source.
   random?: () => number;
+  // Pause before each bot move, so people can follow what bots do.
+  botDelayMs?: number;
+  // Called with the people still in a room that just closed, so they can be told.
+  onClosed?: (memberIds: string[]) => void;
 }
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -85,18 +102,30 @@ export class RoomManager {
   private playerRoom = new Map<string, string>();
 
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private botTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private chatTimes = new Map<string, number[]>();
   private nextMessageId = 1;
   private readonly clock: () => number;
   private readonly onAutoUpdate: (room: Room) => void;
   private readonly maxRooms: number;
   private readonly random: () => number;
+  private readonly botDelayMs: number;
+  private readonly onClosed: (memberIds: string[]) => void;
 
-  constructor({ clock = Date.now, onAutoUpdate = () => {}, maxRooms = 1000, random = secureRandom }: RoomManagerOptions = {}) {
+  constructor({
+    clock = Date.now,
+    onAutoUpdate = () => {},
+    maxRooms = 1000,
+    random = secureRandom,
+    botDelayMs = 900,
+    onClosed = () => {},
+  }: RoomManagerOptions = {}) {
     this.clock = clock;
     this.onAutoUpdate = onAutoUpdate;
     this.maxRooms = maxRooms;
     this.random = random;
+    this.botDelayMs = botDelayMs;
+    this.onClosed = onClosed;
   }
 
   private ctx() {
@@ -186,12 +215,47 @@ export class RoomManager {
     room.lastActivity = Date.now();
     this.fillSeats(room);
 
-    if (room.players.length === 0) {
+    // Bots don't keep a room alive.
+    const people = room.players.filter((p) => !p.bot);
+    if (people.length === 0) {
+      const watchers = room.spectators.map((p) => p.id);
+      for (const id of watchers) this.playerRoom.delete(id);
       this.deleteRoom(room);
+      if (watchers.length) this.onClosed(watchers);
       return undefined;
     }
-    if (room.hostId === playerId) room.hostId = room.players[0].id;
+    if (room.hostId === playerId) room.hostId = people[0].id;
+    this.scheduleBots(room);
     return room;
+  }
+
+  // The host can fill empty seats with computer players between games.
+  addBot(playerId: string): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (room.hostId !== playerId) return { ok: false, error: 'NOT_HOST' };
+    if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
+    if (!GAMES[room.gameType]?.botMove) return { ok: false, error: 'GAME_UNAVAILABLE' };
+    if (room.players.length >= GAME_CATALOG[room.gameType].maxPlayers) return { ok: false, error: 'ROOM_FULL' };
+    let n = 1;
+    while (room.players.some((p) => p.id === `${BOT_PREFIX}${n}`)) n++;
+    room.players.push({ id: `${BOT_PREFIX}${n}`, name: `Bot ${n}`, bot: true });
+    room.rematchVotes = [];
+    room.lastActivity = Date.now();
+    return { ok: true, room };
+  }
+
+  removeBot(playerId: string, botId: unknown): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (room.hostId !== playerId) return { ok: false, error: 'NOT_HOST' };
+    if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
+    if (typeof botId !== 'string' || !isBot(botId) || !room.players.some((p) => p.id === botId)) return { ok: false, error: 'INVALID_MOVE' };
+    room.players = room.players.filter((p) => p.id !== botId);
+    room.rematchVotes = [];
+    this.fillSeats(room);
+    room.lastActivity = Date.now();
+    return { ok: true, room };
   }
 
   start(playerId: string): Result<{ room: Room }> {
@@ -216,6 +280,7 @@ export class RoomManager {
     this.settle(room);
     room.lastActivity = Date.now();
     this.armTimer(room);
+    this.scheduleBots(room);
     return { ok: true, room };
   }
 
@@ -231,6 +296,9 @@ export class RoomManager {
       handicap = room.options.handicap,
       turnTimer = room.options.turnTimer,
       houseRules = room.options.houseRules,
+      caroSize = room.options.caroSize,
+      caroBlock = room.options.caroBlock,
+      caNguaRules = room.options.caNguaRules,
     } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
@@ -238,7 +306,19 @@ export class RoomManager {
     if (!HOST_COLORS.includes(hostColor) || !HANDICAPS.includes(handicap)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (typeof turnTimer !== 'string' || !Object.hasOwn(TURN_TIMERS, turnTimer)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (!Array.isArray(houseRules) || !houseRules.every((r) => HOUSE_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
-    room.options = { ...room.options, timeControl, hostColor, handicap, turnTimer, houseRules: [...new Set(houseRules)] };
+    if (!CARO_SIZE_IDS.includes(caroSize) || typeof caroBlock !== 'boolean') return { ok: false, error: 'INVALID_OPTIONS' };
+    if (!Array.isArray(caNguaRules) || !caNguaRules.every((r) => CANGUA_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
+    room.options = {
+      ...room.options,
+      timeControl,
+      hostColor,
+      handicap,
+      turnTimer,
+      houseRules: [...new Set(houseRules)],
+      caroSize,
+      caroBlock,
+      caNguaRules: [...new Set(caNguaRules)],
+    };
     room.lastActivity = Date.now();
     return { ok: true, room };
   }
@@ -246,6 +326,10 @@ export class RoomManager {
   move(playerId: string, move: unknown): Result<{ room: Room }> {
     const room = this.roomOf(playerId);
     if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    return this.play(room, playerId, move);
+  }
+
+  private play(room: Room, playerId: string, move: unknown): Result<{ room: Room }> {
     if (room.status !== 'playing') return { ok: false, error: 'GAME_NOT_STARTED' };
 
     const game = GAMES[room.gameType]!;
@@ -263,6 +347,7 @@ export class RoomManager {
     this.settle(room);
     room.lastActivity = Date.now();
     this.armTimer(room);
+    this.scheduleBots(room);
     return { ok: true, room };
   }
 
@@ -273,7 +358,8 @@ export class RoomManager {
     if (!room.players.some((p) => p.id === playerId)) return { ok: false, error: 'NOT_A_PLAYER' };
     if (room.status !== 'finished') return { ok: false, error: 'GAME_IN_PROGRESS' };
     if (!room.rematchVotes.includes(playerId)) room.rematchVotes = [...room.rematchVotes, playerId];
-    if (room.players.every((p) => room.rematchVotes.includes(p.id))) return this.start(room.hostId);
+    // Bots are always up for another game.
+    if (room.players.every((p) => p.bot || room.rematchVotes.includes(p.id))) return this.start(room.hostId);
     return { ok: true, room };
   }
 
@@ -296,6 +382,7 @@ export class RoomManager {
     this.settle(room);
     room.lastActivity = Date.now();
     this.armTimer(room);
+    this.scheduleBots(room);
     return { ok: true, room };
   }
 
@@ -325,9 +412,10 @@ export class RoomManager {
     offlineSince: (id: string) => number | null = () => null,
   ): RoomView {
     const now = this.clock();
-    const info = (p: Player) => {
-      const since = isConnected(p.id) ? null : offlineSince(p.id);
-      return { ...p, connected: isConnected(p.id), offlineMs: since === null ? null : Math.max(0, now - since) };
+    const info = ({ id, name, bot = false }: Player) => {
+      const connected = bot || isConnected(id);
+      const since = connected ? null : offlineSince(id);
+      return { id, name, bot, connected, offlineMs: since === null ? null : Math.max(0, now - since) };
     };
     return {
       you: playerId,
@@ -351,7 +439,7 @@ export class RoomManager {
     const now = Date.now();
     for (const room of this.rooms.values()) {
       if (now - room.lastActivity < idleMs) continue;
-      const members = [...room.players, ...room.spectators];
+      const members = [...room.players, ...room.spectators].filter((p) => !p.bot);
       if (members.some((p) => isConnected(p.id))) continue;
       for (const p of members) this.playerRoom.delete(p.id);
       this.deleteRoom(room);
@@ -404,14 +492,43 @@ export class RoomManager {
       this.settle(room);
       room.lastActivity = Date.now();
       this.onAutoUpdate(room);
+      this.scheduleBots(room);
     }
     // Timers can fire a little early; this re-checks at the real deadline, or arms the next turn's.
     this.armTimer(room);
   }
 
+  // After every change, the first bot with something to do acts after a short pause. A pending
+  // pause is kept rather than restarted, so a stream of moves from people can't hold bots back;
+  // the bot decides on the state as it is when the pause ends.
+  private scheduleBots(room: Room): void {
+    const game = GAMES[room.gameType]!;
+    if (this.botTimers.has(room.code) || room.status !== 'playing' || !game.botMove || !room.players.some((p) => p.bot)) return;
+    const timer = setTimeout(() => {
+      this.botTimers.delete(room.code);
+      if (this.rooms.get(room.code) !== room || room.status !== 'playing') return;
+      for (const bot of room.players.filter((p) => p.bot)) {
+        let move: unknown;
+        try {
+          move = game.botMove!(room.state, bot.id, this.ctx());
+        } catch {
+          continue;
+        }
+        if (move && this.play(room, bot.id, move).ok) {
+          this.onAutoUpdate(room);
+          return;
+        }
+      }
+    }, this.botDelayMs);
+    timer.unref?.();
+    this.botTimers.set(room.code, timer);
+  }
+
   private deleteRoom(room: Room): void {
     clearTimeout(this.timers.get(room.code));
     this.timers.delete(room.code);
+    clearTimeout(this.botTimers.get(room.code));
+    this.botTimers.delete(room.code);
     this.rooms.delete(room.code);
   }
 
