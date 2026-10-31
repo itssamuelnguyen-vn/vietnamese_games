@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { RoomOptions } from '../types';
 import {
   BOARD,
-  MONTHS,
+  LOAN_BASE,
+  MAX_MONTHS,
   SALARY,
   START_CASH,
   bizPrice,
   chainFactor,
+  creditLimit,
   netWorth,
+  salePrice,
   typhuGame,
   visitFee,
   type Business,
@@ -37,7 +40,7 @@ const square = (id: string) => BOARD[index(id)] as ProvinceSquare;
 function game(ids = ['a', 'b'], extra: Partial<TyPhuState> = {}): TyPhuState {
   const s = typhuGame.setup(ids, options, { now: 0, random: seeded(1) }, null);
   const players = Object.fromEntries(ids.map((id) => [id, { ...s.players[id], hand: [1, 2, 3] }]));
-  return { ...s, seats: ids, players, turn: ids[0], events: Array(MONTHS).fill('normal'), ...extra };
+  return { ...s, seats: ids, players, turn: ids[0], events: Array(MAX_MONTHS).fill('normal'), ...extra };
 }
 
 function act(s: TyPhuState, player: string, move: TyPhuMove, random: () => number = seeded(2), now = 0) {
@@ -71,7 +74,9 @@ describe('co ti phu', () => {
       expect(s.players[id]).toMatchObject({ cash: START_CASH, debt: 0, position: 0 });
       expect(s.players[id].hand).toHaveLength(3);
     }
-    expect(s.events.toSorted()).toHaveLength(12);
+    // Three years of events, each year a shuffle of the same twelve.
+    expect(s.events).toHaveLength(36);
+    expect(s.events.slice(12, 24).toSorted()).toEqual(s.events.slice(0, 12).toSorted());
     expect(s.log[0]).toEqual({ kind: 'month', month: 1, event: s.events[0] });
   });
 
@@ -95,10 +100,16 @@ describe('co ti phu', () => {
     expect(() => act(bought, 'a', { type: 'roll' })).toThrow('NOT_YOUR_TURN');
   });
 
-  it('a move card moves exactly that far and is replaced', () => {
+  it('a move card moves exactly that far and is used up', () => {
     const s = act(game(), 'a', { type: 'card', index: 1 }, fixed(0.99));
     expect(s.players.a.position).toBe(2);
-    expect(s.players.a.hand).toEqual([1, 3, 8]);
+    expect(s.players.a.hand).toEqual([1, 3]);
+  });
+
+  it('passing the bus station earns a new move card', () => {
+    const s = act(at(game(), 'a', BOARD.length - 2), 'a', { type: 'card', index: 2 }, fixed(0.99));
+    expect(s.players.a.position).toBe(1);
+    expect(s.players.a.hand).toEqual([1, 2, 8]);
   });
 
   it('visitors pay every owner at a province', () => {
@@ -149,15 +160,67 @@ describe('co ti phu', () => {
     expect(visitFee([hue], hue, 'tet')).toBe(visitFee([hue], hue, 'normal'));
   });
 
-  it('borrows automatically when a player cannot pay', () => {
-    const businesses = [biz('b', 'dienbien', 'inn', 3)];
+  it('a player short of cash borrows within their limit', () => {
+    const businesses = [biz('b', 'dienbien', 'inn')];
     const s0 = game(['a', 'b'], { businesses });
     const poor = { ...s0, players: { ...s0.players, a: { ...s0.players.a, cash: 10 } } };
     const fee = visitFee(businesses, businesses[0], 'normal');
+    expect(fee).toBeLessThan(LOAN_BASE);
     const s = act(poor, 'a', { type: 'card', index: 1 });
     expect(s.players.a.debt).toBe(Math.ceil((fee - 10) / 50) * 50);
     expect(s.players.a.cash).toBe(10 + s.players.a.debt - fee);
     expect(s.log.some((e) => e.kind === 'loan' && e.auto)).toBe(true);
+  });
+
+  it('past the credit limit, businesses are sold to the bank at half price, cheapest first', () => {
+    const own = [biz('a', 'laichau', 'food'), biz('a', 'hanoi', 'shop')];
+    const businesses = [...own, biz('b', 'dienbien', 'shop', 3)];
+    const s0 = game(['a', 'b'], { businesses });
+    const fee = visitFee(businesses, businesses[2], 'normal');
+    const limit = creditLimit(s0, 'a');
+    const cash = fee - limit - salePrice(own[0]) + 10;
+    const s = act({ ...s0, players: { ...s0.players, a: { ...s0.players.a, cash } } }, 'a', { type: 'card', index: 1 });
+    expect(s.players.a.out).toBe(false);
+    expect(s.players.a.debt).toBe(limit);
+    // Only the cheap eatery had to go.
+    expect(s.businesses.filter((b) => b.owner === 'a').map((b) => b.id)).toEqual([own[1].id]);
+    expect(s.log.some((e) => e.kind === 'sell' && e.forced && e.amount === salePrice(own[0]))).toBe(true);
+    expect(s.players.b.cash).toBe(START_CASH + fee);
+  });
+
+  it('a player who cannot pay at all goes bankrupt, and the last one standing wins', () => {
+    const businesses = [biz('b', 'dienbien', 'shop', 3), biz('a', 'laichau', 'food')];
+    const s0 = game(['a', 'b', 'c'], { businesses });
+    const broke = { ...s0, players: { ...s0.players, a: { ...s0.players.a, cash: 0, debt: 5000 } } };
+    const s = act(broke, 'a', { type: 'card', index: 1 });
+    expect(s.players.a).toMatchObject({ out: true, bankrupt: true, cash: 0, debt: 0 });
+    expect(s.businesses.map((b) => b.owner)).toEqual(['b']);
+    // b only gets what a could raise: the eatery's sale.
+    expect(s.players.b.cash).toBe(START_CASH + salePrice(businesses[1]));
+    expect(s.log.at(-1)).toMatchObject({ kind: 'bankrupt', player: 'a' });
+    expect(s.turn).toBe('b');
+    expect(s.result).toBeNull();
+
+    const over = typhuGame.forfeit(s, 'c', { now: 0 }, 'left');
+    expect(over.result?.ranking).toEqual(['b', 'c', 'a']);
+  });
+
+  it('borrowing stops at the credit limit, and businesses can be sold at any time', () => {
+    const own = biz('b', 'hanoi', 'shop');
+    const s = game(['a', 'b'], { businesses: [own] });
+    const limit = creditLimit(s, 'b');
+    expect(limit).toBe(LOAN_BASE + Math.floor(own.invested / 2 / 50) * 50);
+    expect(() => act(s, 'b', { type: 'borrow', amount: limit + 50 })).toThrow('INVALID_MOVE');
+    const sold = act(s, 'b', { type: 'sell', id: own.id });
+    expect(sold.businesses).toEqual([]);
+    expect(sold.players.b.cash).toBe(START_CASH + salePrice(own));
+    expect(() => act(s, 'a', { type: 'sell', id: own.id })).toThrow('INVALID_MOVE');
+  });
+
+  it('visit fees grow every year', () => {
+    const b = biz('a', 'hanoi', 'food');
+    expect(visitFee([b], b, 'normal', 13)).toBeGreaterThan(visitFee([b], b, 'normal', 12));
+    expect(visitFee([b], b, 'normal', 25)).toBeGreaterThan(visitFee([b], b, 'normal', 13));
   });
 
   it('loans can be taken and repaid at any time', () => {
@@ -170,7 +233,8 @@ describe('co ti phu', () => {
 
   it('special squares: market draws a card, festival collects, bank pays a bonus', () => {
     const market = act(at(game(), 'a', special('market') - 1), 'a', { type: 'card', index: 0 }, fixed(0.3));
-    expect(market.players.a.hand).toHaveLength(4);
+    // The card played is used up and the market adds one.
+    expect(market.players.a.hand).toHaveLength(3);
 
     const festival = act(at(game(['a', 'b', 'c']), 'a', special('festival') - 1), 'a', { type: 'card', index: 0 }, fixed(0.3));
     expect(festival.players.a.cash).toBe(START_CASH + 60);
@@ -190,19 +254,19 @@ describe('co ti phu', () => {
     expect(act(s, 'a', { type: 'stay' }).turn).toBe('b');
   });
 
-  it('pays salary and interest at month end, and ends after month 12', () => {
+  it('pays salary and interest at month end, and the richest wins if time runs out', () => {
     let s = game();
-    s = { ...s, players: { ...s.players, b: { ...s.players.b, debt: 1000, cash: 1000 } } };
+    s = { ...s, players: { ...s.players, b: { ...s.players.b, debt: 500, cash: 1000 } } };
     // Both players land on rest stops with no choice to make: a then b.
     s = act(at(s, 'a', special('rest') - 1), 'a', { type: 'card', index: 0 });
     s = act(at(s, 'b', special('rest') - 1), 'b', { type: 'card', index: 0 });
     expect(s.month).toBe(2);
     expect(s.players.a.cash).toBe(START_CASH + SALARY);
-    expect(s.players.b.cash).toBe(1000 + SALARY - 100);
-    expect(s.log.some((e) => e.kind === 'interest' && e.player === 'b' && e.amount === 100)).toBe(true);
+    expect(s.players.b.cash).toBe(1000 + SALARY - 50);
+    expect(s.log.some((e) => e.kind === 'interest' && e.player === 'b' && e.amount === 50)).toBe(true);
     expect(s.turn).toBe('a');
 
-    const last = { ...s, month: MONTHS, players: { a: { ...s.players.a, hand: [1] }, b: { ...s.players.b, hand: [1] } } };
+    const last = { ...s, month: MAX_MONTHS, players: { a: { ...s.players.a, hand: [1] }, b: { ...s.players.b, hand: [1] } } };
     let end = act(at(last, 'a', special('rest') - 1), 'a', { type: 'card', index: 0 });
     end = act(at(end, 'b', special('rest') - 1), 'b', { type: 'card', index: 0 });
     expect(end.result?.ranking).toEqual(['a', 'b']);
@@ -256,18 +320,22 @@ describe('co ti phu', () => {
     expect(skipped.turn).toBe('b');
   });
 
-  it('bots play whole games to the end without getting stuck', () => {
-    for (let seed = 1; seed <= 60; seed++) {
+  it('bots play whole games to the end without getting stuck', { timeout: 60_000 }, () => {
+    let bankrupt = 0;
+    for (let seed = 1; seed <= 40; seed++) {
       const ids = Array.from({ length: 2 + (seed % 5) }, (_, i) => `bot:${i}`);
       const random = seeded(seed);
       let s = typhuGame.setup(ids, options, { now: 0, random }, null);
       for (let steps = 0; !s.result; steps++) {
-        expect(steps).toBeLessThan(1000);
+        expect(steps).toBeLessThan(5000);
         const [id, move] = ids.map((p) => [p, typhuGame.botMove!(s, p, { now: 0 })] as const).find(([, m]) => m) ?? [];
         expect(move).toBeTruthy();
         s = act(s, id!, move!, random);
       }
       expect(s.result.ranking).toHaveLength(ids.length);
+      bankrupt += ids.filter((id) => s.players[id].bankrupt).length;
     }
+    // Most games are decided by bankruptcies, not the time limit.
+    expect(bankrupt).toBeGreaterThan(40);
   });
 });

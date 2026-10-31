@@ -1,8 +1,8 @@
 import { TURN_TIMERS, type GameDefinition } from '../types';
 
 // Co ti phu ("tycoon"): an original property-trading game on a road through Vietnam's 34 provinces.
-// A game lasts 12 months; each month every player takes one turn. Players open businesses in
-// provinces, visitors pay every owner there, and the richest player after month 12 wins.
+// Each month every player takes one turn. Players open businesses in provinces and visitors pay
+// every owner there; whoever can't pay goes bankrupt, and the last player standing wins.
 // Display names (provinces, events) live in the client locale files.
 
 export type Region = 'north' | 'central' | 'south';
@@ -70,12 +70,16 @@ export const BOARD: Square[] = [
 
 export type EventId =
   | 'normal' | 'tet' | 'storm' | 'summer' | 'fireworks' | 'boom' | 'crisis' | 'rates' | 'inflation' | 'harvest' | 'coffee';
-// One event per month, shuffled at the start; two quiet months.
+// One event per month, reshuffled every year; two quiet months a year.
 const EVENT_DECK: EventId[] = ['normal', 'normal', 'tet', 'storm', 'summer', 'fireworks', 'boom', 'crisis', 'rates', 'inflation', 'harvest', 'coffee'];
 
-export const MONTHS = 12;
+export const YEAR = 12;
+// If nobody has gone bankrupt by then, the richest player wins.
+export const MAX_MONTHS = 36;
+// Anyone can borrow up to this much plus half of what their businesses are worth.
+export const LOAN_BASE = 500;
 export const START_CASH = 2000;
-export const SALARY = 150;
+export const SALARY = 50;
 export const AIRPORT_FEE = 100;
 export const FESTIVAL_GIFT = 30;
 export const BANK_BONUS = 50;
@@ -87,10 +91,11 @@ export const OFFER_MS = 30_000;
 const TIER_PRICE = [0, 80, 120, 180, 250, 320];
 const BIZ_FACTOR: Record<BizType, number> = { food: 1, inn: 1.5, shop: 2 };
 // A visit pays this share of the business price, times the level multiplier.
-const FEE_RATE = 0.5;
-const LEVEL_FEE = [0, 1, 2.5, 4.5];
+const FEE_RATE = 1.5;
+const LEVEL_FEE = [0, 1, 3, 6];
 export const MAX_LEVEL = 3;
 const UPGRADE_RATE = 0.6;
+const YEAR_GROWTH = 1.5;
 const LOG_LIMIT = 80;
 const MAX_TRADE_CASH = 1_000_000;
 
@@ -111,7 +116,9 @@ export interface TyPhuPlayer {
   debt: number;
   // Move cards: each lets the player move exactly that many squares.
   hand: number[];
+  // Left the table or went bankrupt: no longer playing.
   out: boolean;
+  bankrupt: boolean;
   // Landed on the bank this month while in debt: no interest at month end.
   interestWaived: boolean;
   // Month a bot last proposed a trade, so it doesn't pester people.
@@ -145,12 +152,15 @@ export type TyPhuLogEntry =
   | { kind: 'loan'; player: string; amount: number; auto: boolean }
   | { kind: 'repay'; player: string; amount: number }
   | { kind: 'interest'; player: string; amount: number }
+  | { kind: 'sell'; player: string; square: number; biz: BizType; amount: number; forced: boolean }
+  | { kind: 'bankrupt'; player: string }
   | { kind: 'trade'; from: string; to: string }
   | { kind: 'month'; month: number; event: EventId }
   | { kind: 'left'; player: string };
 
 export interface TyPhuResult {
-  // Richest first; players who left come last.
+  // The last player standing (or the richest, if time ran out) first; then everyone else in
+  // reverse order of going bankrupt or leaving.
   ranking: string[];
   worth: Record<string, number>;
 }
@@ -160,6 +170,8 @@ export interface TyPhuState {
   seats: string[];
   players: Record<string, TyPhuPlayer>;
   businesses: Business[];
+  // Players who went bankrupt or left, in that order (the log is trimmed, so it can't tell).
+  eliminated: string[];
   month: number;
   events: EventId[];
   turn: string | null;
@@ -183,13 +195,25 @@ export type TyPhuMove =
   | { type: 'stay' }
   | { type: 'borrow'; amount: number }
   | { type: 'repay'; amount: number }
+  | { type: 'sell'; id: string }
   | { type: 'offer'; to: string; giveCash: number; getCash: number; give: string[]; get: string[] }
   | { type: 'accept'; id: number }
   | { type: 'decline'; id: number }
   | { type: 'cancel'; id: number };
 
 export interface TyPhuView {
-  seats: { id: string; position: number; cash: number; debt: number; worth: number; cards: number; out: boolean }[];
+  seats: {
+    id: string;
+    position: number;
+    cash: number;
+    debt: number;
+    worth: number;
+    // How much more this player may borrow.
+    credit: number;
+    cards: number;
+    out: boolean;
+    bankrupt: boolean;
+  }[];
   businesses: Business[];
   // The viewer's own move cards (empty for spectators).
   hand: number[];
@@ -261,9 +285,26 @@ export function chainFactor(businesses: Business[], owner: string, type: BizType
 }
 
 // What a visitor pays the owner of this business this month.
-export function visitFee(businesses: Business[], b: Business, event: EventId): number {
+// The economy grows: every new year all visit fees go up, so games can't drag on forever.
+export function yearFactor(month: number): number {
+  return 1 + Math.floor((month - 1) / YEAR) * YEAR_GROWTH;
+}
+
+export function visitFee(businesses: Business[], b: Business, event: EventId, month = 1): number {
   const square = BOARD[b.square] as ProvinceSquare;
-  return round10(bizPrice(square, b.type) * FEE_RATE * LEVEL_FEE[b.level] * chainFactor(businesses, b.owner, b.type) * eventFactor(event, square));
+  return round10(
+    bizPrice(square, b.type) * FEE_RATE * LEVEL_FEE[b.level] * chainFactor(businesses, b.owner, b.type) * eventFactor(event, square) * yearFactor(month),
+  );
+}
+
+// The bank buys businesses back at half of what was put into them.
+export function salePrice(b: Business): number {
+  return Math.floor(b.invested / 20) * 10;
+}
+
+export function creditLimit(s: Pick<TyPhuState, 'businesses'>, id: string): number {
+  const invested = s.businesses.filter((b) => b.owner === id).reduce((sum, b) => sum + b.invested, 0);
+  return LOAN_BASE + Math.floor(invested / 2 / LOAN_STEP) * LOAN_STEP;
 }
 
 export function netWorth(s: Pick<TyPhuState, 'players' | 'businesses'>, id: string): number {
@@ -286,10 +327,10 @@ export function upgradable(s: Pick<TyPhuState, 'businesses'>, square: number, pl
 }
 
 // Fees a player would pay on landing here this month.
-export function feesAt(s: Pick<TyPhuState, 'businesses' | 'players'>, square: number, player: string, event: EventId): number {
+export function feesAt(s: Pick<TyPhuState, 'businesses' | 'players' | 'month'>, square: number, player: string, event: EventId): number {
   return s.businesses
     .filter((b) => b.square === square && b.owner !== player && !s.players[b.owner]?.out)
-    .reduce((sum, b) => sum + visitFee(s.businesses, b, event), 0);
+    .reduce((sum, b) => sum + visitFee(s.businesses, b, event, s.month), 0);
 }
 
 // ---- State helpers ----
@@ -304,13 +345,50 @@ function updatePlayer(s: TyPhuState, id: string, patch: Partial<TyPhuPlayer>): T
   return { ...s, players: { ...s.players, [id]: { ...s.players[id], ...patch } } };
 }
 
-// Takes money from a player; whatever their cash can't cover is borrowed automatically.
-function charge(s: TyPhuState, id: string, amount: number): TyPhuState {
+function sell(s: TyPhuState, b: Business, forced: boolean): TyPhuState {
+  const amount = salePrice(b);
+  let next = credit(s, b.owner, amount);
+  next = {
+    ...next,
+    businesses: next.businesses.filter((x) => x.id !== b.id),
+    offers: next.offers.filter((o) => !o.give.includes(b.id) && !o.get.includes(b.id)),
+  };
+  return withLog(next, { kind: 'sell', player: b.owner, square: b.square, biz: b.type, amount, forced });
+}
+
+function goBankrupt(s: TyPhuState, id: string): TyPhuState {
+  const next = updatePlayer(s, id, { out: true, bankrupt: true, cash: 0, debt: 0, hand: [] });
+  return withLog(
+    {
+      ...next,
+      eliminated: [...next.eliminated, id],
+      businesses: next.businesses.filter((b) => b.owner !== id),
+      offers: next.offers.filter((o) => o.from !== id && o.to !== id),
+    },
+    { kind: 'bankrupt', player: id },
+  );
+}
+
+// Takes money from a player. Short of cash, they borrow up to their credit limit, then sell
+// businesses to the bank (cheapest first); if even that isn't enough they go bankrupt.
+// Returns the new state and how much was actually paid.
+function charge(s: TyPhuState, id: string, amount: number): [TyPhuState, number] {
+  let next = s;
   const p = s.players[id];
-  const cash = p.cash - amount;
-  if (cash >= 0) return updatePlayer(s, id, { cash });
-  const loan = Math.ceil(-cash / LOAN_STEP) * LOAN_STEP;
-  return withLog(updatePlayer(s, id, { cash: cash + loan, debt: p.debt + loan }), { kind: 'loan', player: id, amount: loan, auto: true });
+  if (p.cash >= amount) return [updatePlayer(next, id, { cash: p.cash - amount }), amount];
+  const room = Math.max(0, creditLimit(next, id) - p.debt);
+  const loan = Math.min(Math.ceil((amount - p.cash) / LOAN_STEP) * LOAN_STEP, Math.floor(room / LOAN_STEP) * LOAN_STEP);
+  if (loan > 0) {
+    next = withLog(updatePlayer(next, id, { cash: p.cash + loan, debt: p.debt + loan }), { kind: 'loan', player: id, amount: loan, auto: true });
+  }
+  const owned = next.businesses.filter((b) => b.owner === id).sort((a, b) => a.invested - b.invested);
+  for (const b of owned) {
+    if (next.players[id].cash >= amount) break;
+    next = sell(next, b, true);
+  }
+  const cash = next.players[id].cash;
+  if (cash >= amount) return [updatePlayer(next, id, { cash: cash - amount }), amount];
+  return [goBankrupt(next, id), cash];
 }
 
 function credit(s: TyPhuState, id: string, amount: number): TyPhuState {
@@ -323,10 +401,9 @@ function startTurn(s: TyPhuState, turn: string | null, now: number): TyPhuState 
 
 function finish(s: TyPhuState): TyPhuState {
   const worth = Object.fromEntries(s.seats.map((id) => [id, netWorth(s, id)]));
-  const leftOrder = s.log.flatMap((e) => (e.kind === 'left' ? [e.player] : []));
   const ranking = [
     ...activeIds(s).sort((a, b) => worth[b] - worth[a] || s.seats.indexOf(a) - s.seats.indexOf(b)),
-    ...leftOrder.reverse(),
+    ...[...s.eliminated].reverse(),
   ];
   return { ...s, turn: null, turnDeadline: null, offers: [], result: { ranking, worth } };
 }
@@ -339,11 +416,12 @@ function endMonth(s: TyPhuState, now: number): TyPhuState {
     const p = next.players[id];
     if (p.debt > 0 && !p.interestWaived) {
       const interest = Math.ceil((p.debt * interestRate(event)) / 10) * 10;
-      next = withLog(charge(next, id, interest), { kind: 'interest', player: id, amount: interest });
+      next = withLog(next, { kind: 'interest', player: id, amount: interest });
+      [next] = charge(next, id, interest);
     }
-    next = updatePlayer(next, id, { interestWaived: false });
+    if (!next.players[id].out) next = updatePlayer(next, id, { interestWaived: false });
   }
-  if (s.month >= MONTHS) return finish({ ...next, month: MONTHS });
+  if (activeIds(next).length <= 1 || s.month >= MAX_MONTHS) return finish(next);
   next = { ...next, month: s.month + 1 };
   next = withLog(next, { kind: 'month', month: next.month, event: eventOf(next) });
   return startTurn(next, activeIds(next)[0] ?? null, now);
@@ -351,6 +429,7 @@ function endMonth(s: TyPhuState, now: number): TyPhuState {
 
 // Passes the turn on; after the last seat the month ends.
 function endTurn(s: TyPhuState, now: number): TyPhuState {
+  if (activeIds(s).length <= 1) return finish(s);
   const from = s.turn;
   const i = from ? s.seats.indexOf(from) : -1;
   const later = s.seats.slice(i + 1).find((id) => !s.players[id].out);
@@ -372,14 +451,17 @@ function land(s: TyPhuState, id: string, now: number, random: () => number): TyP
     case 'province': {
       const owners = s.businesses
         .filter((b) => b.square === pos && b.owner !== id && !s.players[b.owner].out)
-        .map((b) => ({ id: b.owner, amount: visitFee(s.businesses, b, event) }))
+        .map((b) => ({ id: b.owner, amount: visitFee(s.businesses, b, event, s.month) }))
         .filter((o) => o.amount > 0);
       const total = owners.reduce((sum, o) => sum + o.amount, 0);
       if (total > 0) {
         next = withLog(next, { kind: 'pay', player: id, square: pos, total, owners });
-        next = charge(next, id, total);
-        for (const o of owners) next = credit(next, o.id, o.amount);
+        let paid: number;
+        [next, paid] = charge(next, id, total);
+        // A player who goes bankrupt pays out what they had, shared in proportion.
+        for (const o of owners) next = credit(next, o.id, paid === total ? o.amount : Math.floor((o.amount * paid) / total));
       }
+      if (next.players[id].out) return endTurn(next, now);
       return hasChoice(next, id) ? { ...next, phase: 'act' } : endTurn(next, now);
     }
     case 'market': {
@@ -394,10 +476,14 @@ function land(s: TyPhuState, id: string, now: number, random: () => number): TyP
       return endTurn(withLog(next, { kind: 'bank', player: id, bonus: inDebt ? null : BANK_BONUS }), now);
     }
     case 'festival': {
-      const others = activeIds(next).filter((o) => o !== id);
-      for (const o of others) next = charge(next, o, FESTIVAL_GIFT);
-      next = credit(next, id, FESTIVAL_GIFT * others.length);
-      return endTurn(withLog(next, { kind: 'festival', player: id, total: FESTIVAL_GIFT * others.length }), now);
+      let total = 0;
+      for (const o of activeIds(next).filter((o) => o !== id)) {
+        let paid: number;
+        [next, paid] = charge(next, o, FESTIVAL_GIFT);
+        total += paid;
+      }
+      next = credit(next, id, total);
+      return endTurn(withLog(next, { kind: 'festival', player: id, total }), now);
     }
     case 'airport':
       return next.players[id].cash >= AIRPORT_FEE ? { ...next, phase: 'fly' } : endTurn(next, now);
@@ -406,8 +492,12 @@ function land(s: TyPhuState, id: string, now: number, random: () => number): TyP
   }
 }
 
-function moveBy(s: TyPhuState, id: string, steps: number): TyPhuState {
-  return updatePlayer(s, id, { position: (s.players[id].position + steps) % BOARD.length });
+// Passing or reaching the bus station starts a new lap and earns a move card.
+function moveBy(s: TyPhuState, id: string, steps: number, random: () => number): TyPhuState {
+  const p = s.players[id];
+  const lapped = p.position + steps >= BOARD.length;
+  const hand = lapped && p.hand.length < MAX_HAND ? [...p.hand, drawCard(random)] : p.hand;
+  return updatePlayer(s, id, { position: (p.position + steps) % BOARD.length, hand });
 }
 
 const isAmount = (n: unknown, max = MAX_TRADE_CASH): n is number => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= max;
@@ -471,7 +561,8 @@ function botMoveChoice(s: TyPhuState, id: string): TyPhuMove {
   for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) dice += landingScore(s, id, (pos + a + b) % BOARD.length) / 36;
   const hand = s.players[id].hand;
   let best = -1;
-  let bestScore = dice + 15; // keep cards unless one is clearly better
+  // Cards are scarce, so keep them unless one is clearly better than taking a chance.
+  let bestScore = dice + 80;
   hand.forEach((v, i) => {
     const score = landingScore(s, id, (pos + v) % BOARD.length);
     if (score > bestScore) [best, bestScore] = [i, score];
@@ -570,10 +661,14 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
       const j = Math.floor(random() * (i + 1));
       [seats[i], seats[j]] = [seats[j], seats[i]];
     }
-    const events = [...EVENT_DECK];
-    for (let i = events.length - 1; i > 0; i--) {
-      const j = Math.floor(random() * (i + 1));
-      [events[i], events[j]] = [events[j], events[i]];
+    const events: EventId[] = [];
+    for (let year = 0; year < MAX_MONTHS / YEAR; year++) {
+      const deck = [...EVENT_DECK];
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+      }
+      events.push(...deck);
     }
     const players = Object.fromEntries(
       seats.map((id) => [
@@ -585,6 +680,7 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
           debt: 0,
           hand: Array.from({ length: HAND_SIZE }, () => drawCard(random)),
           out: false,
+          bankrupt: false,
           interestWaived: false,
           lastOfferMonth: 0,
         },
@@ -594,6 +690,7 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
       seats,
       players,
       businesses: [],
+      eliminated: [],
       month: 1,
       events,
       turn: null,
@@ -619,6 +716,7 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
     switch (move.type) {
       case 'borrow': {
         if (!isAmount(move.amount, 100_000) || move.amount === 0 || move.amount % LOAN_STEP !== 0) return fail;
+        if (me.debt + move.amount > creditLimit(state, playerId)) return fail;
         const next = updatePlayer(state, playerId, { cash: me.cash + move.amount, debt: me.debt + move.amount });
         return { ok: true, state: withLog(next, { kind: 'loan', player: playerId, amount: move.amount, auto: false }) };
       }
@@ -627,6 +725,10 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
         if (!isAmount(move.amount) || amount <= 0) return fail;
         const next = updatePlayer(state, playerId, { cash: me.cash - amount, debt: me.debt - amount });
         return { ok: true, state: withLog(next, { kind: 'repay', player: playerId, amount }) };
+      }
+      case 'sell': {
+        const biz = state.businesses.find((b) => b.id === move.id && b.owner === playerId);
+        return biz ? { ok: true, state: sell(state, biz, false) } : fail;
       }
       case 'offer': {
         const offer = { from: playerId, to: move.to, giveCash: move.giveCash, getCash: move.getCash, give: move.give, get: move.get };
@@ -663,10 +765,10 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
         } else {
           if (!Number.isInteger(move.index) || move.index < 0 || move.index >= me.hand.length) return fail;
           steps = me.hand[move.index];
-          const hand = me.hand.filter((_, i) => i !== move.index);
-          next = updatePlayer(next, playerId, { hand: [...hand, drawCard(random)] });
+          // Cards are scarce: new ones only come from the market or passing the bus station.
+          next = updatePlayer(next, playerId, { hand: me.hand.filter((_, i) => i !== move.index) });
         }
-        next = moveBy(next, playerId, steps);
+        next = moveBy(next, playerId, steps, random);
         const to = next.players[playerId].position;
         next = { ...next, lastMove: { player: playerId, dice, value: steps, from: pos, to } };
         next = withLog(next, dice ? { kind: 'roll', player: playerId, dice, to, auto: false } : { kind: 'card', player: playerId, value: steps, to });
@@ -717,6 +819,7 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
     let next: TyPhuState = updatePlayer(state, playerId, { out: true, hand: [] });
     next = {
       ...next,
+      eliminated: [...next.eliminated, playerId],
       businesses: next.businesses.filter((b) => b.owner !== playerId),
       offers: next.offers.filter((o) => o.from !== playerId && o.to !== playerId),
     };
@@ -733,13 +836,23 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
     return {
       seats: state.seats.map((id) => {
         const p = state.players[id];
-        return { id, position: p.position, cash: p.cash, debt: p.debt, worth: netWorth(state, id), cards: p.hand.length, out: p.out };
+        return {
+          id,
+          position: p.position,
+          cash: p.cash,
+          debt: p.debt,
+          worth: netWorth(state, id),
+          credit: Math.max(0, creditLimit(state, id) - p.debt),
+          cards: p.hand.length,
+          out: p.out,
+          bankrupt: p.bankrupt,
+        };
       }),
       businesses: state.businesses,
       hand: state.players[playerId]?.hand ?? [],
       month: state.month,
       event: eventOf(state),
-      nextEvent: state.month < MONTHS ? state.events[state.month] : null,
+      nextEvent: state.month < MAX_MONTHS ? state.events[state.month] : null,
       turn: state.turn,
       phase: state.phase,
       lastMove: state.lastMove,

@@ -12,7 +12,7 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 | Chess | Playable: clocks, draw offers, takebacks, premoves, promotion picker, move review, opening names, PGN/FEN export, sounds |
 | Xiangqi | Playable: own rules engine (perft-verified), Asian rules (no legal moves loses, perpetual check loses, repetition and 60-move draws), Vietnamese and WXF notation, file numbers, opening names, captured pieces, FEN/PGN export, Chinese or letter piece labels, handicap (odds) games, same clocks/draws/takebacks as chess |
 | Tiến lên miền Nam | Playable: 2-4 players, house rules shown in-app (Luật chơi), chops, instant wins, full ranking, per-turn timer, optional house rules and scoring, room scoreboard, hints, drag-to-arrange hand |
-| Cờ tỉ phú (property-trading game) | Playable: original design on a road through Vietnam's 34 provinces, 2-6 players, 12 months with monthly events, shared provinces with business chains, move cards or dice, loans, player trades, computer players (bots), in-app rules |
+| Cờ tỉ phú (property-trading game) | Playable: original design on a road through Vietnam's 34 provinces, 2-6 players, last player not bankrupt wins (3-year limit), monthly events and yearly fee growth, shared provinces with business chains, dice or scarce move cards, credit limits and forced sales, player trades, computer players (bots), in-app rules |
 | Caro (gomoku), Cờ cá ngựa (horse race), Mậu binh, Sâm lốc, Color Switch (original colour-matching card game), Vietnamese and English word chain, Ma sói (werewolf), Bầu cua, Xì dách | Planned, listed in the lobby as coming soon |
 
 ## Running locally

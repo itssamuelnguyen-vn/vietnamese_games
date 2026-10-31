@@ -3638,3 +3638,17 @@ main {
   height: 9px;
   vertical-align: middle;
 }
+
+.tp-year-fees {
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.tp-details-list li:has(.tp-sell) {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.tp-sell {
+  padding: 0.25rem 0.6rem;
+}

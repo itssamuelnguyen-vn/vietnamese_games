@@ -3,12 +3,16 @@ import {
   AIRPORT_FEE,
   BOARD,
   LOAN_STEP,
+  MAX_MONTHS,
+  YEAR,
   bizPrice,
   eventFactor,
   freeTypes,
   upgradable,
   upgradePrice,
+  salePrice,
   visitFee,
+  yearFactor,
   type Business,
   type BizType,
   type RoomView,
@@ -132,7 +136,18 @@ function describe(t: Strings, e: TyPhuLogEntry, name: (id: string) => string): s
       return L.month(e.month, t.typhu.events[e.event]);
     case 'left':
       return L.left(name(e.player));
+    case 'sell':
+      return (e.forced ? L.forcedSell : L.sell)(name(e.player), t.typhu.biz[e.biz], place(e.square), m(e.amount));
+    case 'bankrupt':
+      return L.bankrupt(name(e.player));
   }
+}
+
+function logTone(e: TyPhuLogEntry): string {
+  if (e.kind === 'bankrupt' || (e.kind === 'sell' && e.forced)) return 'chop';
+  if (e.kind === 'pay' || e.kind === 'interest') return 'pass';
+  if (e.kind === 'buy' || e.kind === 'upgrade' || e.kind === 'trade') return 'finish';
+  return '';
 }
 
 export function TyPhuGame({ room, view, onLeave }: Props) {
@@ -226,6 +241,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
 
   let status: string;
   if (view.result) status = T.resultTitle;
+  else if (mySeat?.bankrupt) status = T.youBankrupt;
   else if (!seated) status = view.turn ? T.turnOf(name(view.turn)) : T.spectating;
   else if (!myTurn) status = view.turn ? T.turnOf(name(view.turn)) + '…' : '';
   else if (view.phase === 'move') status = T.movePrompt;
@@ -243,12 +259,12 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
           colorOf={color}
           subtitle={(id) => {
             const seat = view.seats.find((s) => s.id === id);
+            if (!seat) return null;
+            if (seat.bankrupt) return <span className="tag tag-danger">{T.bankruptTag}</span>;
             return (
-              seat && (
-                <>
-                  <span className="tp-owner-dot" style={{ '--owner': color(id) } as CSSProperties} /> {T.worth} {money(seat.worth)}
-                </>
-              )
+              <>
+                <span className="tp-owner-dot" style={{ '--owner': color(id) } as CSSProperties} /> {T.worth} {money(seat.worth)}
+              </>
             );
           }}
         />
@@ -262,7 +278,8 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
         <div className="tp-calendar card">
           <div className="tp-month">
             <span className="tp-month-num">{T.month(view.month)}</span>
-            {view.month === 12 && !view.result && <span className="tag tag-gold">{T.finalMonth}</span>}
+            {yearFactor(view.month) > 1 && <span className="tp-year-fees">{T.yearFees(money(yearFactor(view.month)))}</span>}
+            {view.month > MAX_MONTHS - YEAR && !view.result && <span className="tag tag-gold">{T.finalYear}</span>}
           </div>
           <div className={`tp-event ev-${view.event}`}>
             <span className="eyebrow">{T.thisMonth}</span>
@@ -355,12 +372,14 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                     <TrophyIcon />
                   </span>
                   <h2>{myPlace === 1 ? T.youWon : myPlace ? T.youPlaced(myPlace) : T.resultTitle}</h2>
+                  <p className="muted">{view.seats.filter((s) => !s.out).length > 1 ? T.timeUp : T.lastStanding}</p>
                 </header>
                 <ol className="tl-podium">
                   {view.result.ranking.map((id, i) => {
                     const seat = view.seats.find((s) => s.id === id)!;
                     const owned = view.businesses.filter((b) => b.owner === id).length;
                     const last = i === view.result!.ranking.length - 1;
+                    const tag = seat.bankrupt ? T.bankruptTag : seat.out ? t.tienlen.left : null;
                     return (
                       <li key={id} className={`medal-${last ? 'last' : i + 1} ${id === me ? 'me' : ''}`}>
                         <span className="tl-medal">{i + 1}</span>
@@ -371,7 +390,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                             {T.cash} {money(seat.cash)} · {T.debt} {money(seat.debt)} · 🏠 {owned}
                           </span>
                         </span>
-                        <span className="tl-points up">{money(view.result!.worth[id])}</span>
+                        {tag ? <span className="tag tag-danger tl-points">{tag}</span> : <span className="tl-points up">{money(view.result!.worth[id])}</span>}
                       </li>
                     );
                   })}
@@ -401,6 +420,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             name={name}
             color={color}
             onClose={() => setSelected(null)}
+            onSell={(id) => send({ type: 'sell', id })}
             flyButton={
               flyTarget !== null && (
                 <button className="btn btn-primary" disabled={cash < AIRPORT_FEE} onClick={() => send({ type: 'fly', to: flyTarget })}>
@@ -432,6 +452,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
               <button className="btn btn-primary btn-lg" onClick={() => send({ type: 'roll' })}>
                 🎲 {T.roll}
               </button>
+              {view.hand.length === 0 && <p className="muted small">{T.noCards}</p>}
               <div className="tp-cards" aria-label={T.cardsTitle}>
                 {view.hand.map((v, i) => (
                   <button
@@ -459,7 +480,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             <div className="tp-choices">
               {freeTypes(view, here).map((type) => {
                 const price = bizPrice(hereSquare, type, view.event);
-                const fee = visitFee([], { id: '', square: here, owner: me, type, level: 1, invested: 0 }, 'normal');
+                const fee = visitFee([], { id: '', square: here, owner: me, type, level: 1, invested: 0 }, 'normal', view.month);
                 return (
                   <button key={type} className="btn btn-secondary tp-choice" disabled={cash < price} onClick={() => send({ type: 'buy', biz: type })}>
                     <span>
@@ -473,7 +494,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
               })}
               {upgradable(view, here, me).map((b) => {
                 const price = upgradePrice(hereSquare, b.type, view.event);
-                const fee = visitFee([], { ...b, level: b.level + 1 }, 'normal');
+                const fee = visitFee([], { ...b, level: b.level + 1 }, 'normal', view.month);
                 return (
                   <button key={b.id} className="btn btn-secondary tp-choice" disabled={cash < price} onClick={() => send({ type: 'upgrade', id: b.id })}>
                     <span>
@@ -524,12 +545,14 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                 <strong>{money(mySeat!.worth)}</strong>
               </div>
               <div className="tp-bank" title={T.interestNote}>
-                <span className="muted small">🏦 {T.bank}</span>
+                <span className="muted small">
+                  🏦 {T.bank} · {T.creditLeft(money(mySeat!.credit))}
+                </span>
                 <div className="tp-bank-buttons">
-                  <button className="btn btn-secondary btn-sm" onClick={() => send({ type: 'borrow', amount: 100 })}>
+                  <button className="btn btn-secondary btn-sm" disabled={mySeat!.credit < 100} onClick={() => send({ type: 'borrow', amount: 100 })}>
                     {T.borrow(money(100))}
                   </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => send({ type: 'borrow', amount: 500 })}>
+                  <button className="btn btn-secondary btn-sm" disabled={mySeat!.credit < 500} onClick={() => send({ type: 'borrow', amount: 500 })}>
                     {T.borrow(money(500))}
                   </button>
                   <button className="btn btn-secondary btn-sm" disabled={mySeat!.debt === 0 || mySeat!.cash < LOAN_STEP} onClick={() => send({ type: 'repay', amount: Math.min(mySeat!.debt, mySeat!.cash) })}>
@@ -571,7 +594,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                     {describe(t, entry, name)}
                   </li>
                 ) : (
-                  <li key={i} className={`tl-log-row ${'player' in entry && entry.player === me ? 'mine' : ''} ${entry.kind === 'pay' || entry.kind === 'interest' ? 'pass' : entry.kind === 'buy' || entry.kind === 'upgrade' || entry.kind === 'trade' ? 'finish' : ''}`}>
+                  <li key={i} className={`tl-log-row ${'player' in entry && entry.player === me ? 'mine' : ''} ${logTone(entry)}`}>
                     <Avatar id={'player' in entry ? entry.player : entry.from} name={player('player' in entry ? entry.player : entry.from)?.name ?? '?'} size={22} color={color('player' in entry ? entry.player : entry.from)} />
                     <span className="tl-log-text">{describe(t, entry, name)}</span>
                   </li>
@@ -598,6 +621,7 @@ function SquareDetails({
   name,
   color,
   onClose,
+  onSell,
   flyButton,
 }: {
   index: number;
@@ -606,6 +630,7 @@ function SquareDetails({
   name: (id: string) => string;
   color: (id: string) => string | undefined;
   onClose: () => void;
+  onSell: (id: string) => void;
   flyButton: ReactNode;
 }) {
   const { t } = useI18n();
@@ -638,8 +663,13 @@ function SquareDetails({
                 {BIZ_ICON[b.type]} {T.biz[b.type]} · {T.level(b.level)} · {b.owner === me ? t.room.you : name(b.owner)}
               </span>
               <span className="muted small">
-                {T.fee} {T.money(visitFee(view.businesses, b, view.event))}
+                {T.fee} {T.money(visitFee(view.businesses, b, view.event, view.month))}
               </span>
+              {b.owner === me && !view.result && (
+                <button className="btn btn-ghost btn-sm tp-sell" title={T.sellHint} onClick={() => onSell(b.id)}>
+                  {T.sellFor(T.money(salePrice(b)))}
+                </button>
+              )}
             </li>
           ))}
           {freeTypes(view, index).map((type) => (
