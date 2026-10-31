@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { GAME_CATALOG, type ErrorCode, type GameType } from '@vg/shared';
-import { api, loadSetting, playerId, saveSetting } from '../socket';
-import { errorText, t } from '../i18n';
+import { api, playerId } from '../socket';
+import { loadSetting, saveSetting } from '../settings';
+import { useI18n } from '../i18n';
 import { Avatar } from './Avatar';
 import { CODE_LENGTH, CodeInput } from './CodeInput';
 import { toast } from './Toaster';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function Lobby({ initialCode, connected }: Props) {
+  const { t } = useI18n();
   const [name, setName] = useState(() => loadSetting('vg:name') ?? '');
   const [code, setCode] = useState(initialCode.slice(0, CODE_LENGTH));
   const [busy, setBusy] = useState(false);
@@ -23,7 +25,7 @@ export function Lobby({ initialCode, connected }: Props) {
 
   async function run(action: () => Promise<{ ok: true } | { ok: false; error: ErrorCode }>): Promise<boolean> {
     if (!trimmedName) {
-      toast(errorText('NAME_REQUIRED'));
+      toast(t.errors.NAME_REQUIRED);
       nameRef.current?.focus();
       setNudgeName(true);
       setTimeout(() => setNudgeName(false), 600);
@@ -33,7 +35,7 @@ export function Lobby({ initialCode, connected }: Props) {
     setBusy(true);
     const r = await action();
     setBusy(false);
-    if (!r.ok) toast(errorText(r.error));
+    if (!r.ok) toast(t.errors[r.error]);
     return r.ok;
   }
 

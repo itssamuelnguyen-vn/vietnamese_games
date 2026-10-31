@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { t } from '../i18n';
+import { useI18n } from '../i18n';
 
 export const CODE_LENGTH = 4;
 
@@ -10,6 +10,7 @@ interface Props {
 
 // One real input (so typing, pasting and mobile keyboards just work) drawn as separate boxes.
 export function CodeInput({ value, onChange }: Props) {
+  const { t } = useI18n();
   const [focused, setFocused] = useState(false);
   const active = Math.min(value.length, CODE_LENGTH - 1);
 

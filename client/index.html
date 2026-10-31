@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title></title>
+    <script>
+      // Apply the saved (or system) theme and language before first paint; mirrors src/theme.ts and src/i18n.
+      (function () {
+        var theme, locale;
+        try {
+          theme = localStorage.getItem('vg:theme');
+          locale = localStorage.getItem('vg:locale');
+        } catch (e) {}
+        if (theme !== 'light' && theme !== 'dark') {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = theme;
+        if (locale === 'en') document.documentElement.lang = 'en';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

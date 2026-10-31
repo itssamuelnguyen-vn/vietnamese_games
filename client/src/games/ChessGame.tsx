@@ -3,7 +3,7 @@ import { Chess, type PieceSymbol, type Square } from 'chess.js';
 import { Chessboard, defaultPieces } from 'react-chessboard';
 import type { ChessColor, ChessMove, ChessView, RoomView } from '@vg/shared';
 import { api, playerId } from '../socket';
-import { errorText, t } from '../i18n';
+import { useI18n, type Strings } from '../i18n';
 import { Avatar } from '../components/Avatar';
 import { toast } from '../components/Toaster';
 import { startGame } from '../components/roomActions';
@@ -37,6 +37,7 @@ function capturedPieces(chess: Chess) {
 }
 
 export function ChessGame({ room, view }: Props) {
+  const { t } = useI18n();
   const myColor: ChessColor | null = view.white === playerId ? 'w' : view.black === playerId ? 'b' : null;
   const topColor: ChessColor = myColor === 'b' ? 'w' : 'b';
   const bottomColor: ChessColor = topColor === 'w' ? 'b' : 'w';
@@ -82,7 +83,7 @@ export function ChessGame({ room, view }: Props) {
     const r = await api.move(move);
     if (!r.ok) {
       setOptimisticFen(null);
-      toast(errorText(r.error));
+      toast(t.errors[r.error]);
     }
     return true;
   }
@@ -100,7 +101,7 @@ export function ChessGame({ room, view }: Props) {
   async function resign() {
     if (!confirm(t.chess.confirmResign)) return;
     const r = await api.move({ type: 'resign' } satisfies ChessMove);
-    if (!r.ok) toast(errorText(r.error));
+    if (!r.ok) toast(t.errors[r.error]);
   }
 
   const squareStyles: Record<string, CSSProperties> = {};
@@ -199,8 +200,8 @@ export function ChessGame({ room, view }: Props) {
       <aside className="chess-side">
         {view.result ? (
           <div className="turn-card over">
-            <span className="turn-title">{resultHeadline(view)}</span>
-            <span className="turn-sub">{resultReason(view)}</span>
+            <span className="turn-title">{resultHeadline(t, view)}</span>
+            <span className="turn-sub">{resultReason(t, view)}</span>
           </div>
         ) : (
           <div className={`turn-card ${myTurn ? 'mine' : ''}`}>
@@ -233,7 +234,7 @@ export function ChessGame({ room, view }: Props) {
         )}
         {view.result &&
           (isHost ? (
-            <button className="btn btn-primary btn-lg" onClick={startGame}>
+            <button className="btn btn-primary btn-lg" onClick={() => startGame(t)}>
               <PlayIcon /> {t.room.playAgain}
             </button>
           ) : (
@@ -244,13 +245,13 @@ export function ChessGame({ room, view }: Props) {
   );
 }
 
-function resultHeadline(view: ChessView): string {
+function resultHeadline(t: Strings, view: ChessView): string {
   const winner = view.result?.winner;
   if (!winner) return t.chess.resultDraw;
   return winner === playerId ? t.chess.resultWin : t.chess.resultLose;
 }
 
-function resultReason(view: ChessView): string {
+function resultReason(t: Strings, view: ChessView): string {
   const result = view.result!;
   const lost = result.winner && result.winner !== playerId;
   return lost && result.reason === 'resign' ? t.chess.youResigned : t.chess.endReasons[result.reason];
@@ -264,6 +265,7 @@ interface OverlayProps {
 }
 
 function ResultOverlay({ view, room, isHost, onClose }: OverlayProps) {
+  const { t } = useI18n();
   const winner = view.result?.winner;
   const kind = !winner ? 'draw' : winner === playerId ? 'win' : 'lose';
   const winnerName = room.players.find((p) => p.id === winner)?.name;
@@ -282,14 +284,14 @@ function ResultOverlay({ view, room, isHost, onClose }: OverlayProps) {
         <span className="result-icon">
           <Icon />
         </span>
-        <h2>{resultHeadline(view)}</h2>
+        <h2>{resultHeadline(t, view)}</h2>
         <p>
-          {resultReason(view)}
+          {resultReason(t, view)}
           {kind === 'lose' && winnerName ? ` · ${t.chess.playerWins(winnerName)}` : ''}
         </p>
         <div className="result-actions">
           {isHost ? (
-            <button className="btn btn-primary" onClick={startGame}>
+            <button className="btn btn-primary" onClick={() => startGame(t)}>
               <PlayIcon /> {t.room.playAgain}
             </button>
           ) : (
