@@ -1609,6 +1609,13 @@ main {
   height: auto;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  /* Dragging a piece must not scroll the page on touch screens. */
+  touch-action: none;
+}
+
+.xq-board.is-dragging,
+.xq-board.is-dragging .xq-hit {
+  cursor: grabbing;
 }
 
 .xq-wood {
@@ -1643,7 +1650,46 @@ main {
 }
 
 .xq-piece {
-  transition: transform 0.22s ease;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.xq-face {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.15s ease;
+}
+
+.xq-piece.selected .xq-face {
+  transform: scale(1.08);
+}
+
+/* The dragged piece follows the pointer exactly, lifted and slightly enlarged. */
+.xq-piece.dragging {
+  transition: none;
+}
+
+.xq-piece.dragging .xq-face {
+  transform: scale(1.16);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+}
+
+.xq-piece.leaving .xq-face {
+  animation: xq-leave 0.26s ease forwards;
+}
+
+@keyframes xq-leave {
+  to {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.xq-premove {
+  fill: rgba(70, 120, 200, 0.45);
+}
+
+.xq-hover {
+  fill: rgba(224, 172, 69, 0.4);
 }
 
 .xq-disc {
@@ -1705,6 +1751,13 @@ main {
 
 .xq-hit {
   fill: transparent;
+}
+
+.xq-hit.grab {
+  cursor: grab;
+}
+
+.xq-hit.target {
   cursor: pointer;
 }
 

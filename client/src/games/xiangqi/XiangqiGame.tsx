@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { START_FEN, Xiangqi, squareName, type RoomView, type XiangqiMove, type XiangqiView, type XSide } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
@@ -12,6 +12,9 @@ interface Props {
   view: XiangqiView;
   onLeave: () => void;
 }
+
+type SquarePair = { from: string; to: string };
+const NO_TARGETS: { square: string; capture: boolean }[] = [];
 
 function piecesOf(game: Xiangqi): Omit<BoardPiece, 'id'>[] {
   const out: Omit<BoardPiece, 'id'>[] = [];
@@ -44,25 +47,28 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
   const { t } = useI18n();
   const playerId = room.you;
   const mySide: XSide | null = view.red === playerId ? 'r' : view.black === playerId ? 'b' : null;
+  const myTurn = mySide === view.turn && !view.result;
   const names: Record<XSide, string | undefined> = {
     r: room.players.find((p) => p.id === view.red)?.name,
     b: room.players.find((p) => p.id === view.black)?.name,
   };
 
   const [selected, setSelected] = useState<string | null>(null);
+  // A move queued while it's the opponent's turn; played as soon as it becomes legal.
+  const [premove, setPremove] = useState<SquarePair | null>(null);
   // Show our move immediately; the server confirms it. If rejected, snap back.
   // `ply` is the game length it was made at, so it is dropped as soon as the server state moves on.
   const [pending, setPending] = useState<{ move: string; ply: number } | null>(null);
   const optimistic = pending && pending.ply === view.moves.length ? pending.move : null;
-  useEffect(() => {
-    setSelected(null);
-    setPending(null);
-  }, [view.fen]);
 
-  const { labels, moves } = useMemo(() => replayXiangqi(view.moves, t.xiangqi.notation), [view.fen, t]);
-  const shownMoves = optimistic ? [...view.moves, optimistic] : view.moves;
-  const tracked = useMemo(() => trackPieces(shownMoves), [shownMoves.join(' ')]);
+  const { fens, labels, moves } = useMemo(() => replayXiangqi(view.moves, t.xiangqi.notation), [view.fen, t]);
+  const shownMoves = useMemo(() => (optimistic ? [...view.moves, optimistic] : view.moves), [view.fen, optimistic]);
+  const tracked = useMemo(() => trackPieces(shownMoves), [shownMoves]);
   const live = useMemo(() => new Xiangqi(view.fen), [view.fen]);
+  const liveTargets = useMemo(
+    () => (selected ? live.moves(selected).map((m) => ({ square: m.to, capture: !!m.captured })) : NO_TARGETS),
+    [live, selected],
+  );
 
   async function send(move: XiangqiMove) {
     const r = await api.move(move);
@@ -76,41 +82,81 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
     if (!(await send({ type: 'move', from, to }))) setPending(null);
   }
 
-  const last = moves.at(-1);
-  const lastMoveText = last ? describe(t, last.side === mySide ? t.room.you : (names[last.side] ?? t.chess.opponent), labels.at(-1)!, last) : null;
+  const isLegal = (from: string, to: string) => live.moves(from).some((m) => m.to === to);
 
-  function renderBoard({ bottom, ply, reviewing, canMove }: BoardRenderProps) {
-    const shownPly = reviewing ? ply : shownMoves.length;
-    const pieces = tracked[Math.min(shownPly, tracked.length - 1)];
-    const lastShown = shownPly > 0 ? { from: shownMoves[shownPly - 1].slice(0, 2), to: shownMoves[shownPly - 1].slice(2) } : null;
-    const position = reviewing ? new Xiangqi(replayXiangqi(view.moves.slice(0, ply), t.xiangqi.notation).fens.at(-1)) : live;
-    const general = pieces.find((p) => p.type === 'k' && p.side === position.turn());
-    const checkSquare = !optimistic && position.inCheck() && general ? general.square : null;
-    const targets =
-      selected && canMove && !optimistic
-        ? live.moves(selected).map((m) => ({ square: m.to, capture: !!m.captured }))
-        : [];
+  useEffect(() => {
+    setSelected(null);
+    setPending(null);
+    // Fire a queued premove once it's our turn, if it's legal in the new position.
+    if (!premove) return;
+    if (view.result) return setPremove(null);
+    if (!myTurn) return;
+    setPremove(null);
+    if (isLegal(premove.from, premove.to)) void play(premove.from, premove.to);
+  }, [view.fen]);
 
-    function onSquareClick(square: string) {
-      if (!canMove || optimistic) return;
+  // Board callbacks stay the same function across renders (so the memoized board doesn't redraw
+  // on every clock tick) and read the latest state through this ref.
+  const latest = useRef({ canMove: false, canTouch: false });
+  const handlers = useRef({ click: (_square: string) => {}, drop: (_from: string, _to: string) => {} });
+  handlers.current = {
+    click(square) {
+      const { canMove, canTouch } = latest.current;
+      if (!canTouch || optimistic) return;
+      if (premove) {
+        setPremove(null);
+        setSelected(null);
+        return;
+      }
       const piece = live.get(square);
       if (piece && piece.side === mySide) {
         setSelected(square === selected ? null : square);
         return;
       }
-      if (selected && targets.some((m) => m.square === square)) void play(selected, square);
+      if (!selected) return;
+      if (!canMove) {
+        setPremove({ from: selected, to: square });
+        setSelected(null);
+      } else if (isLegal(selected, square)) void play(selected, square);
       else setSelected(null);
-    }
+    },
+    drop(from, to) {
+      const { canMove, canTouch } = latest.current;
+      if (!canTouch || optimistic) return;
+      if (!canMove) {
+        setPremove({ from, to });
+        setSelected(null);
+      } else if (isLegal(from, to)) void play(from, to);
+      else setSelected(null);
+    },
+  };
+  const onSquareClick = useCallback((square: string) => handlers.current.click(square), []);
+  const onDrop = useCallback((from: string, to: string) => handlers.current.drop(from, to), []);
+
+  const last = moves.at(-1);
+  const lastMoveText = last ? describe(t, last.side === mySide ? t.room.you : (names[last.side] ?? t.chess.opponent), labels.at(-1)!, last) : null;
+
+  function renderBoard({ bottom, ply, reviewing, canMove, canTouch }: BoardRenderProps) {
+    latest.current = { canMove, canTouch };
+    const shownPly = reviewing ? ply : shownMoves.length;
+    const pieces = tracked[Math.min(shownPly, tracked.length - 1)];
+    const lastShown = shownPly > 0 ? shownMoves[shownPly - 1] : null;
+    const position = reviewing ? new Xiangqi(fens[ply]) : live;
+    const general = pieces.find((p) => p.type === 'k' && p.side === position.turn());
+    const checkSquare = !optimistic && position.inCheck() && general ? general.square : null;
 
     return (
       <XiangqiBoard
         pieces={pieces}
         bottom={bottom as XSide}
-        selected={canMove ? selected : null}
-        targets={targets}
+        selected={canTouch ? selected : null}
+        targets={canMove && !optimistic ? liveTargets : NO_TARGETS}
         lastMove={lastShown}
+        premove={premove ? `${premove.from}${premove.to}` : null}
         checkSquare={checkSquare}
+        movable={canTouch && !optimistic ? mySide : null}
         onSquareClick={onSquareClick}
+        onDrop={onDrop}
       />
     );
   }
@@ -128,6 +174,7 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
       gameStarted={t.xiangqi.gameStarted}
       noMoves={t.xiangqi.noMoves}
       lastMoveText={lastMoveText}
+      extraStatus={premove ? [t.chess.premove(premove.from, premove.to)] : []}
       soundForPly={(ply) => (moves[ply]?.check ? 'check' : moves[ply]?.captured ? 'capture' : 'move')}
       renderBoard={renderBoard}
       playerExtra={(side) => <span className={`xq-side-dot ${side === 'r' ? 'red' : 'black'}`} />}
