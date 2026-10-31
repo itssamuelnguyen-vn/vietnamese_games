@@ -4,6 +4,8 @@ import { socket } from './socket';
 import { t } from './i18n';
 import { Lobby } from './components/Lobby';
 import { RoomScreen } from './components/RoomScreen';
+import { Toaster } from './components/Toaster';
+import { LogoMark } from './components/icons';
 
 function roomCodeFromUrl(): string {
   return new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '';
@@ -42,12 +44,22 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1 className="logo">{t.appName}</h1>
-        <span className={`conn ${connected ? 'on' : 'off'}`}>{connected ? t.connected : t.connecting}</span>
+        <div className="brand">
+          <LogoMark />
+          <span className="brand-name">{t.appName}</span>
+        </div>
+        <span className={`conn-pill ${connected ? 'on' : 'off'}`}>
+          <span className="conn-dot" />
+          {connected ? t.connected : t.connecting}
+        </span>
       </header>
       <main>
         {room ? <RoomScreen room={room} /> : <Lobby initialCode={roomCodeFromUrl()} connected={connected} />}
       </main>
+      <footer className="footer">
+        {t.appName} · {t.footer}
+      </footer>
+      <Toaster />
     </div>
   );
 }
