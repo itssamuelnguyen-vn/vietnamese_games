@@ -27,8 +27,20 @@ Open http://localhost:5173. To try multiplayer, open a second private/incognito 
 
 Other scripts:
 
+- `npm test`: run the test suite (Vitest)
 - `npm run typecheck`: type-check all three packages
 - `npm run build && npm start`: run the production build on http://localhost:3000
+
+## Tests and CI
+
+Tests live next to the code as `*.test.ts`:
+
+- `shared/src/games/*.test.ts`: game rules
+- `server/src/rooms.test.ts`: room lifecycle (create, join, start, leave, sweep)
+- `server/src/app.test.ts`: the real Socket.IO server on a random port, driven by socket.io-client
+
+GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, tests and build on every pull
+request and on pushes to `main`.
 
 ## Layout
 
