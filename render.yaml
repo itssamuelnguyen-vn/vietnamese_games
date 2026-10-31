@@ -1,0 +1,9 @@
+# Render Blueprint: New > Blueprint > pick this repo and Render reads this file.
+services:
+  - type: web
+    name: vietnamese-games
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
