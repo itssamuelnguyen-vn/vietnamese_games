@@ -1,5 +1,6 @@
 import type { ChessEndReason, ErrorCode, GameType, HostColor, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
+import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
 
 // Vietnamese xiangqi notation: "P2-5" (bình), "M8.7" (tiến), "X1/2" (thoái); t/s = trước/sau.
@@ -246,6 +247,18 @@ export const vi = {
     riverRight: '漢 界',
     pieces: { k: 'Tướng', a: 'Sĩ', b: 'Tượng', n: 'Mã', r: 'Xe', c: 'Pháo', p: 'Tốt' } satisfies Record<XPieceType, string>,
     notation: VI_NOTATION,
+    openings: {
+      'central-cannon': 'Pháo đầu',
+      'same-direction-cannons': 'Thuận pháo',
+      'opposite-direction-cannons': 'Nghịch pháo',
+      'screen-horses': 'Pháo đầu đối Bình phong mã',
+      'palcorner-cannon': 'Quá cung pháo',
+      'advisor-cannon': 'Sĩ giác pháo',
+      'pawn-opening': 'Tiên nhân chỉ lộ',
+      'pawn-vs-pawn': 'Đối binh',
+      'elephant-opening': 'Phi tượng cục',
+      'horse-opening': 'Khởi mã cục',
+    } satisfies Record<XqOpeningId, string>,
     describe: {
       move: (who: string, notation: string) => `${who} vừa đi ${notation}`,
       capture: (who: string, notation: string, captured: string) => `${who} vừa đi ${notation}, ăn ${captured}`,

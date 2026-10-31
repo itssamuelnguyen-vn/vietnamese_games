@@ -240,6 +240,18 @@ export const en: Strings = {
       rear: '-',
       markFirst: true,
     },
+    openings: {
+      'central-cannon': 'Central Cannon',
+      'same-direction-cannons': 'Same Direction Cannons',
+      'opposite-direction-cannons': 'Opposite Direction Cannons',
+      'screen-horses': 'Central Cannon vs Screen Horses',
+      'palcorner-cannon': 'Palcorner Cannon',
+      'advisor-cannon': 'Advisor Corner Cannon',
+      'pawn-opening': 'Pawn Opening',
+      'pawn-vs-pawn': 'Pawn vs Pawn',
+      'elephant-opening': 'Elephant Opening',
+      'horse-opening': 'Horse Opening',
+    },
     describe: {
       move: (who: string, notation: string) => `${who} played ${notation}`,
       capture: (who: string, notation: string, captured: string) => `${who} played ${notation}, taking the ${captured}`,

@@ -5,6 +5,7 @@ import { useI18n, type Strings } from '../../i18n';
 import { toast } from '../../components/Toaster';
 import { DuelScreen, type BoardRenderProps } from '../duel/DuelScreen';
 import { replayXiangqi } from './notation';
+import { findXiangqiOpening } from './openings';
 import { GLYPHS, XiangqiBoard, type BoardPiece } from './XiangqiBoard';
 
 interface Props {
@@ -81,6 +82,7 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
   const shownMoves = useMemo(() => (optimistic ? [...view.moves, optimistic] : view.moves), [view.fen, optimistic]);
   const tracked = useMemo(() => trackPieces(shownMoves), [shownMoves]);
   const live = useMemo(() => new Xiangqi(view.fen), [view.fen]);
+  const opening = useMemo(() => findXiangqiOpening(view.moves), [view.fen]);
   const liveTargets = useMemo(
     () => (selected ? live.moves(selected).map((m) => ({ square: m.to, capture: !!m.captured })) : NO_TARGETS),
     [live, selected],
@@ -193,6 +195,7 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
       extraStatus={premove ? [t.chess.premove(premove.from, premove.to)] : []}
       soundForPly={(ply) => (moves[ply]?.check ? 'check' : moves[ply]?.captured ? 'capture' : 'move')}
       renderBoard={renderBoard}
+      movesTools={opening && <span className="muted small opening">{t.xiangqi.openings[opening]}</span>}
       playerExtra={(side, ply) => {
         const own = side as XSide;
         const enemy: XSide = own === 'r' ? 'b' : 'r';
