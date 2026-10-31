@@ -11,7 +11,8 @@ export type ChessEndReason =
   | 'fifty-moves'
   | 'resign'
   | 'agreement'
-  | 'timeout';
+  | 'timeout'
+  | 'aborted';
 
 export interface ChessResult {
   winner: string | null; // null = draw
@@ -34,7 +35,12 @@ export interface ChessState {
   drawOffer: string | null;
   // Ply at which each player last offered a draw, to stop offer spam.
   drawOfferedAt: Record<string, number>;
+  // Player asking to take back their last move, and when each player last asked.
+  takebackRequest: string | null;
+  takebackRequestedAt: Record<string, number>;
   clock: ChessClock | null;
+  // Timed games are aborted if the side to move hasn't made its first move by this time.
+  firstMoveDeadline: number | null;
 }
 
 export type ChessMove =
@@ -42,7 +48,10 @@ export type ChessMove =
   | { type: 'resign' }
   | { type: 'offer-draw' }
   | { type: 'accept-draw' }
-  | { type: 'decline-draw' };
+  | { type: 'decline-draw' }
+  | { type: 'request-takeback' }
+  | { type: 'accept-takeback' }
+  | { type: 'decline-takeback' };
 
 export interface ChessView {
   white: string;
@@ -55,6 +64,10 @@ export interface ChessView {
   result: ChessResult | null;
   drawOffer: string | null;
   canOfferDraw: boolean;
+  takebackRequest: string | null;
+  canRequestTakeback: boolean;
+  // Time left (as of the view) to make the first move before the game is aborted.
+  firstMoveMs: number | null;
   // Remaining times as of when the view was built; `running` is the side whose clock is ticking.
   clock: { remaining: Record<ChessColor, number>; running: ChessColor | null; incrementMs: number } | null;
 }
@@ -84,8 +97,20 @@ function canOfferDraw(state: ChessState, playerId: string, ply: number): boolean
   return !state.result && colorOf(state, playerId) !== null && state.drawOffer === null && state.drawOfferedAt[playerId] !== ply;
 }
 
+// Same rule for takebacks: one request per player per ply, and only once they've moved.
+function canRequestTakeback(state: ChessState, playerId: string, ply: number): boolean {
+  const color = colorOf(state, playerId);
+  if (!color || state.result || state.takebackRequest !== null || state.takebackRequestedAt[playerId] === ply) return false;
+  return ply >= (color === 'w' ? 1 : 2);
+}
+
 // Clocks only start once both sides have made their first move.
 const CLOCK_START_PLY = 2;
+const FIRST_MOVE_MS = 30_000;
+
+function firstMoveDeadline(clock: ChessClock | null, ply: number, now: number): number | null {
+  return clock && ply < CLOCK_START_PLY ? now + FIRST_MOVE_MS : null;
+}
 
 // Time left for each side at `now`, charging the side to move for its current think.
 function remainingAt(clock: ChessClock, turn: ChessColor, now: number): Record<ChessColor, number> {
@@ -99,17 +124,28 @@ function stopClock(state: ChessState, now: number): ChessClock | null {
   return { ...state.clock, remaining: remainingAt(state.clock, load(state).turn(), now), turnStartedAt: null };
 }
 
-// A player who runs out of time only loses if the opponent could still deliver mate.
-function canMate(chess: Chess, color: ChessColor): boolean {
-  let minors = 0;
+const squareShade = (square: string) => (square.charCodeAt(0) + Number(square[1])) % 2;
+
+// Could `color` still checkmate by any legal sequence (FIDE flag rule)? Same reasoning as
+// Lichess: a lone knight needs a non-queen blocker, same-shade bishops need the opponent to
+// have a pawn, knight or opposite-shade bishop.
+export function canMate(chess: Chess, color: ChessColor): boolean {
+  const mine: { type: string; square: string }[] = [];
+  const theirs: { type: string; square: string }[] = [];
   for (const row of chess.board()) {
-    for (const sq of row) {
-      if (!sq || sq.color !== color || sq.type === 'k') continue;
-      if (sq.type === 'p' || sq.type === 'r' || sq.type === 'q') return true;
-      minors++;
-    }
+    for (const sq of row) if (sq && sq.type !== 'k') (sq.color === color ? mine : theirs).push(sq);
   }
-  return minors >= 2;
+  if (mine.some((p) => p.type === 'p' || p.type === 'r' || p.type === 'q')) return true;
+  const knights = mine.filter((p) => p.type === 'n').length;
+  const bishops = mine.filter((p) => p.type === 'b');
+  if (knights + bishops.length === 0) return false;
+  if (knights > 0 && bishops.length > 0) return true;
+  if (knights >= 2) return true;
+  if (knights === 1) return theirs.some((p) => p.type !== 'q');
+  const shades = new Set(bishops.map((b) => squareShade(b.square)));
+  if (shades.size > 1) return true;
+  const shade = squareShade(bishops[0].square);
+  return theirs.some((p) => p.type === 'p' || p.type === 'n' || (p.type === 'b' && squareShade(p.square) !== shade));
 }
 
 function flag(state: ChessState): ChessState {
@@ -118,12 +154,44 @@ function flag(state: ChessState): ChessState {
   const winnerColor: ChessColor = loser === 'w' ? 'b' : 'w';
   const clock = state.clock && { ...state.clock, remaining: { ...state.clock.remaining, [loser]: 0 }, turnStartedAt: null };
   const winner = canMate(chess, winnerColor) ? opponentOf(state, loser) : null;
-  return { ...state, clock, drawOffer: null, result: { winner, reason: 'timeout' } };
+  return { ...state, clock, drawOffer: null, takebackRequest: null, result: { winner, reason: 'timeout' } };
 }
 
 // Ends the game with `result`, freezing the clock at the current moment.
 function finish(state: ChessState, result: ChessResult, now: number): ChessState {
-  return { ...state, clock: stopClock(state, now), drawOffer: null, result };
+  return { ...state, clock: stopClock(state, now), drawOffer: null, takebackRequest: null, firstMoveDeadline: null, result };
+}
+
+function chooseColors([host, guest]: string[], hostColor: string, previous: ChessState | null): [string, string] {
+  // Rematch between the same two players: swap sides.
+  if (previous && [previous.white, previous.black].every((id) => id === host || id === guest)) {
+    return [previous.black, previous.white];
+  }
+  if (hostColor === 'white') return [host, guest];
+  if (hostColor === 'black') return [guest, host];
+  return Math.random() < 0.5 ? [host, guest] : [guest, host];
+}
+
+// Undo the requester's last move (and the opponent's reply, if they already made one).
+function takeBack(state: ChessState, requesterColor: ChessColor, now: number): ChessState {
+  const chess = load(state);
+  const undo = chess.turn() === requesterColor ? 2 : 1;
+  for (let i = 0; i < undo; i++) chess.undo();
+  const ply = chess.history().length;
+  let clock = state.clock;
+  if (clock) {
+    // Charge the side that was thinking up to now, then restart for the new side to move.
+    const remaining = remainingAt(clock, load(state).turn(), now);
+    clock = { ...clock, remaining, turnStartedAt: ply >= CLOCK_START_PLY ? now : null };
+  }
+  return {
+    ...state,
+    pgn: chess.pgn(),
+    clock,
+    drawOffer: null,
+    takebackRequest: null,
+    firstMoveDeadline: firstMoveDeadline(clock, ply, now),
+  };
 }
 
 function detectResult(chess: Chess, state: ChessState): ChessResult | null {
@@ -141,11 +209,22 @@ function detectResult(chess: Chess, state: ChessState): ChessResult | null {
 export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
   type: 'chess',
 
-  setup([a, b], options) {
-    const [white, black] = Math.random() < 0.5 ? [a, b] : [b, a];
+  setup(playerIds, options, { now }, previous) {
+    const [white, black] = chooseColors(playerIds, options.hostColor, previous);
     const tc = TIME_CONTROLS[options.timeControl];
     const clock = tc && { incrementMs: tc.incrementMs, remaining: { w: tc.initialMs, b: tc.initialMs }, turnStartedAt: null };
-    return { white, black, pgn: '', result: null, drawOffer: null, drawOfferedAt: {}, clock };
+    return {
+      white,
+      black,
+      pgn: '',
+      result: null,
+      drawOffer: null,
+      drawOfferedAt: {},
+      takebackRequest: null,
+      takebackRequestedAt: {},
+      clock,
+      firstMoveDeadline: firstMoveDeadline(clock, 0, now),
+    };
   },
 
   applyMove(state, playerId, move, { now }) {
@@ -179,6 +258,23 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
         if (state.drawOffer !== opponent) return { ok: false, error: 'INVALID_MOVE' };
         return { ok: true, state: { ...state, drawOffer: null } };
 
+      case 'request-takeback': {
+        const ply = plyCount(state);
+        if (!canRequestTakeback(state, playerId, ply)) return { ok: false, error: 'INVALID_MOVE' };
+        return {
+          ok: true,
+          state: { ...state, takebackRequest: playerId, takebackRequestedAt: { ...state.takebackRequestedAt, [playerId]: ply } },
+        };
+      }
+
+      case 'accept-takeback':
+        if (state.takebackRequest !== opponent) return { ok: false, error: 'INVALID_MOVE' };
+        return { ok: true, state: takeBack(state, color === 'w' ? 'b' : 'w', now) };
+
+      case 'decline-takeback':
+        if (state.takebackRequest !== opponent) return { ok: false, error: 'INVALID_MOVE' };
+        return { ok: true, state: { ...state, takebackRequest: null } };
+
       case 'move': {
         const chess = load(state);
         if (chess.turn() !== color) return { ok: false, error: 'NOT_YOUR_TURN' };
@@ -198,8 +294,15 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
         }
         if (clock) clock = { ...clock, turnStartedAt: chess.history().length >= CLOCK_START_PLY ? now : null };
 
-        // Moving on is an implicit answer to any pending offer.
-        const next = { ...state, pgn: chess.pgn(), drawOffer: null, clock };
+        // Moving on is an implicit answer to any pending offer or request.
+        const next = {
+          ...state,
+          pgn: chess.pgn(),
+          drawOffer: null,
+          takebackRequest: null,
+          clock,
+          firstMoveDeadline: firstMoveDeadline(clock, chess.history().length, now),
+        };
         const result = detectResult(chess, next);
         return { ok: true, state: result ? finish(next, result, now) : next };
       }
@@ -218,11 +321,17 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
 
   deadline(state) {
     const clock = state.clock;
-    if (state.result || !clock || clock.turnStartedAt === null) return null;
+    if (state.result) return null;
+    if (state.firstMoveDeadline !== null) return state.firstMoveDeadline;
+    if (!clock || clock.turnStartedAt === null) return null;
     return clock.turnStartedAt + clock.remaining[load(state).turn()];
   },
 
   timeout(state, { now }) {
+    if (state.result) return state;
+    if (state.firstMoveDeadline !== null) {
+      return now >= state.firstMoveDeadline ? finish(state, { winner: null, reason: 'aborted' }, now) : state;
+    }
     const deadline = chessGame.deadline!(state);
     return deadline !== null && now >= deadline ? flag(state) : state;
   },
@@ -247,6 +356,9 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
       result: state.result,
       drawOffer: state.drawOffer,
       canOfferDraw: canOfferDraw(state, playerId, verbose.length),
+      takebackRequest: state.takebackRequest,
+      canRequestTakeback: canRequestTakeback(state, playerId, verbose.length),
+      firstMoveMs: state.firstMoveDeadline === null || state.result ? null : Math.max(0, state.firstMoveDeadline - now),
       clock: clock && {
         remaining: remainingAt(clock, chess.turn(), now),
         running: clock.turnStartedAt === null ? null : chess.turn(),

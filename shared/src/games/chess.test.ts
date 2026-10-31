@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { chessGame, type ChessMove, type ChessState } from './chess';
+import { Chess } from 'chess.js';
+import { canMate, chessGame, type ChessMove, type ChessState } from './chess';
 
 const A = 'player-a';
 const B = 'player-b';
 
 // Fixed colours keep tests deterministic: A is white, B is black.
-const fresh = (): ChessState => ({ white: A, black: B, pgn: '', result: null, drawOffer: null, drawOfferedAt: {}, clock: null });
+const fresh = (): ChessState => ({ white: A, black: B, pgn: '', result: null, drawOffer: null, drawOfferedAt: {}, takebackRequest: null, takebackRequestedAt: {}, clock: null, firstMoveDeadline: null });
 const ctx = { now: 0 };
 
 function play(state: ChessState, moves: [string, string, string][]): ChessState {
@@ -20,7 +21,7 @@ function play(state: ChessState, moves: [string, string, string][]): ChessState 
 describe('chessGame', () => {
   it('assigns both players a colour', () => {
     for (let i = 0; i < 20; i++) {
-      const s = chessGame.setup([A, B], { timeControl: 'none' }, ctx);
+      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random' }, ctx, null);
       expect([s.white, s.black].sort()).toEqual([A, B]);
     }
   });
@@ -147,15 +148,16 @@ describe('chessGame', () => {
     const opened = () => mv(mv(timed(), A, 'e2', 'e4', 1_000), B, 'e7', 'e5', 50_000);
 
     it('sets up clocks from the chosen time control', () => {
-      const s = chessGame.setup([A, B], { timeControl: '3+2' }, ctx);
+      const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'random' }, ctx, null);
       expect(s.clock).toEqual({ incrementMs: 2_000, remaining: { w: 180_000, b: 180_000 }, turnStartedAt: null });
-      expect(chessGame.setup([A, B], { timeControl: 'none' }, ctx).clock).toBeNull();
+      expect(chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random' }, ctx, null).clock).toBeNull();
     });
 
     it('only starts once both sides have moved', () => {
       const first = mv(timed(), A, 'e2', 'e4', 1_000);
       expect(first.clock?.turnStartedAt).toBeNull();
-      expect(chessGame.deadline!(first)).toBeNull();
+      // Only the first-move deadline applies until black has replied.
+      expect(chessGame.deadline!(first)).toBe(31_000);
       const s = opened();
       expect(s.clock).toMatchObject({ remaining: { w: 60_000, b: 60_000 }, turnStartedAt: 50_000 });
       expect(chessGame.deadline!(s)).toBe(110_000);
@@ -201,6 +203,107 @@ describe('chessGame', () => {
       const r = chessGame.applyMove(opened(), A, { type: 'resign' }, { now: 70_000 });
       expect(r.ok && r.state.clock).toMatchObject({ remaining: { w: 40_000, b: 60_000 }, turnStartedAt: null });
       expect(r.ok && chessGame.deadline!(r.state)).toBeNull();
+    });
+  });
+
+  describe('first-move abort', () => {
+    const timedSetup = () => chessGame.setup([A, B], { timeControl: '5+0', hostColor: 'white' }, { now: 0 }, null);
+
+    it('aborts a timed game when white never moves', () => {
+      const s = timedSetup();
+      expect(chessGame.deadline!(s)).toBe(30_000);
+      expect(chessGame.playerView(s, A, { now: 10_000 }).firstMoveMs).toBe(20_000);
+      expect(chessGame.timeout!(s, { now: 30_000 }).result).toEqual({ winner: null, reason: 'aborted' });
+    });
+
+    it('gives black its own 30 seconds, then hands over to the clock', () => {
+      const r = chessGame.applyMove(timedSetup(), A, { type: 'move', from: 'e2', to: 'e4' }, { now: 20_000 });
+      if (!r.ok) throw new Error();
+      expect(chessGame.deadline!(r.state)).toBe(50_000);
+      const r2 = chessGame.applyMove(r.state, B, { type: 'move', from: 'e7', to: 'e5' }, { now: 40_000 });
+      if (!r2.ok) throw new Error();
+      expect(r2.state.firstMoveDeadline).toBeNull();
+      expect(chessGame.deadline!(r2.state)).toBe(40_000 + 5 * 60_000);
+    });
+
+    it('never aborts untimed games', () => {
+      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white' }, { now: 0 }, null);
+      expect(chessGame.deadline!(s)).toBeNull();
+    });
+  });
+
+  describe('takebacks', () => {
+    const act = (state: ChessState, player: string, type: 'request-takeback' | 'accept-takeback' | 'decline-takeback') =>
+      chessGame.applyMove(state, player, { type }, ctx);
+    const ok = (r: ReturnType<typeof act>) => {
+      if (!r.ok) throw new Error(r.error);
+      return r.state;
+    };
+
+    it('undoes just the requester’s move when the opponent has not replied', () => {
+      const s = play(fresh(), [[A, 'e2', 'e4']]);
+      expect(act(s, B, 'request-takeback').ok).toBe(false);
+      const asked = ok(act(s, A, 'request-takeback'));
+      expect(chessGame.playerView(asked, B, ctx).takebackRequest).toBe(A);
+      expect(chessGame.playerView(ok(act(asked, B, 'accept-takeback')), A, ctx).history).toEqual([]);
+    });
+
+    it('undoes the reply too when the opponent already moved', () => {
+      const s = play(fresh(), [
+        [A, 'e2', 'e4'],
+        [B, 'e7', 'e5'],
+      ]);
+      const back = ok(act(ok(act(s, A, 'request-takeback')), B, 'accept-takeback'));
+      expect(chessGame.playerView(back, A, ctx).history).toEqual([]);
+      expect(chessGame.playerView(back, A, ctx).turn).toBe('w');
+    });
+
+    it('allows one request per ply; declines and moves clear it', () => {
+      const s = play(fresh(), [[A, 'e2', 'e4']]);
+      const declined = ok(act(ok(act(s, A, 'request-takeback')), B, 'decline-takeback'));
+      expect(declined.takebackRequest).toBeNull();
+      expect(act(declined, A, 'request-takeback').ok).toBe(false);
+      const moved = play(ok(act(play(s, [[B, 'e7', 'e5']]), A, 'request-takeback')), [[A, 'g1', 'f3']]);
+      expect(moved.takebackRequest).toBeNull();
+    });
+
+    it('cannot accept your own request', () => {
+      const asked = ok(act(play(fresh(), [[A, 'e2', 'e4']]), A, 'request-takeback'));
+      expect(act(asked, A, 'accept-takeback').ok).toBe(false);
+    });
+  });
+
+  describe('colours', () => {
+    it('honours the host’s chosen side', () => {
+      const white = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white' }, ctx, null);
+      expect([white.white, white.black]).toEqual([A, B]);
+      const black = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'black' }, ctx, null);
+      expect([black.white, black.black]).toEqual([B, A]);
+    });
+
+    it('swaps sides for a rematch between the same players', () => {
+      const first = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white' }, ctx, null);
+      const rematch = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white' }, ctx, first);
+      expect([rematch.white, rematch.black]).toEqual([B, A]);
+      const newOpponent = chessGame.setup([A, 'player-c'], { timeControl: 'none', hostColor: 'white' }, ctx, first);
+      expect(newOpponent.white).toBe(A);
+    });
+  });
+
+  describe('canMate (flag rule)', () => {
+    const at = (fen: string) => new Chess(fen);
+    it.each([
+      ['bare king', '4k3/8/8/8/8/8/8/4K3 w - - 0 1', 'w', false],
+      ['pawn', '4k3/8/8/8/8/8/4P3/4K3 w - - 0 1', 'w', true],
+      ['lone knight vs bare king', '4k3/8/8/8/8/8/8/4KN2 w - - 0 1', 'w', false],
+      ['lone knight vs king and pawn', '4k3/4p3/8/8/8/8/8/4KN2 w - - 0 1', 'w', true],
+      ['lone knight vs king and queen', '4k3/4q3/8/8/8/8/8/4KN2 w - - 0 1', 'w', false],
+      ['lone bishop vs bare king', '4k3/8/8/8/8/8/8/4KB2 w - - 0 1', 'w', false],
+      ['lone bishop vs king and pawn', '4k3/4p3/8/8/8/8/8/4KB2 w - - 0 1', 'w', true],
+      ['bishop pair', '4k3/8/8/8/8/8/8/2B1KB2 w - - 0 1', 'w', true],
+      ['knight and bishop', '4k3/8/8/8/8/8/8/3NKB2 w - - 0 1', 'w', true],
+    ] as const)('%s', (_name, fen, color, expected) => {
+      expect(canMate(at(fen), color)).toBe(expected);
     });
   });
 });

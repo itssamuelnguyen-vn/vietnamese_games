@@ -106,6 +106,7 @@ export const en: Strings = {
       resign: 'Opponent resigned',
       agreement: 'Draw agreed',
       timeout: 'Time out',
+      aborted: 'Aborted: no first move',
     },
     white: 'White',
     black: 'Black',

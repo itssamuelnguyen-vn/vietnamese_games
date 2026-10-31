@@ -106,6 +106,17 @@ describe('RoomManager', () => {
     expect(rooms.start(A)).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
   });
 
+  it('gives the host their chosen side and swaps on rematch', () => {
+    const { rooms } = roomWithTwo();
+    rooms.setOptions(A, { hostColor: 'black' });
+    const first = rooms.start(A);
+    if (!first.ok) throw new Error();
+    expect((rooms.view(first.room, A, allOnline).game as ChessView).black).toBe(A);
+    rooms.move(A, { type: 'resign' });
+    rooms.start(A);
+    expect((rooms.view(first.room, A, allOnline).game as ChessView).white).toBe(A);
+  });
+
   it('applies moves and finishes the room when the game ends', () => {
     const { rooms } = roomWithTwo();
     const started = rooms.start(A);
@@ -218,11 +229,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0' });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random' });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black' });
       expect(rooms.setOptions(A, { timeControl: '3+2' }).ok).toBe(true);
       rooms.start(A);
       expect(rooms.setOptions(A, { timeControl: 'none' })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });

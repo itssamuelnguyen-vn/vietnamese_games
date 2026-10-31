@@ -6,6 +6,7 @@ import {
   chessGame,
   type ChatMessage,
   type ErrorCode,
+  type HostColor,
   type GameDefinition,
   type GameType,
   type MoveResult,
@@ -52,6 +53,7 @@ type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const MAX_NAME_LENGTH = 20;
 const MAX_SPECTATORS = 20;
+const HOST_COLORS: HostColor[] = ['random', 'white', 'black'];
 const CHAT_HISTORY = 50;
 // Chat flood control: at most CHAT_BURST messages per CHAT_WINDOW_MS per person.
 const CHAT_BURST = 5;
@@ -169,7 +171,9 @@ export class RoomManager {
       return { ok: false, error: 'NOT_ENOUGH_PLAYERS' };
     }
 
-    room.state = GAMES[room.gameType]!.setup(room.players.map((p) => p.id), room.options, this.ctx());
+    // Host first, so games can honour the host's chosen side.
+    const ids = [room.hostId, ...room.players.map((p) => p.id).filter((id) => id !== room.hostId)];
+    room.state = GAMES[room.gameType]!.setup(ids, room.options, this.ctx(), room.state);
     room.status = 'playing';
     room.lastActivity = Date.now();
     this.armTimer(room);
@@ -181,11 +185,13 @@ export class RoomManager {
     if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
     if (room.hostId !== playerId) return { ok: false, error: 'NOT_HOST' };
     if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
-    const timeControl = (options as Partial<RoomOptions> | null)?.timeControl;
+    if (typeof options !== 'object' || options === null) return { ok: false, error: 'INVALID_OPTIONS' };
+    const { timeControl = room.options.timeControl, hostColor = room.options.hostColor } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
     }
-    room.options = { ...room.options, timeControl };
+    if (!HOST_COLORS.includes(hostColor)) return { ok: false, error: 'INVALID_OPTIONS' };
+    room.options = { ...room.options, timeControl, hostColor };
     room.lastActivity = Date.now();
     return { ok: true, room };
   }

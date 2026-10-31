@@ -34,12 +34,16 @@ export const TIME_CONTROLS: Record<TimeControlId, TimeControl | null> = {
   '15+10': { initialMs: 15 * 60_000, incrementMs: 10_000 },
 };
 
+export type HostColor = 'random' | 'white' | 'black';
+
 // Settings the host picks before starting a game.
 export interface RoomOptions {
   timeControl: TimeControlId;
+  // The host's side in the first game; rematches swap sides.
+  hostColor: HostColor;
 }
 
-export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0' };
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random' };
 
 export interface PlayerInfo {
   id: string;
@@ -86,7 +90,8 @@ export interface GameContext {
 // clients only ever receive playerView.
 export interface GameDefinition<S, M, V> {
   type: GameType;
-  setup(playerIds: string[], options: RoomOptions, ctx: GameContext): S;
+  // playerIds[0] is the host; `previous` is the room's last game, if any (for rematches).
+  setup(playerIds: string[], options: RoomOptions, ctx: GameContext, previous: S | null): S;
   applyMove(state: S, playerId: string, move: M, ctx: GameContext): MoveResult<S>;
   // Called when a player deliberately leaves mid-game.
   forfeit(state: S, playerId: string, ctx: GameContext): S;

@@ -108,6 +108,7 @@ export const vi = {
       resign: 'Đối thủ xin thua',
       agreement: 'Hai bên đồng ý hòa',
       timeout: 'Hết giờ',
+      aborted: 'Ván bị hủy vì không đi nước đầu',
     } satisfies Record<ChessEndReason, string>,
     white: 'Quân trắng',
     black: 'Quân đen',
