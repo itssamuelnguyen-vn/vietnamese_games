@@ -2117,6 +2117,17 @@ main {
   animation: pop-in 0.25s ease;
 }
 
+/* Played cards fly in from the side of the table they were played from. */
+.tl-trick.from-bottom { animation: fly-bottom 0.32s cubic-bezier(0.2, 0.8, 0.3, 1); }
+.tl-trick.from-top { animation: fly-top 0.32s cubic-bezier(0.2, 0.8, 0.3, 1); }
+.tl-trick.from-left { animation: fly-left 0.32s cubic-bezier(0.2, 0.8, 0.3, 1); }
+.tl-trick.from-right { animation: fly-right 0.32s cubic-bezier(0.2, 0.8, 0.3, 1); }
+
+@keyframes fly-bottom { from { opacity: 0.3; transform: translateY(170px) scale(0.75); } }
+@keyframes fly-top { from { opacity: 0.3; transform: translateY(-150px) scale(0.75); } }
+@keyframes fly-left { from { opacity: 0.3; transform: translateX(-220px) scale(0.75); } }
+@keyframes fly-right { from { opacity: 0.3; transform: translateX(220px) scale(0.75); } }
+
 .tl-trick .pcard + .pcard {
   margin-left: -18px;
 }
@@ -2417,8 +2428,20 @@ main {
   margin-left: -24px;
 }
 
-.tl-hand .pcard.clickable:hover:not(.selected) {
+.tl-hand .pcard.clickable:hover:not(.selected):not(.dragging) {
   transform: translateY(-6px);
+}
+
+/* Horizontal drags rearrange the hand; vertical swipes still scroll the page. */
+.tl-hand {
+  touch-action: pan-y;
+}
+
+.pcard.dragging {
+  z-index: 2;
+  transition: none;
+  box-shadow: 0 0 0 2px var(--gold), 0 10px 18px rgba(0, 0, 0, 0.3);
+  cursor: grabbing;
 }
 
 .tl-hint {

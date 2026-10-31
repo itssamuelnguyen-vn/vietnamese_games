@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { ABANDON_CLAIM_MS, canChopOutOfTurn, classify, hintPlays, playProblem, quickPick, rankOf, suitOf, type Card, type RoomView, type TienLenLogEntry, type TienLenMove, type TienLenView } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
@@ -27,10 +27,30 @@ const bySuit = (a: Card, b: Card) => suitOf(a) - suitOf(b) || a - b;
 // Where opponents sit around the table, relative to the viewer at the bottom.
 const POSITIONS: Record<number, string[]> = { 1: ['top'], 2: ['right', 'left'], 3: ['right', 'top', 'left'] };
 
-function PlayingCard({ card, selected, onClick, small }: { card: Card; selected?: boolean; onClick?: () => void; small?: boolean }) {
-  const classes = ['pcard', isRed(card) ? 'red' : 'black', selected ? 'selected' : '', small ? 'small' : '', onClick ? 'clickable' : ''];
+interface CardProps {
+  card: Card;
+  selected?: boolean;
+  onClick?: () => void;
+  small?: boolean;
+  dragging?: boolean;
+  style?: CSSProperties;
+  onPointerDown?: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+}
+
+function PlayingCard({ card, selected, onClick, small, dragging, style, onPointerDown }: CardProps) {
+  const classes = ['pcard', isRed(card) ? 'red' : 'black', selected ? 'selected' : '', small ? 'small' : '', onClick ? 'clickable' : '', dragging ? 'dragging' : ''];
   return (
-    <button type="button" className={classes.filter(Boolean).join(' ')} onClick={onClick} disabled={!onClick} aria-pressed={selected} aria-label={cardLabel(card)}>
+    <button
+      type="button"
+      className={classes.filter(Boolean).join(' ')}
+      onClick={onClick}
+      onPointerDown={onPointerDown}
+      style={style}
+      disabled={!onClick}
+      aria-pressed={selected}
+      aria-label={cardLabel(card)}
+      data-card={card}
+    >
       <span className="pcard-corner">
         {RANK_LABELS[rankOf(card)]}
         <br />
@@ -142,7 +162,46 @@ export function TienLenGame({ room, view, onLeave }: Props) {
   // Drop selected cards that have left the hand (played, or a new deal).
   const handKey = view.hand.join(',');
   useEffect(() => setSelected((sel) => sel.filter((c) => view.hand.includes(c))), [handKey]);
-  const hand = useMemo(() => (sortBySuit ? [...view.hand].sort(bySuit) : view.hand), [handKey, sortBySuit]);
+  // A custom order from dragging cards around; null means the automatic sort.
+  const [order, setOrder] = useState<Card[] | null>(null);
+  const hand = useMemo(() => {
+    const sorted = sortBySuit ? [...view.hand].sort(bySuit) : view.hand;
+    if (!order) return sorted;
+    // Keep the player's arrangement; any new cards go to the end.
+    return [...order.filter((c) => view.hand.includes(c)), ...sorted.filter((c) => !order.includes(c))];
+  }, [handKey, sortBySuit, order]);
+
+  // Drag a card sideways to move it within the hand; a plain tap still selects it.
+  const handRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ card: Card; startX: number; dx: number; to: number } | null>(null);
+  const suppressClick = useRef(false);
+  const DRAG_START = 8;
+  function startDrag(card: Card, e: ReactPointerEvent<HTMLButtonElement>) {
+    if (e.button !== 0) return;
+    setDrag({ card, startX: e.clientX, dx: 0, to: hand.indexOf(card) });
+  }
+  function moveDrag(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    if (Math.abs(dx) < DRAG_START && Math.abs(drag.dx) < DRAG_START) return;
+    if (!handRef.current?.hasPointerCapture(e.pointerId)) handRef.current?.setPointerCapture(e.pointerId);
+    // The new slot is the number of other cards whose centre is left of the pointer.
+    const centres = [...(handRef.current?.querySelectorAll<HTMLElement>('.pcard') ?? [])]
+      .filter((el) => Number(el.dataset.card) !== drag.card)
+      .map((el) => el.getBoundingClientRect())
+      .map((r) => r.left + r.width / 2);
+    setDrag({ ...drag, dx, to: centres.filter((x) => x < e.clientX).length });
+  }
+  function endDrag() {
+    if (drag && Math.abs(drag.dx) >= DRAG_START) {
+      const rest = hand.filter((c) => c !== drag.card);
+      setOrder([...rest.slice(0, drag.to), drag.card, ...rest.slice(drag.to)]);
+      // With the pointer captured, the closing click may land on the hand instead of the card.
+      suppressClick.current = true;
+      setTimeout(() => (suppressClick.current = false), 0);
+    }
+    setDrag(null);
+  }
 
   // Live turn countdown between server updates.
   const receivedAt = useMemo(() => performance.now(), [room]);
@@ -202,6 +261,11 @@ export function TienLenGame({ room, view, onLeave }: Props) {
   // mobile browsers don't reliably fire dblclick).
   const lastTap = useRef<{ card: Card; at: number } | null>(null);
   function tapCard(card: Card) {
+    // The click that ends a drag isn't a tap.
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
     const now = performance.now();
     const double = lastTap.current?.card === card && now - lastTap.current.at < 350;
     lastTap.current = { card, at: now };
@@ -293,6 +357,8 @@ export function TienLenGame({ room, view, onLeave }: Props) {
   const others = [...view.seats.slice(myIndex + 1), ...view.seats.slice(0, myIndex)].filter((s) => s.id !== me);
   const positions = POSITIONS[others.length] ?? [];
   const mySeat = view.seats.find((s) => s.id === me);
+  // Which side of the table the cards on it came from, for the fly-in animation.
+  const trickFrom = !view.trick ? '' : view.trick.by === me ? 'bottom' : (positions[others.findIndex((s) => s.id === view.trick!.by)] ?? 'top');
 
   let status: string;
   if (view.result) status = headline;
@@ -342,7 +408,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
           <div className="tl-center">
             {view.trick ? (
               <>
-                <div className="tl-trick" key={view.trick.cards.join(',')}>
+                <div className={`tl-trick from-${trickFrom}`} key={view.trick.cards.join(',')}>
                   {view.trick.cards.map((c) => (
                     <PlayingCard key={c} card={c} />
                   ))}
@@ -461,21 +527,33 @@ export function TienLenGame({ room, view, onLeave }: Props) {
           {/* Once the game is over the results (with everyone's leftover cards) take over. */}
           {seated && hand.length > 0 && !view.result && (
             <>
-              <div className="tl-hand">
-                {hand.map((c) => (
-                  <PlayingCard
-                    key={c}
-                    card={c}
-                    selected={selected.includes(c)}
-                    onClick={() => tapCard(c)}
-                  />
-                ))}
+              <div className="tl-hand" ref={handRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={() => setDrag(null)}>
+                {hand.map((c) => {
+                  const dragging = drag?.card === c && Math.abs(drag.dx) >= DRAG_START;
+                  return (
+                    <PlayingCard
+                      key={c}
+                      card={c}
+                      selected={selected.includes(c)}
+                      onClick={() => tapCard(c)}
+                      onPointerDown={(e) => startDrag(c, e)}
+                      dragging={dragging}
+                      style={dragging ? { transform: `translate(${drag!.dx}px, -18px)` } : undefined}
+                    />
+                  );
+                })}
               </div>
               <p className={`tl-hint ${problem ? 'error' : outOfTurnChop ? 'chop-ready' : 'muted'}`}>
                 {problem ?? (outOfTurnChop ? t.tienlen.chopNow : myTurn ? t.tienlen.pickCards : ' ')}
               </p>
               <div className="tl-actions">
-                <button className="btn btn-secondary" onClick={() => setSortBySuit((v) => !v)}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setOrder(null);
+                    setSortBySuit((v) => !v);
+                  }}
+                >
                   {sortBySuit ? t.tienlen.sortByRank : t.tienlen.sortBySuit}
                 </button>
                 <button className="btn btn-ghost" disabled={selected.length === 0} onClick={() => setSelected([])}>
