@@ -110,6 +110,16 @@ describe('caro', () => {
   });
 
   describe('bot', () => {
+    it('sees fives that run into the board edge (the edge does not block)', () => {
+      // X has four along row 5 ending at the edge column 13, stopped by O at column 9.
+      const xs = [at(5, 10), at(5, 11), at(5, 12), at(5, 13)];
+      const os = [at(5, 9), at(0, 0), at(0, 2), at(0, 4)];
+      const moves = xs.flatMap((x, i) => [x, os[i]]);
+      expect(caroBotCell(moves, S, true)).toBe(at(5, 14));
+      // And as O it blocks there.
+      expect(caroBotCell(moves.slice(0, -1), S, true)).toBe(at(5, 14));
+    });
+
     it('opens in the centre', () => {
       expect(caroBotCell([], S, true)).toBe(at(7, 7));
     });

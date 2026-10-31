@@ -137,9 +137,15 @@ export function DuelScreen(props: DuelScreenProps) {
   // null = following the live game; a number = reviewing the position after that many plies.
   const [reviewPly, setReviewPly] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(true);
-  useEffect(() => setShowResult(true), [view.result]);
+  // Every server update is a fresh object, so react to the result's content, not its identity.
+  const resultKey = view.result ? JSON.stringify(view.result) : '';
+  useEffect(() => setShowResult(true), [resultKey]);
 
   const plies = moveLabels.length;
+  // A takeback or a new game can leave the reviewed move behind; go back to the live position.
+  useEffect(() => {
+    if (reviewPly !== null && (reviewPly >= plies || plies === 0)) setReviewPly(null);
+  }, [plies, reviewPly]);
   const ply = reviewPly ?? plies;
   const reviewing = reviewPly !== null && reviewPly < plies;
   const goTo = (target: number) => setReviewPly(target >= plies ? null : Math.max(0, target));

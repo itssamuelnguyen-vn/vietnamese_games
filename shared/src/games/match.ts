@@ -56,3 +56,21 @@ export function chooseSides(
   if (hostColor === 'black') return [guest, host];
   return Math.random() < 0.5 ? [host, guest] : [guest, host];
 }
+
+// A takeback also takes back the increments earned by the undone moves. `undone` lists the side
+// that made each undone move, by ply; moves before the clock started earned nothing.
+export function refundIncrements<S extends string>(clock: MatchClock<S> | null, firstPly: number, undone: S[]): MatchClock<S> | null {
+  if (!clock || clock.incrementMs === 0) return clock;
+  const remaining = { ...clock.remaining };
+  undone.forEach((side, i) => {
+    if (firstPly + i >= CLOCK_START_PLY) remaining[side] = Math.max(0, remaining[side] - clock.incrementMs);
+  });
+  return { ...clock, remaining };
+}
+
+// Points for the room scoreboard in a two-player game: +1 for a win, -1 for a loss, 0 for a draw.
+export function duelPoints(players: [string, string], winner: string | null): Record<string, { points: number; place: number }> {
+  return Object.fromEntries(
+    players.map((id) => [id, { points: winner === null ? 0 : winner === id ? 1 : -1, place: winner !== null && winner !== id ? 2 : 1 }]),
+  );
+}

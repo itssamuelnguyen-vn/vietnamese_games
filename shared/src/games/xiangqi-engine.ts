@@ -34,7 +34,8 @@ export function squareName(file: number, rank: number): string {
 }
 
 export function parseSquare(square: string): [number, number] | null {
-  if (typeof square !== 'string' || square.length !== 2) return null;
+  // Strictly a file letter and a rank digit (Number(' ') would otherwise read as rank 0).
+  if (typeof square !== 'string' || !/^[a-i][0-9]$/.test(square)) return null;
   const file = FILES.indexOf(square[0]);
   const rank = Number(square[1]);
   return file >= 0 && Number.isInteger(rank) && rank >= 0 && rank <= 9 ? [file, rank] : null;

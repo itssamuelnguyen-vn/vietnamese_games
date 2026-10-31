@@ -25,18 +25,20 @@ export function notate(before: Xiangqi, move: XMove, style: NotationStyle): stri
   const [tf, tr] = parseSquare(move.to)!;
   const ahead = move.side === 'r' ? tr - fr : fr - tr;
 
-  // Another identical piece on the same file needs a front/rear mark instead of the file number.
-  const twins: number[] = [];
+  // Identical pieces on the same file need a position mark instead of the file number: front/rear
+  // for two, or 1, 2, 3… counted from the front for more (only soldiers can stack that high).
   const board = before.board();
-  board.forEach((row, i) => {
-    const p = row[ff];
-    if (p && p.side === move.side && p.type === move.piece) twins.push(9 - i);
-  });
+  const ranksOn = (file: number) =>
+    board.flatMap((row, i) => (row[file]?.side === move.side && row[file]?.type === move.piece ? [9 - i] : []));
+  const twins = ranksOn(ff).sort((a, b) => (move.side === 'r' ? b - a : a - b));
   let label = `${style.pieces[move.piece]}${fileNumber(move.side, ff)}`;
-  if (twins.length === 2) {
-    const frontRank = move.side === 'r' ? Math.max(...twins) : Math.min(...twins);
-    const mark = fr === frontRank ? style.front : style.rear;
+  if (twins.length >= 2) {
+    const index = twins.indexOf(fr);
+    const mark = twins.length === 2 ? (index === 0 ? style.front : style.rear) : String(index + 1);
     label = style.markFirst ? `${mark}${style.pieces[move.piece]}` : `${style.pieces[move.piece]}${mark}`;
+    // With stacked soldiers on more than one file, the file number is still needed to tell them apart.
+    const otherStacks = Array.from({ length: 9 }, (_, f) => f).some((f) => f !== ff && ranksOn(f).length >= 2);
+    if (otherStacks) label += fileNumber(move.side, ff);
   }
 
   if (ahead === 0) return `${label}${style.traverse}${fileNumber(move.side, tf)}`;
