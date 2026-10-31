@@ -5,7 +5,7 @@ import { useI18n, type Strings } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
-import { ChatCard, PlayersCard, RoomCodeCard } from '../../components/RoomPanels';
+import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
 import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { loadSetting, saveSetting } from '../../settings';
@@ -341,11 +341,6 @@ export function TienLenGame({ room, view, onLeave }: Props) {
     saveSetting('vg:tlLog', logOpen ? 'closed' : 'open');
     setLogOpen(!logOpen);
   }
-  const [scoresOpen, setScoresOpen] = useState(() => loadSetting('vg:tlScores') !== 'closed');
-  function toggleScores() {
-    saveSetting('vg:tlScores', scoresOpen ? 'closed' : 'open');
-    setScoresOpen(!scoresOpen);
-  }
   const logRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
@@ -599,41 +594,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
             <p className="tl-log-latest muted small">{describe(t, view.log.at(-1)!, name, view.seats.length)}</p>
           )}
         </section>
-        {room.tally.length > 0 && (
-          <section className={`card panel tl-score-panel ${scoresOpen ? 'open' : 'closed'}`}>
-            <button className="panel-toggle" aria-expanded={scoresOpen} onClick={toggleScores} title={scoresOpen ? t.tienlen.hideScoreboard : t.tienlen.showScoreboard}>
-              <h2>{t.tienlen.scoreboard}</h2>
-              <ChevronRightIcon className="panel-chevron" />
-            </button>
-            {scoresOpen && (
-              <table className="tl-scores">
-                <thead>
-                  <tr>
-                    <th />
-                    <th />
-                    <th>{t.tienlen.scoreGames}</th>
-                    <th>{t.tienlen.scoreWins}</th>
-                    <th>{t.tienlen.scorePoints}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {room.tally.map((entry, i) => (
-                    <tr key={entry.id} className={entry.id === me ? 'mine' : ''}>
-                      <td className="muted">{i + 1}</td>
-                      <td className="tl-scores-name">{entry.id === me ? t.room.you : entry.name}</td>
-                      <td>{entry.games}</td>
-                      <td>{entry.wins}</td>
-                      <td className={entry.points > 0 ? 'up' : entry.points < 0 ? 'down' : ''}>
-                        {entry.points > 0 ? '+' : ''}
-                        {entry.points}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-        )}
+        <ScoreboardPanel room={room} />
         <ChatCard room={room} />
       </aside>
     </div>

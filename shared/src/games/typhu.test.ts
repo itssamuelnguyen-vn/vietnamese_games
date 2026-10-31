@@ -56,7 +56,7 @@ const biz = (owner: string, province: string, type: Business['type'], level = 1)
   invested: bizPrice(square(province), type),
 });
 
-describe('cờ tỉ phú', () => {
+describe('co ti phu', () => {
   it('has the 34 provinces and 8 special squares', () => {
     expect(BOARD).toHaveLength(42);
     expect(BOARD.filter((s) => s.kind === 'province')).toHaveLength(34);
@@ -83,7 +83,7 @@ describe('cờ tỉ phú', () => {
   });
 
   it('rolls two dice, lands, and may open a business', () => {
-    // 1 + 2 = 3 squares: Sơn La.
+    // 1 + 2 = 3 squares: Son La.
     const s = act(game(), 'a', { type: 'roll' }, fixed(die(1), die(2)));
     expect(s.players.a.position).toBe(index('sonla'));
     expect(s.phase).toBe('act');
@@ -141,7 +141,7 @@ describe('cờ tỉ phú', () => {
     expect(chainFactor([north, central, south], 'a', 'food')).toBe(1);
   });
 
-  it('events change fees: storms close the centre, Tết doubles north and south', () => {
+  it('events change fees: storms close the centre, Lunar New Year doubles north and south', () => {
     const hue = biz('a', 'hue', 'inn');
     const hanoi = biz('a', 'hanoi', 'inn');
     expect(visitFee([hue], hue, 'storm')).toBe(0);

@@ -5,7 +5,8 @@ import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
 import { toast } from './Toaster';
-import { CopyIcon, CrownIcon, QrIcon, SendIcon } from './icons';
+import { ChevronRightIcon, CopyIcon, CrownIcon, QrIcon, SendIcon } from './icons';
+import { loadSetting, saveSetting } from '../settings';
 
 export function inviteLink(code: string) {
   return `${location.origin}/?room=${code}`;
@@ -92,6 +93,7 @@ export function PlayersCard({ room, subtitle }: PlayersCardProps) {
                     <CrownIcon /> {t.room.host}
                   </span>
                 )}
+                {p.bot && <span className="tag">🤖 {t.room.botTag}</span>}
               </span>
             </div>
           </li>
@@ -255,5 +257,72 @@ export function ChatCard({ room, recipient }: { room: RoomView; recipient?: stri
         </button>
       </form>
     </section>
+  );
+}
+
+// Running scores across the games played in this room; collapsible, remembered per browser.
+export function ScoreboardPanel({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const me = room.you;
+  const [open, setOpen] = useState(() => loadSetting('vg:tlScores') !== 'closed');
+  function toggle() {
+    saveSetting('vg:tlScores', open ? 'closed' : 'open');
+    setOpen(!open);
+  }
+  if (room.tally.length === 0) return null;
+  return (
+    <section className={`card panel tl-score-panel ${open ? 'open' : 'closed'}`}>
+      <button className="panel-toggle" aria-expanded={open} onClick={toggle} title={open ? t.tienlen.hideScoreboard : t.tienlen.showScoreboard}>
+        <h2>{t.tienlen.scoreboard}</h2>
+        <ChevronRightIcon className="panel-chevron" />
+      </button>
+      {open && (
+        <table className="tl-scores">
+          <thead>
+            <tr>
+              <th />
+              <th />
+              <th>{t.tienlen.scoreGames}</th>
+              <th>{t.tienlen.scoreWins}</th>
+              <th>{t.tienlen.scorePoints}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {room.tally.map((entry, i) => (
+              <tr key={entry.id} className={entry.id === me ? 'mine' : ''}>
+                <td className="muted">{i + 1}</td>
+                <td className="tl-scores-name">{entry.id === me ? t.room.you : entry.name}</td>
+                <td>{entry.games}</td>
+                <td>{entry.wins}</td>
+                <td className={entry.points > 0 ? 'up' : entry.points < 0 ? 'down' : ''}>
+                  {entry.points > 0 ? '+' : ''}
+                  {entry.points}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+// Co ti phu only has a turn timer to choose.
+export function TyPhuOptionsPicker({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const locked = room.hostId !== room.you || room.status === 'playing';
+  async function set(options: Partial<RoomOptions>) {
+    const r = await api.options(options);
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <ChipGroup
+      label={t.tienlen.turnTimer}
+      options={Object.keys(TURN_TIMERS) as TurnTimerId[]}
+      value={room.options.turnTimer}
+      labelOf={(id) => t.tienlen.turnTimers[id]}
+      disabled={locked}
+      onPick={(turnTimer) => set({ turnTimer })}
+    />
   );
 }

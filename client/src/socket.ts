@@ -42,6 +42,8 @@ export const api = {
   options: (options: Partial<RoomOptions>) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:options', options)),
   rematch: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:rematch')),
   claimWin: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('game:claim-win')),
+  addBot: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:add-bot')),
+  removeBot: (botId: string) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:remove-bot', botId)),
   chat: (text: string) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('chat:send', text)),
   leave: () => socket.emit('room:leave'),
 };

@@ -1,6 +1,6 @@
 import { TURN_TIMERS, type GameDefinition } from '../types';
 
-// Cờ tỉ phú: an original property-trading game on a road through Vietnam's 34 provinces.
+// Co ti phu ("tycoon"): an original property-trading game on a road through Vietnam's 34 provinces.
 // A game lasts 12 months; each month every player takes one turn. Players open businesses in
 // provinces, visitors pay every owner there, and the richest player after month 12 wins.
 // Display names (provinces, events) live in the client locale files.
@@ -22,7 +22,7 @@ export interface ProvinceSquare {
   kind: 'province';
   id: ProvinceId;
   region: Region;
-  // 1 (cheap) to 5 (Hà Nội, TP.HCM): sets business prices and fees.
+  // 1 (cheap) to 5 (Hanoi, Ho Chi Minh City): sets business prices and fees.
   tier: number;
   // How many businesses fit; each must be a different type.
   slots: number;

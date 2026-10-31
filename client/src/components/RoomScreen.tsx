@@ -1,12 +1,14 @@
-import { GAME_CATALOG, type ChessView, type RoomView, type TienLenView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
 import { XiangqiGame } from '../games/xiangqi/XiangqiGame';
 import { TienLenGame } from '../games/tienlen/TienLenGame';
+import { TyPhuGame } from '../games/typhu/TyPhuGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { ChatCard, ChessOptionsPicker, TienLenOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
+import { ChatCard, ChessOptionsPicker, TienLenOptionsPicker, TyPhuOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
+import { toast } from './Toaster';
 import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -29,6 +31,7 @@ export function RoomScreen({ room }: Props) {
   if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
   if (room.gameType === 'xiangqi') return <XiangqiGame room={room} view={room.game as XiangqiView} onLeave={leave} />;
   if (room.gameType === 'tienlen') return <TienLenGame room={room} view={room.game as TienLenView} onLeave={leave} />;
+  if (room.gameType === 'typhu') return <TyPhuGame room={room} view={room.game as TyPhuView} onLeave={leave} />;
   return null;
 }
 
@@ -39,6 +42,17 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
   const missing = Math.max(0, info.minPlayers - room.players.length);
   const gameName = t.games[room.gameType];
   const canShare = typeof navigator.share === 'function';
+  const canAddBot = isHost && !!info.bots && room.players.length < info.maxPlayers;
+
+  async function addBot() {
+    const r = await api.addBot();
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+
+  async function removeBot(id: string) {
+    const r = await api.removeBot(id);
+    if (!r.ok) toast(t.errors[r.error]);
+  }
 
   async function share() {
     try {
@@ -96,12 +110,19 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
             {Array.from({ length: info.maxPlayers }, (_, i) => {
               const p = room.players[i];
               if (!p) {
+                // The host can drop a bot into the first empty seat.
+                const offerBot = canAddBot && i === room.players.length;
                 return (
                   <li key={`empty-${i}`} className="seat empty">
                     <span className="seat-placeholder" />
                     <span className="seat-name">
                       <Ellipsis text={t.room.emptySeat} />
                     </span>
+                    {offerBot && (
+                      <button className="btn btn-secondary btn-sm" onClick={addBot}>
+                        🤖 {t.room.addBot}
+                      </button>
+                    )}
                   </li>
                 );
               }
@@ -116,8 +137,14 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                       </span>
                     )}
                     {p.id === room.you && <span className="tag">{t.room.you}</span>}
+                    {p.bot && <span className="tag">🤖 {t.room.botTag}</span>}
                     {!p.connected && <span className="tag tag-muted">{t.room.offline}</span>}
                   </span>
+                  {p.bot && isHost && (
+                    <button className="seat-remove" onClick={() => removeBot(p.id)} aria-label={t.room.removeBot} title={t.room.removeBot}>
+                      ×
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -129,6 +156,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
 
           {(room.gameType === 'chess' || room.gameType === 'xiangqi') && <ChessOptionsPicker room={room} />}
           {room.gameType === 'tienlen' && <TienLenOptionsPicker room={room} />}
+          {room.gameType === 'typhu' && <TyPhuOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>
@@ -141,6 +169,18 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
             )}
           </div>
         </section>
+
+        {room.gameType === 'typhu' && (
+          <section className="card rules-summary">
+            <h2>{t.typhu.summaryTitle}</h2>
+            <ul>
+              {t.typhu.summary.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <RulesButton gameType="typhu" />
+          </section>
+        )}
 
         <ChatCard room={room} />
       </div>
