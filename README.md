@@ -4,7 +4,7 @@ A website for playing classic games online with friends: chess, xiangqi (Chinese
 Tiến lên miền Nam (Vietnamese card game) and a property-trading board game.
 Create a room, share the 4-character code or invite link, and play.
 
-The UI is in Vietnamese; all code, comments and docs are in English.
+The UI is available in Vietnamese and English; all code, comments and docs are in English.
 
 | Game | Status |
 |---|---|
@@ -47,11 +47,21 @@ them to text.
 
 Rooms live in server memory, so restarting the server drops all rooms.
 
-## UI text
+## UI text, languages and themes
 
-All user-facing strings live in `client/src/i18n/vi.ts`. Components read them through
-`t` from `client/src/i18n`. Never hard-code display text in components. To add a locale,
-copy `vi.ts` with the same shape (`Strings` type) and switch `t`.
+The UI ships in Vietnamese (default) and English; players switch with the VI/EN toggle in the
+header, and the choice is remembered in `localStorage`.
+
+- All user-facing strings live in `client/src/i18n/vi.ts` and `client/src/i18n/en.ts`.
+  `en.ts` is typed as `Strings` (the shape of `vi.ts`), so a missing key is a type error.
+- Components read strings with `const { t } = useI18n()`. Never hard-code display text.
+- To add a locale, add a file with the same shape and register it in `LOCALES`
+  (`client/src/i18n/index.tsx`).
+
+Light and dark themes follow the OS setting until the player picks one with the sun/moon
+button. Colours are CSS custom properties on `:root`, overridden under
+`:root[data-theme='dark']` in `client/src/index.css`. A small inline script in
+`client/index.html` applies the saved theme before first paint to avoid a flash.
 
 ## Adding a game
 
@@ -60,7 +70,7 @@ copy `vi.ts` with the same shape (`Strings` type) and switch `t`.
 2. Export it from `shared/src/index.ts`.
 3. Register it in `GAMES` in `server/src/rooms.ts`.
 4. Build its board component in `client/src/games/` and render it from `RoomScreen.tsx`.
-5. Add its strings to `client/src/i18n/vi.ts`.
+5. Add its strings to `client/src/i18n/vi.ts` and `client/src/i18n/en.ts`.
 6. Set `available: true` for it in `GAME_CATALOG` (`shared/src/types.ts`).
 
 ## Free deployment on Render

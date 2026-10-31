@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import type { RoomView } from '@vg/shared';
 import { socket } from './socket';
-import { t } from './i18n';
+import { LOCALES, useI18n, type Locale } from './i18n';
+import { useTheme } from './theme';
 import { Lobby } from './components/Lobby';
 import { RoomScreen } from './components/RoomScreen';
 import { Toaster } from './components/Toaster';
-import { LogoMark } from './components/icons';
+import { LogoMark, MoonIcon, SunIcon } from './components/icons';
 
 function roomCodeFromUrl(): string {
   return new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '';
 }
 
 export function App() {
+  const { t, locale, setLocale } = useI18n();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [room, setRoom] = useState<RoomView | null>(null);
   const [connected, setConnected] = useState(socket.connected);
   // Read once at page load: only an invite link should prefill the join box, not a room we just left.
@@ -51,10 +54,27 @@ export function App() {
           <LogoMark />
           <span className="brand-name">{t.appName}</span>
         </div>
-        <span className={`conn-pill ${connected ? 'on' : 'off'}`}>
-          <span className="conn-dot" />
-          {connected ? t.connected : t.connecting}
-        </span>
+        <div className="topbar-actions">
+          <div className="lang-switch" role="group" aria-label={t.settings.language}>
+            {(Object.keys(LOCALES) as Locale[]).map((l) => (
+              <button key={l} aria-pressed={l === locale} onClick={() => setLocale(l)}>
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <button
+            className="icon-btn"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? t.settings.toLight : t.settings.toDark}
+            title={theme === 'dark' ? t.settings.toLight : t.settings.toDark}
+          >
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </button>
+          <span className={`conn-pill ${connected ? 'on' : 'off'}`} title={connected ? t.connected : t.connecting}>
+            <span className="conn-dot" />
+            <span className="conn-label">{connected ? t.connected : t.connecting}</span>
+          </span>
+        </div>
       </header>
       <main>
         {room ? <RoomScreen room={room} /> : <Lobby initialCode={inviteCode} connected={connected} />}

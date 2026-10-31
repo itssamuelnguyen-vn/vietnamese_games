@@ -8,6 +8,12 @@ export const vi = {
   connecting: 'Đang kết nối…',
   footer: 'Làm cho vui, chơi cho vui.',
 
+  settings: {
+    language: 'Ngôn ngữ',
+    toDark: 'Chuyển sang nền tối',
+    toLight: 'Chuyển sang nền sáng',
+  },
+
   games: {
     chess: 'Cờ vua',
     xiangqi: 'Cờ tướng',

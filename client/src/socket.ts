@@ -1,22 +1,6 @@
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, ErrorCode, GameType, ServerToClientEvents } from '@vg/shared';
-
-// localStorage can be blocked (private mode, locked-down browsers), so always guard it.
-export function loadSetting(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-export function saveSetting(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Not persisting is fine; it only loses a convenience.
-  }
-}
+import type { Ack, ClientToServerEvents, ErrorCode, GameType, ServerToClientEvents } from '@vg/shared';
+import { loadSetting, saveSetting } from './settings';
 
 function randomId(): string {
   // crypto.randomUUID needs HTTPS/localhost; getRandomValues also works when testing over a LAN IP.
@@ -49,7 +33,7 @@ export const api = {
     call(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:create', { gameType, name })),
   join: (code: string, name: string) =>
     call(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:join', { code, name })),
-  start: () => call(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:start')),
-  move: (move: unknown) => call(() => socket.timeout(TIMEOUT_MS).emitWithAck('game:move', move)),
+  start: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:start')),
+  move: (move: unknown) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('game:move', move)),
   leave: () => socket.emit('room:leave'),
 };

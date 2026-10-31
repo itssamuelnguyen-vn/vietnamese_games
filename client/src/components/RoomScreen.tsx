@@ -1,6 +1,6 @@
 import { GAME_CATALOG, type ChessView, type RoomView } from '@vg/shared';
 import { api, playerId } from '../socket';
-import { t } from '../i18n';
+import { useI18n, type Strings } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
 import { Avatar } from './Avatar';
 import { toast } from './Toaster';
@@ -15,7 +15,7 @@ function inviteLink(code: string) {
   return `${location.origin}/?room=${code}`;
 }
 
-async function copyInvite(code: string) {
+async function copyInvite(t: Strings, code: string) {
   try {
     await navigator.clipboard.writeText(inviteLink(code));
     toast(t.room.linkCopied);
@@ -26,6 +26,7 @@ async function copyInvite(code: string) {
 }
 
 export function RoomScreen({ room }: Props) {
+  const { t } = useI18n();
   function leave() {
     if (room.status === 'playing' && !confirm(t.room.confirmLeaveMidGame)) return;
     api.leave();
@@ -40,7 +41,7 @@ export function RoomScreen({ room }: Props) {
           <GameArt type={room.gameType} />
         </span>
         <span className="room-bar-title">{t.games[room.gameType]}</span>
-        <button className="code-chip" onClick={() => copyInvite(room.code)} title={t.room.copyLink}>
+        <button className="code-chip" onClick={() => copyInvite(t, room.code)} title={t.room.copyLink}>
           {room.code} <CopyIcon />
         </button>
         <button className="btn btn-ghost btn-sm" onClick={leave}>
@@ -53,6 +54,7 @@ export function RoomScreen({ room }: Props) {
 }
 
 function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void }) {
+  const { t } = useI18n();
   const info = GAME_CATALOG[room.gameType];
   const isHost = room.hostId === playerId;
   const missing = Math.max(0, info.minPlayers - room.players.length);
@@ -93,7 +95,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
             ))}
           </div>
           <div className="invite-actions">
-            <button className="btn btn-secondary" onClick={() => copyInvite(room.code)}>
+            <button className="btn btn-secondary" onClick={() => copyInvite(t, room.code)}>
               <CopyIcon /> {t.room.copyLink}
             </button>
             {canShare && (
@@ -142,7 +144,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
               {missing > 0 ? t.room.needMore(missing) : isHost ? t.room.ready : t.room.waitingForHost}
             </p>
             {isHost && (
-              <button className="btn btn-primary btn-lg" disabled={missing > 0} onClick={startGame}>
+              <button className="btn btn-primary btn-lg" disabled={missing > 0} onClick={() => startGame(t)}>
                 <PlayIcon /> {t.room.start}
               </button>
             )}
