@@ -1,94 +1,154 @@
-import { useState } from 'react';
-import { GAME_CATALOG, type ChessView, type ErrorCode, type RoomView } from '@vg/shared';
+import { GAME_CATALOG, type ChessView, type RoomView } from '@vg/shared';
 import { api, playerId } from '../socket';
-import { errorText, t } from '../i18n';
+import { t } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
+import { Avatar } from './Avatar';
+import { toast } from './Toaster';
+import { startGame } from './roomActions';
+import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
 
 interface Props {
   room: RoomView;
 }
 
+function inviteLink(code: string) {
+  return `${location.origin}/?room=${code}`;
+}
+
+async function copyInvite(code: string) {
+  try {
+    await navigator.clipboard.writeText(inviteLink(code));
+    toast(t.room.linkCopied);
+  } catch {
+    // The Clipboard API needs HTTPS; fall back to letting the user copy from a prompt.
+    prompt(t.room.copyLink, inviteLink(code));
+  }
+}
+
 export function RoomScreen({ room }: Props) {
-  const [error, setError] = useState<ErrorCode | null>(null);
-  const [copied, setCopied] = useState(false);
-  const info = GAME_CATALOG[room.gameType];
-  const isHost = room.hostId === playerId;
-  const inviteLink = `${location.origin}/?room=${room.code}`;
-  const names = Object.fromEntries(room.players.map((p) => [p.id, p.name]));
-
-  async function start() {
-    setError(null);
-    const r = await api.start();
-    if (!r.ok) setError(r.error);
-  }
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // The Clipboard API needs HTTPS; without it the user can copy from the link field.
-    }
-  }
-
   function leave() {
     if (room.status === 'playing' && !confirm(t.room.confirmLeaveMidGame)) return;
     api.leave();
   }
 
+  if (room.game === null) return <WaitingRoom room={room} onLeave={leave} />;
+
   return (
-    <div className={`room ${room.game !== null ? 'has-game' : ''}`}>
-      <aside className="room-side">
-        <section className="card">
-          <p className="muted">{t.games[room.gameType]}</p>
-          <p className="room-code">{room.code}</p>
-          <div className="invite">
-            <input readOnly value={inviteLink} onFocus={(e) => e.target.select()} />
-            <button className="secondary" onClick={copyLink}>
-              {copied ? t.room.copied : t.room.copyLink}
+    <div className="in-game">
+      <div className={`room-bar art-${room.gameType}`}>
+        <span className="room-bar-art">
+          <GameArt type={room.gameType} />
+        </span>
+        <span className="room-bar-title">{t.games[room.gameType]}</span>
+        <button className="code-chip" onClick={() => copyInvite(room.code)} title={t.room.copyLink}>
+          {room.code} <CopyIcon />
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={leave}>
+          <ExitIcon /> <span className="hide-sm">{t.room.leave}</span>
+        </button>
+      </div>
+      {room.gameType === 'chess' && <ChessGame room={room} view={room.game as ChessView} />}
+    </div>
+  );
+}
+
+function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void }) {
+  const info = GAME_CATALOG[room.gameType];
+  const isHost = room.hostId === playerId;
+  const missing = Math.max(0, info.minPlayers - room.players.length);
+  const gameName = t.games[room.gameType];
+  const canShare = typeof navigator.share === 'function';
+
+  async function share() {
+    try {
+      await navigator.share({ title: t.appName, text: t.room.shareText(gameName), url: inviteLink(room.code) });
+    } catch {
+      // User cancelled the share sheet.
+    }
+  }
+
+  return (
+    <div className="waiting">
+      <header className={`waiting-head art-${room.gameType}`}>
+        <span className="waiting-art">
+          <GameArt type={room.gameType} />
+        </span>
+        <div>
+          <p className="eyebrow">{t.room.waitingTitle}</p>
+          <h1>{gameName}</h1>
+        </div>
+        <button className="btn btn-ghost" onClick={onLeave}>
+          <ExitIcon /> {t.room.leave}
+        </button>
+      </header>
+
+      <div className="waiting-grid">
+        <section className="card invite-card">
+          <p className="eyebrow">{t.room.codeLabel}</p>
+          <div className="code-tiles" aria-label={room.code}>
+            {room.code.split('').map((c, i) => (
+              <span key={i} className="code-tile">
+                {c}
+              </span>
+            ))}
+          </div>
+          <div className="invite-actions">
+            <button className="btn btn-secondary" onClick={() => copyInvite(room.code)}>
+              <CopyIcon /> {t.room.copyLink}
             </button>
+            {canShare && (
+              <button className="btn btn-secondary" onClick={share}>
+                <ShareIcon /> {t.room.share}
+              </button>
+            )}
           </div>
         </section>
 
-        <section className="card">
-          <h2>{t.room.players(room.players.length, info.maxPlayers)}</h2>
-          <ul className="players">
-            {room.players.map((p) => (
-              <li key={p.id}>
-                <span className={`dot ${p.connected ? 'on' : 'off'}`} title={p.connected ? t.room.online : t.room.offline} />
-                <span>{p.name}</span>
-                {p.id === playerId && <span className="muted">{t.room.you}</span>}
-                {p.id === room.hostId && <span className="badge">{t.room.host}</span>}
-              </li>
-            ))}
+        <section className="card seats-card">
+          <div className="seats-head">
+            <h2>{t.room.players(room.players.length, info.maxPlayers)}</h2>
+          </div>
+          <ul className="seats">
+            {Array.from({ length: info.maxPlayers }, (_, i) => {
+              const p = room.players[i];
+              if (!p) {
+                return (
+                  <li key={`empty-${i}`} className="seat empty">
+                    <span className="seat-placeholder" />
+                    <span className="seat-name">{t.room.emptySeat}</span>
+                  </li>
+                );
+              }
+              return (
+                <li key={p.id} className={`seat ${p.id === playerId ? 'me' : ''}`}>
+                  <Avatar id={p.id} name={p.name} size={52} online={p.connected} />
+                  <span className="seat-name">{p.name}</span>
+                  <span className="seat-tags">
+                    {p.id === room.hostId && (
+                      <span className="tag tag-gold">
+                        <CrownIcon /> {t.room.host}
+                      </span>
+                    )}
+                    {p.id === playerId && <span className="tag">{t.room.you}</span>}
+                    {!p.connected && <span className="tag tag-muted">{t.room.offline}</span>}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
 
-          {room.status !== 'playing' &&
-            (isHost ? (
-              <button disabled={room.players.length < info.minPlayers} onClick={start}>
-                {room.status === 'finished' ? t.room.playAgain : t.room.start}
+          <div className="seats-foot">
+            <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>
+              {missing > 0 ? t.room.needMore(missing) : isHost ? t.room.ready : t.room.waitingForHost}
+            </p>
+            {isHost && (
+              <button className="btn btn-primary btn-lg" disabled={missing > 0} onClick={startGame}>
+                <PlayIcon /> {t.room.start}
               </button>
-            ) : (
-              <p className="muted">{t.room.waitingForHost}</p>
-            ))}
-          {room.status === 'waiting' && room.players.length < info.minPlayers && (
-            <p className="muted">{t.room.inviteHint}</p>
-          )}
-          {error && <p className="error">{errorText(error)}</p>}
+            )}
+          </div>
         </section>
-
-        <button className="secondary" onClick={leave}>
-          {t.room.leave}
-        </button>
-      </aside>
-
-      <section className="room-game">
-        {room.game !== null && room.gameType === 'chess' && (
-          <ChessGame view={room.game as ChessView} names={names} />
-        )}
-        {room.game === null && <div className="placeholder">{t.room.boardPlaceholder}</div>}
-      </section>
+      </div>
     </div>
   );
 }
