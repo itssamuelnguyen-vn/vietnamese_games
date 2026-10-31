@@ -7,7 +7,8 @@ import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
 import { ChatCard, PlayersCard, RoomCodeCard } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
-import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
+import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
+import { loadSetting, saveSetting } from '../../settings';
 import { playSound } from '../../sound';
 
 interface Props {
@@ -48,6 +49,58 @@ function useTicker(active: boolean, ms = 200) {
     const id = setInterval(() => setTick((n) => n + 1), ms);
     return () => clearInterval(id);
   }, [active, ms]);
+}
+
+// One row of the game log: who, what they did, and the cards as small chips.
+function LogRow({ entry, me, name, players }: { entry: TienLenLogEntry; me: string; name: (id: string) => string; players: number }) {
+  const { t } = useI18n();
+  const P = t.tienlen.logParts;
+  if (entry.kind === 'round') {
+    return (
+      <li className="tl-log-round">
+        <span>{P.newRound(name(entry.leader))}</span>
+      </li>
+    );
+  }
+  let verb: string;
+  let cards: Card[] = [];
+  let tone = '';
+  switch (entry.kind) {
+    case 'play':
+      cards = entry.cards;
+      verb = entry.auto ? P.autoPlayed : entry.chop ? P.chopped(t.tienlen.combos[entry.combo]) : P.played(t.tienlen.combos[entry.combo]);
+      tone = entry.chop ? 'chop' : '';
+      break;
+    case 'pass':
+      verb = entry.auto ? P.autoPassed : P.passed;
+      tone = 'pass';
+      break;
+    case 'finish':
+      verb = P.finished(t.tienlen.place(entry.place, players));
+      tone = 'finish';
+      break;
+    case 'left':
+      verb = P.left;
+      tone = 'pass';
+      break;
+  }
+  return (
+    <li className={`tl-log-row ${tone} ${entry.player === me ? 'mine' : ''}`}>
+      <Avatar id={entry.player} name={name(entry.player)} size={22} />
+      <span className="tl-log-text">
+        <strong>{name(entry.player)}</strong> {verb}
+        {cards.length > 0 && (
+          <span className="tl-log-cards">
+            {cards.map((c) => (
+              <span key={c} className={`chip-card ${isRed(c) ? 'red' : 'black'}`}>
+                {cardLabel(c)}
+              </span>
+            ))}
+          </span>
+        )}
+      </span>
+    </li>
+  );
 }
 
 function describe(t: Strings, entry: TienLenLogEntry, name: (id: string) => string, players: number): string {
@@ -141,10 +194,23 @@ export function TienLenGame({ room, view, onLeave }: Props) {
     };
   }, [myTurn, t]);
 
+  // The game log can be collapsed; the choice is remembered per browser.
+  const [logOpen, setLogOpen] = useState(() => loadSetting('vg:tlLog') !== 'closed');
+  function toggleLog() {
+    saveSetting('vg:tlLog', logOpen ? 'closed' : 'open');
+    setLogOpen(!logOpen);
+  }
   const logRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
-  }, [view.log.length]);
+  }, [view.log.length, logOpen]);
+
+  const myPlace = view.result ? view.result.ranking.indexOf(me) + 1 : 0;
+  const headline = !view.result || !myPlace
+    ? t.tienlen.resultTitle
+    : myPlace === view.result.ranking.length
+      ? t.tienlen.youLast
+      : t.tienlen.youPlaced(t.tienlen.place(myPlace, view.result.ranking.length));
 
   // Opponents in turn order starting after the viewer (or after seat 0 for spectators).
   const myIndex = Math.max(0, view.seats.findIndex((s) => s.id === me));
@@ -153,7 +219,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
   const mySeat = view.seats.find((s) => s.id === me);
 
   let status: string;
-  if (view.result) status = t.tienlen.resultTitle;
+  if (view.result) status = headline;
   else if (!seated) status = view.turn ? t.tienlen.turnOf(name(view.turn)) : t.tienlen.spectating;
   else if (!myTurn) status = view.turn ? t.tienlen.turnOf(name(view.turn)) + '…' : '';
   else if (view.mustPlay !== null) status = t.tienlen.mustPlay(cardLabel(view.mustPlay));
@@ -213,39 +279,64 @@ export function TienLenGame({ room, view, onLeave }: Props) {
 
           {view.result && (
             <div className="tl-result">
-              <div className="result-card win">
-                <span className="result-icon">
-                  <TrophyIcon />
-                </span>
-                <h2>{t.tienlen.resultTitle}</h2>
-                {view.result.instant && (
-                  <p>{t.tienlen.instant(name(view.result.instant.player), t.tienlen.instantWins[view.result.instant.kind])}</p>
+              <div className={`tl-result-card ${myPlace === 1 ? 'won' : ''}`}>
+                {myPlace === 1 && (
+                  <div className="confetti" aria-hidden="true">
+                    {Array.from({ length: 18 }, (_, i) => (
+                      <span key={i} style={{ '--i': i } as CSSProperties} />
+                    ))}
+                  </div>
                 )}
-                <ol className="tl-ranking">
-                  {view.result.ranking.map((id, i) => (
-                    <li key={id}>
-                      <span className="tag tag-gold">{t.tienlen.place(i + 1, view.result!.ranking.length)}</span>
-                      <strong>{name(id)}</strong>
-                      {(view.revealed?.[id]?.length ?? 0) > 0 && (
-                        <span className="tl-revealed" title={t.tienlen.remaining}>
-                          {view.revealed![id].map((c) => (
-                            <PlayingCard key={c} card={c} small />
-                          ))}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ol>
-                {seated ? (
-                  <button className="btn btn-primary" disabled={!isHost && room.rematchVotes.includes(me)} onClick={rematch}>
-                    <PlayIcon />{' '}
-                    {isHost ? t.room.playAgain : room.rematchVotes.includes(me) ? t.room.rematchRequested : t.room.requestRematch}
-                  </button>
-                ) : (
-                  <span className="muted">
-                    <Ellipsis text={t.room.waitingForHost} />
+                <header className="tl-result-head">
+                  <span className="result-icon">
+                    <TrophyIcon />
                   </span>
-                )}
+                  <h2>{headline}</h2>
+                  {view.result.instant && (
+                    <p className="tl-instant">
+                      {t.tienlen.instant(name(view.result.instant.player), t.tienlen.instantWins[view.result.instant.kind])}
+                    </p>
+                  )}
+                </header>
+                <ol className="tl-podium">
+                  {view.result.ranking.map((id, i) => {
+                    const left = view.revealed?.[id] ?? [];
+                    const place = i + 1;
+                    const last = place === view.result!.ranking.length;
+                    return (
+                      <li key={id} className={`medal-${last ? 'last' : place} ${id === me ? 'me' : ''}`}>
+                        <span className="tl-medal">{place}</span>
+                        <Avatar id={id} name={player(id)?.name ?? '?'} size={38} />
+                        <span className="tl-podium-text">
+                          <strong>{name(id)}</strong>
+                          <span className="muted small">
+                            {t.tienlen.place(place, view.result!.ranking.length)} ·{' '}
+                            {left.length > 0 ? t.tienlen.cardsLeft(left.length) : t.tienlen.cleared}
+                          </span>
+                        </span>
+                        {left.length > 0 && (
+                          <span className="tl-revealed" title={t.tienlen.remaining}>
+                            {left.map((c) => (
+                              <PlayingCard key={c} card={c} small />
+                            ))}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+                <div className="tl-result-actions">
+                  {seated ? (
+                    <button className="btn btn-primary" disabled={!isHost && room.rematchVotes.includes(me)} onClick={rematch}>
+                      <PlayIcon />{' '}
+                      {isHost ? t.room.playAgain : room.rematchVotes.includes(me) ? t.room.rematchRequested : t.room.requestRematch}
+                    </button>
+                  ) : (
+                    <span className="muted">
+                      <Ellipsis text={t.room.waitingForHost} />
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -296,18 +387,21 @@ export function TienLenGame({ room, view, onLeave }: Props) {
       </section>
 
       <aside className="game-right">
-        <section className="card panel">
-          <h2>{t.tienlen.history}</h2>
+        <section className={`card panel tl-log-panel ${logOpen ? 'open' : 'closed'}`}>
+          <button className="panel-toggle" aria-expanded={logOpen} aria-controls="tl-log" onClick={toggleLog} title={logOpen ? t.tienlen.hideLog : t.tienlen.showLog}>
+            <h2>{t.tienlen.history}</h2>
+            <ChevronRightIcon className="panel-chevron" />
+          </button>
           {view.log.length === 0 ? (
             <p className="muted small">{t.tienlen.noHistory}</p>
-          ) : (
-            <ol className="tl-log" ref={logRef}>
+          ) : logOpen ? (
+            <ol className="tl-log" id="tl-log" ref={logRef}>
               {view.log.map((entry, i) => (
-                <li key={i} className={entry.kind === 'play' && entry.chop ? 'chop' : entry.kind === 'finish' ? 'finish' : ''}>
-                  {describe(t, entry, name, view.seats.length)}
-                </li>
+                <LogRow key={i} entry={entry} me={me} name={name} players={view.seats.length} />
               ))}
             </ol>
+          ) : (
+            <p className="tl-log-latest muted small">{describe(t, view.log.at(-1)!, name, view.seats.length)}</p>
           )}
         </section>
         <ChatCard room={room} />

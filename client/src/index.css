@@ -1995,7 +1995,7 @@ main {
 
 .tl-table {
   position: relative;
-  min-height: 380px;
+  min-height: 420px;
   border-radius: 28px;
   background:
     radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.06) 1px, transparent 0) 0 0 / 10px 10px,
@@ -2096,12 +2096,19 @@ main {
 .tl-center {
   position: absolute;
   top: 50%;
+  z-index: 1;
   left: 50%;
   translate: -50% -50%;
   display: grid;
   justify-items: center;
   gap: 8px;
   max-width: calc(100% - 300px);
+}
+
+/* With someone seated at the top, the pile sits lower so it never covers their seat. */
+.tl-table.seats-1 .tl-center,
+.tl-table.seats-3 .tl-center {
+  top: 62%;
 }
 
 .tl-trick {
@@ -2120,6 +2127,11 @@ main {
   opacity: 0.85;
 }
 
+/* Room for the full ranking once the results are up. */
+.tl-table:has(.tl-result) {
+  min-height: 540px;
+}
+
 .tl-result {
   position: absolute;
   inset: 0;
@@ -2133,43 +2145,146 @@ main {
   color: var(--text);
 }
 
-.tl-result .result-card {
-  width: min(100%, 420px);
-  /* Stay inside the table; long results (revealed hands) scroll. */
+.tl-result-card {
+  position: relative;
+  overflow: hidden;
+  width: min(100%, 460px);
   max-height: 100%;
-  overflow-y: auto;
-  padding: 20px 20px 18px;
-  gap: 8px;
-}
-
-.tl-result .result-icon {
-  width: 52px;
-  height: 52px;
-  font-size: 28px;
-}
-
-.tl-ranking {
-  list-style: none;
-  margin: 4px 0 8px;
-  padding: 0;
-  width: 100%;
+  padding: 20px;
+  /* Heading and buttons stay put; only the ranking scrolls when it's long. */
   display: grid;
-  gap: 8px;
-  text-align: left;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.tl-ranking li {
-  display: flex;
-  flex-wrap: wrap;
+.tl-result-card.won {
+  background: linear-gradient(180deg, var(--gold-soft), var(--surface) 45%);
+}
+
+.tl-result-head {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.tl-result-head .result-icon {
+  width: 54px;
+  height: 54px;
+  font-size: 28px;
+  background: linear-gradient(145deg, #f3cd73, var(--gold));
+  color: #6b4205;
+}
+
+.tl-result-head h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.tl-instant {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.tl-podium {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.tl-podium li {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  animation: pop-in 0.35s ease backwards;
 }
 
+.tl-podium li:nth-child(2) { animation-delay: 0.06s; }
+.tl-podium li:nth-child(3) { animation-delay: 0.12s; }
+.tl-podium li:nth-child(4) { animation-delay: 0.18s; }
+
+.tl-podium li.me {
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.tl-podium li.medal-1 {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 28%, var(--surface)), var(--surface-2));
+}
+
+.tl-medal {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-weight: 800;
+  color: #fff;
+  background: #9a8b7c;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+}
+
+.medal-1 .tl-medal {
+  background: linear-gradient(145deg, #f3cd73, #d39a2a);
+  color: #5a3a05;
+}
+
+.medal-2 .tl-medal {
+  background: linear-gradient(145deg, #e3e6ea, #a9b0b8);
+  color: #33383d;
+}
+
+.medal-3 .tl-medal {
+  background: linear-gradient(145deg, #e6a97a, #b06c3c);
+}
+
+.tl-podium-text {
+  display: grid;
+  min-width: 0;
+}
+
+.tl-podium-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Leftover cards fan out on their own row under the name. */
 .tl-revealed {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
-  width: 100%;
+  row-gap: 4px;
+  padding-left: 40px;
+}
+
+.tl-revealed .pcard + .pcard {
+  margin-left: -9px;
+}
+
+.tl-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 
 .tl-me {
@@ -2238,23 +2353,159 @@ main {
 
 .tl-log {
   list-style: none;
-  margin: 0;
+  margin: 0 -6px;
   padding: 0;
-  max-height: 300px;
+  max-height: 320px;
   overflow-y: auto;
   display: grid;
   gap: 4px;
   font-size: 0.9rem;
 }
 
-.tl-log li.chop {
+.tl-log-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 10px;
+  animation: fade-in 0.25s ease;
+}
+
+.tl-log-row .avatar {
+  margin-top: 1px;
+  box-shadow: none;
+  font-size: 10px !important;
+}
+
+.tl-log-text {
+  line-height: 1.6;
+}
+
+.tl-log-row.mine {
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+}
+
+/* Passes recede; chops and finishes stand out. */
+.tl-log-row.pass {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.tl-log-row.chop {
+  background: var(--brand-soft);
   color: var(--brand);
+}
+
+.tl-log-row.chop strong {
+  color: var(--brand);
+}
+
+.tl-log-row.finish {
+  background: var(--gold-soft);
+  color: var(--gold-text);
   font-weight: 700;
 }
 
-.tl-log li.finish {
-  color: var(--gold-text);
+.tl-log-cards {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+.chip-card {
+  display: inline-block;
+  min-width: 26px;
+  padding: 0 4px;
+  border: 1px solid #d8cbb8;
+  border-radius: 5px;
+  background: #fffdf8;
+  font-size: 0.8rem;
+  font-weight: 800;
+  font-style: normal;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.chip-card.red {
+  color: #c0262d;
+}
+
+.chip-card.black {
+  color: #1f1a17;
+}
+
+.tl-log {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.tl-log::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tl-log::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.panel-toggle:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.panel-chevron {
+  color: var(--muted);
+  font-size: 18px;
+  transition: transform 0.2s ease;
+}
+
+.tl-log-panel.open .panel-chevron {
+  transform: rotate(90deg);
+}
+
+.tl-log-latest {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "New round" dividers split the log into rounds. */
+.tl-log-round {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 6px 2px;
+  color: var(--muted);
+  font-size: 0.75rem;
   font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tl-log-round::before,
+.tl-log-round::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
 }
 
 @media (max-width: 1180px) {
@@ -2280,7 +2531,12 @@ main {
   }
 
   .tl-table {
-    min-height: 330px;
+    min-height: 380px;
+  }
+
+  .tl-table.seats-1 .tl-center,
+  .tl-table.seats-3 .tl-center {
+    top: 67%;
   }
 
   .tl-seat {
