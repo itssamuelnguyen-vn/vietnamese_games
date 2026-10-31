@@ -324,6 +324,7 @@ export const en: Strings = {
       round: (who: string) => `New round, ${who} leads`,
       left: (who: string) => `${who} left the table`,
       frozen: (who: string) => `${who} is frozen!`,
+      stuck: (who: string) => `${who} is stuck with a 2 and loses!`,
     },
     logParts: {
       played: (combo: string) => `played a ${combo}`,
@@ -334,6 +335,7 @@ export const en: Strings = {
       finished: (place: string) => `finished ${place}!`,
       left: 'left the table',
       frozen: 'is frozen!',
+      stuck: 'is stuck with a 2 and loses!',
       newRound: (who: string) => `New round · ${who} leads`,
     },
     offline: (names: string) => `${names} lost connection`,
@@ -348,7 +350,8 @@ export const en: Strings = {
       penalties: 'Scoring: 2s, bombs and "frozen" penalties',
     },
     houseRuleDetails: {
-      'no-two-finish': 'No going out on a 2: your final play cannot include a 2.',
+      'no-two-finish':
+        'No going out on a 2: your final play cannot include a 2. If you must lead holding only a single 2, you lose and rank below everyone still playing.',
       'no-stack-chop': 'No chopping a chop: once a bomb has chopped, nobody can chop it back.',
       'four-pairs-anytime': 'A run of 4 pairs can chop a 2 or a bomb at any time, even out of turn or after passing.',
       penalties:
@@ -360,6 +363,7 @@ export const en: Strings = {
     twoFinish: 'This table doesn’t allow going out on a 2',
     chopNow: 'You can chop right now with your 4-pair run!',
     frozenTag: 'Frozen',
+    stuckTag: 'Stuck on a 2',
     penalties: {
       frozen: 'Frozen',
       'black-two': 'Black 2 left',

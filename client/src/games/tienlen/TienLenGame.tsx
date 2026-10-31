@@ -107,6 +107,10 @@ function LogRow({ entry, me, name, players }: { entry: TienLenLogEntry; me: stri
       verb = P.frozen;
       tone = 'chop';
       break;
+    case 'stuck':
+      verb = P.stuck;
+      tone = 'chop';
+      break;
   }
   return (
     <li className={`tl-log-row ${tone} ${entry.player === me ? 'mine' : ''}`}>
@@ -143,6 +147,8 @@ function describe(t: Strings, entry: TienLenLogEntry, name: (id: string) => stri
       return L.left(name(entry.player));
     case 'frozen':
       return L.frozen(name(entry.player));
+    case 'stuck':
+      return L.stuck(name(entry.player));
   }
 }
 
@@ -395,6 +401,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                 <span className="tl-seat-tags">
                   {seat.out && <span className="tag tag-muted">{t.tienlen.left}</span>}
                   {seat.frozen && <span className="tag tag-danger">{t.tienlen.frozenTag}</span>}
+                  {seat.stuck && <span className="tag tag-danger">{t.tienlen.stuckTag}</span>}
                   {seat.place && !seat.out && <span className="tag tag-gold">{t.tienlen.place(seat.place, view.seats.length)}</span>}
                   {seat.passed && <span className="tag">{t.tienlen.passed}</span>}
                 </span>
