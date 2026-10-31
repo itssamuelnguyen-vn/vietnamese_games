@@ -1,6 +1,6 @@
 import { TURN_TIMERS, type GameDefinition } from '../types';
 
-// Tiến lên miền Nam (Southern Vietnamese "go up").
+// Tien len mien Nam, the Southern Vietnamese shedding card game ("go up").
 // A card is a number 0–51: rank = card >> 2 (0 = 3, 1 = 4, …, 11 = A, 12 = 2) and
 // suit = card & 3 (0 ♠, 1 ♣, 2 ♦, 3 ♥), so comparing cards is comparing numbers.
 
@@ -31,7 +31,7 @@ export type TienLenLogEntry =
   | { kind: 'left'; player: string };
 
 export interface TienLenResult {
-  // Player ids from first (nhất) to last (bét).
+  // Player ids from first place to last.
   ranking: string[];
   instant: { player: string; kind: InstantWinKind } | null;
 }
@@ -127,7 +127,7 @@ export function beats(next: Combo, prev: Combo | null): boolean {
   return false;
 }
 
-// "Tới trắng": hands that win on the deal.
+// Instant wins: hands that win on the deal.
 export function instantWin(hand: Card[]): InstantWinKind | null {
   const counts = Array<number>(13).fill(0);
   for (const c of hand) counts[rankOf(c)]++;
