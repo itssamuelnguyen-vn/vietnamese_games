@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import type { Ack, ClientToServerEvents, ErrorCode, GameType, ServerToClientEvents } from '@vg/shared';
+import type { Ack, ClientToServerEvents, ErrorCode, GameType, RoomOptions, ServerToClientEvents } from '@vg/shared';
 import { loadSetting, saveSetting } from './settings';
 
 function randomId(): string {
@@ -8,13 +8,17 @@ function randomId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// A stable per-browser playerId lets a refresh or dropped connection land back in the same seat.
-export const playerId = loadSetting('vg:playerId') ?? randomId();
-saveSetting('vg:playerId', playerId);
+// A stable per-browser secret lets a refresh or dropped connection land back in the same seat.
+// It never leaves this browser except in the handshake; rooms identify us by `room.you`.
+const token = loadSetting('vg:playerId') ?? randomId();
+saveSetting('vg:playerId', token);
+
+// Only used to colour the avatar preview before joining a room.
+export const localAvatarSeed = token.slice(0, 8);
 
 // autoConnect is off: App calls connect() after attaching listeners so the first room:state isn't missed.
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({
-  auth: { playerId },
+  auth: { token },
   autoConnect: false,
 });
 
@@ -35,5 +39,9 @@ export const api = {
     call(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:join', { code, name })),
   start: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:start')),
   move: (move: unknown) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('game:move', move)),
+  options: (options: Partial<RoomOptions>) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:options', options)),
+  rematch: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:rematch')),
+  claimWin: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('game:claim-win')),
+  chat: (text: string) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('chat:send', text)),
   leave: () => socket.emit('room:leave'),
 };

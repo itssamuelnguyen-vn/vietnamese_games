@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import type { ChessView, ClientToServerEvents, RoomView, ServerToClientEvents } from '@vg/shared';
-import { createGameServer, type GameServer } from './app';
+import { createGameServer, publicId, type GameServer } from './app';
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -28,8 +28,8 @@ afterAll(async () => {
   await server.close();
 });
 
-function client(playerId: string): Promise<Client> {
-  const socket: ClientSocket = connect(url, { auth: { playerId }, transports: ['websocket'], forceNew: true });
+function client(token: string): Promise<Client> {
+  const socket: ClientSocket = connect(url, { auth: { token }, transports: ['websocket'], forceNew: true });
   sockets.push(socket);
   let latest: RoomView | null = null;
   const waiters = new Set<() => void>();
@@ -56,7 +56,7 @@ function client(playerId: string): Promise<Client> {
   });
 }
 
-const call = <E extends 'room:create' | 'room:join' | 'room:start' | 'game:move'>(
+const call = <E extends 'room:create' | 'room:join' | 'room:start' | 'game:move' | 'chat:send'>(
   c: Client,
   event: E,
   ...args: Parameters<ClientToServerEvents[E]> extends [...infer P, unknown] ? P : never
@@ -68,8 +68,26 @@ describe('game server', () => {
     expect(await res.text()).toBe('ok');
   });
 
-  it('rejects connections without a valid playerId', async () => {
-    await expect(client('short')).rejects.toThrow('invalid playerId');
+  it('rejects connections without a valid token', async () => {
+    await expect(client('short')).rejects.toThrow('invalid token');
+  });
+
+  it('never exposes tokens, and a public id cannot be used to impersonate', async () => {
+    const victim = await client('victim-secret-token');
+    const attacker = await client('attacker-secret-token');
+    const { code } = await call(victim, 'room:create', { gameType: 'chess', name: 'Victim' });
+    await call(attacker, 'room:join', { code: code!, name: 'Attacker' });
+    await call(victim, 'room:start');
+
+    const seen = await attacker.waitFor((r) => r.status === 'playing');
+    expect(JSON.stringify(seen)).not.toContain('victim-secret-token');
+    const victimId = seen.players.find((p) => p.name === 'Victim')!.id;
+    expect(victimId).toBe(publicId('victim-secret-token'));
+
+    // Logging in with the public id yields a different identity that is not in the room.
+    const impostor = await client(victimId);
+    expect(await call(impostor, 'game:move', { type: 'resign' })).toEqual({ ok: false, error: 'NOT_IN_ROOM' });
+    expect((await victim.waitFor((r) => r.status === 'playing')).status).toBe('playing');
   });
 
   it('plays a full chess game between two players', async () => {
@@ -84,7 +102,7 @@ describe('game server', () => {
 
     const room = await a.waitFor((r) => r.status === 'playing');
     const game = room.game as ChessView;
-    const [white, black] = game.white === 'aaaaaaaaaaaa' ? [a, b] : [b, a];
+    const [white, black] = game.white === room.you ? [a, b] : [b, a];
 
     expect(await call(black, 'game:move', { type: 'move', from: 'e7', to: 'e5' })).toEqual({
       ok: false,
@@ -114,12 +132,41 @@ describe('game server', () => {
     await call(a, 'room:start');
 
     b.socket.close();
-    await a.waitFor((r) => r.players.some((p) => p.id === 'dddddddddddd' && !p.connected));
+    await a.waitFor((r) => r.players.some((p) => p.id === publicId('dddddddddddd') && !p.connected));
 
     const b2 = await client('dddddddddddd');
     const back = await b2.waitFor((r) => r.code === code);
     expect(back.status).toBe('playing');
     await a.waitFor((r) => r.players.every((p) => p.connected));
+  });
+
+  it('lets a spectator watch and chat with the players', async () => {
+    const a = await client('ffffffffffff');
+    const b = await client('gggggggggggg');
+    const watcher = await client('hhhhhhhhhhhh');
+    const { code } = await call(a, 'room:create', { gameType: 'chess', name: 'An' });
+    await call(b, 'room:join', { code: code!, name: 'Bình' });
+    await call(a, 'room:start');
+    expect((await call(watcher, 'room:join', { code: code!, name: 'Chi' })).ok).toBe(true);
+
+    const watching = await watcher.waitFor((r) => r.status === 'playing');
+    expect(watching.spectators.map((p) => p.name)).toEqual(['Chi']);
+    expect((watching.game as ChessView).fen).toBeTruthy();
+
+    expect((await call(watcher, 'chat:send', 'hay quá')).ok).toBe(true);
+    for (const c of [a, b]) {
+      const room = await c.waitFor((r) => r.chat.length > 0);
+      expect(room.chat.at(-1)).toMatchObject({ name: 'Chi', text: 'hay quá' });
+    }
+  });
+
+  it('rate-limits a flooding connection', async () => {
+    const spammer = await client('spammer-token-1');
+    const replies = await Promise.all(
+      Array.from({ length: 70 }, () => call(spammer, 'room:join', { code: 'ZZZZ', name: 'x' })),
+    );
+    expect(replies.filter((r) => r.error === 'RATE_LIMITED').length).toBe(10);
+    expect(replies.filter((r) => r.error === 'ROOM_NOT_FOUND').length).toBe(60);
   });
 
   it('survives events sent without an ack callback or with junk payloads', async () => {

@@ -1,9 +1,9 @@
 import { GAME_CATALOG, type ChessView, type RoomView } from '@vg/shared';
-import { api, playerId } from '../socket';
-import { useI18n, type Strings } from '../i18n';
+import { api } from '../socket';
+import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
 import { Avatar } from './Avatar';
-import { toast } from './Toaster';
+import { ChatCard, ChessOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
 
@@ -11,52 +11,25 @@ interface Props {
   room: RoomView;
 }
 
-function inviteLink(code: string) {
-  return `${location.origin}/?room=${code}`;
-}
-
-async function copyInvite(t: Strings, code: string) {
-  try {
-    await navigator.clipboard.writeText(inviteLink(code));
-    toast(t.room.linkCopied);
-  } catch {
-    // The Clipboard API needs HTTPS; fall back to letting the user copy from a prompt.
-    prompt(t.room.copyLink, inviteLink(code));
-  }
-}
-
 export function RoomScreen({ room }: Props) {
   const { t } = useI18n();
   function leave() {
-    if (room.status === 'playing' && !confirm(t.room.confirmLeaveMidGame)) return;
+    // Only players forfeit by leaving; spectators can just go.
+    const seated = room.players.some((p) => p.id === room.you);
+    if (room.status === 'playing' && seated && !confirm(t.room.confirmLeaveMidGame)) return;
     api.leave();
   }
 
   if (room.game === null) return <WaitingRoom room={room} onLeave={leave} />;
 
-  return (
-    <div className="in-game">
-      <div className={`room-bar art-${room.gameType}`}>
-        <span className="room-bar-art">
-          <GameArt type={room.gameType} />
-        </span>
-        <span className="room-bar-title">{t.games[room.gameType]}</span>
-        <button className="code-chip" onClick={() => copyInvite(t, room.code)} title={t.room.copyLink}>
-          {room.code} <CopyIcon />
-        </button>
-        <button className="btn btn-ghost btn-sm" onClick={leave}>
-          <ExitIcon /> <span className="hide-sm">{t.room.leave}</span>
-        </button>
-      </div>
-      {room.gameType === 'chess' && <ChessGame room={room} view={room.game as ChessView} />}
-    </div>
-  );
+  if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
+  return null;
 }
 
 function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void }) {
   const { t } = useI18n();
   const info = GAME_CATALOG[room.gameType];
-  const isHost = room.hostId === playerId;
+  const isHost = room.hostId === room.you;
   const missing = Math.max(0, info.minPlayers - room.players.length);
   const gameName = t.games[room.gameType];
   const canShare = typeof navigator.share === 'function';
@@ -122,7 +95,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                 );
               }
               return (
-                <li key={p.id} className={`seat ${p.id === playerId ? 'me' : ''}`}>
+                <li key={p.id} className={`seat ${p.id === room.you ? 'me' : ''}`}>
                   <Avatar id={p.id} name={p.name} size={52} online={p.connected} />
                   <span className="seat-name">{p.name}</span>
                   <span className="seat-tags">
@@ -131,13 +104,19 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                         <CrownIcon /> {t.room.host}
                       </span>
                     )}
-                    {p.id === playerId && <span className="tag">{t.room.you}</span>}
+                    {p.id === room.you && <span className="tag">{t.room.you}</span>}
                     {!p.connected && <span className="tag tag-muted">{t.room.offline}</span>}
                   </span>
                 </li>
               );
             })}
           </ul>
+
+          <p className="spectator-line muted small">
+            {t.room.spectators} · {room.spectators.length ? room.spectators.map((p) => p.name).join(', ') : t.room.noSpectators}
+          </p>
+
+          {room.gameType === 'chess' && <ChessOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>
@@ -150,6 +129,8 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
             )}
           </div>
         </section>
+
+        <ChatCard room={room} />
       </div>
     </div>
   );

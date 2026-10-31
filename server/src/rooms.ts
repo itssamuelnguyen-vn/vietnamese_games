@@ -1,10 +1,17 @@
 import {
+  DEFAULT_ROOM_OPTIONS,
   GAME_CATALOG,
+  MAX_CHAT_LENGTH,
+  TIME_CONTROLS,
   chessGame,
+  type ChatMessage,
+  ABANDON_CLAIM_MS,
   type ErrorCode,
+  type HostColor,
   type GameDefinition,
   type GameType,
   type MoveResult,
+  type RoomOptions,
   type RoomStatus,
   type RoomView,
 } from '@vg/shared';
@@ -24,9 +31,22 @@ export interface Room {
   gameType: GameType;
   hostId: string;
   players: Player[];
+  spectators: Player[];
   status: RoomStatus;
+  options: RoomOptions;
   state: unknown;
+  rematchVotes: string[];
+  chat: ChatMessage[];
   lastActivity: number;
+}
+
+export interface RoomManagerOptions {
+  // Injectable so tests can control time.
+  clock?: () => number;
+  // Called when the server changes a room on its own (e.g. a clock runs out).
+  onAutoUpdate?: (room: Room) => void;
+  // Upper bound on open rooms, so room spam can't exhaust memory.
+  maxRooms?: number;
 }
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -34,10 +54,33 @@ type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
 // Leaves out look-alike characters (0/O, 1/I/L) so codes are easy to read aloud.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const MAX_NAME_LENGTH = 20;
+const MAX_SPECTATORS = 20;
+const HOST_COLORS: HostColor[] = ['random', 'white', 'black'];
+const CHAT_HISTORY = 50;
+// Chat flood control: at most CHAT_BURST messages per CHAT_WINDOW_MS per person.
+const CHAT_BURST = 5;
+const CHAT_WINDOW_MS = 10_000;
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private playerRoom = new Map<string, string>();
+
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private chatTimes = new Map<string, number[]>();
+  private nextMessageId = 1;
+  private readonly clock: () => number;
+  private readonly onAutoUpdate: (room: Room) => void;
+  private readonly maxRooms: number;
+
+  constructor({ clock = Date.now, onAutoUpdate = () => {}, maxRooms = 1000 }: RoomManagerOptions = {}) {
+    this.clock = clock;
+    this.onAutoUpdate = onAutoUpdate;
+    this.maxRooms = maxRooms;
+  }
+
+  private ctx() {
+    return { now: this.clock() };
+  }
 
   roomOf(playerId: string): Room | undefined {
     const code = this.playerRoom.get(playerId);
@@ -51,6 +94,7 @@ export class RoomManager {
     }
     const cleanName = sanitizeName(name);
     if (!cleanName) return { ok: false, error: 'NAME_REQUIRED' };
+    if (this.rooms.size >= this.maxRooms) return { ok: false, error: 'SERVER_FULL' };
 
     const left = this.leave(playerId);
     const room: Room = {
@@ -58,8 +102,12 @@ export class RoomManager {
       gameType,
       hostId: playerId,
       players: [{ id: playerId, name: cleanName }],
+      spectators: [],
       status: 'waiting',
+      options: { ...DEFAULT_ROOM_OPTIONS },
       state: null,
+      rematchVotes: [],
+      chat: [],
       lastActivity: Date.now(),
     };
     this.rooms.set(room.code, room);
@@ -72,17 +120,16 @@ export class RoomManager {
     if (!room) return { ok: false, error: 'ROOM_NOT_FOUND' };
 
     // Already a member (e.g. reopened the tab): let them straight back in.
-    if (room.players.some((p) => p.id === playerId)) return { ok: true, room };
+    if (isMember(room, playerId)) return { ok: true, room };
 
     const cleanName = sanitizeName(name);
     if (!cleanName) return { ok: false, error: 'NAME_REQUIRED' };
-    if (room.status === 'playing') return { ok: false, error: 'ROOM_IN_GAME' };
-    if (room.players.length >= GAME_CATALOG[room.gameType].maxPlayers) {
-      return { ok: false, error: 'ROOM_FULL' };
-    }
+    // Free seat between games: sit down. Otherwise watch.
+    const seatFree = room.status !== 'playing' && room.players.length < GAME_CATALOG[room.gameType].maxPlayers;
+    if (!seatFree && room.spectators.length >= MAX_SPECTATORS) return { ok: false, error: 'ROOM_FULL' };
 
     const left = this.leave(playerId);
-    room.players.push({ id: playerId, name: cleanName });
+    (seatFree ? room.players : room.spectators).push({ id: playerId, name: cleanName });
     room.lastActivity = Date.now();
     this.playerRoom.set(playerId, room.code);
     return { ok: true, room, left };
@@ -93,16 +140,25 @@ export class RoomManager {
     const room = this.roomOf(playerId);
     if (!room) return undefined;
     this.playerRoom.delete(playerId);
+    this.chatTimes.delete(playerId);
+
+    if (room.spectators.some((p) => p.id === playerId)) {
+      room.spectators = room.spectators.filter((p) => p.id !== playerId);
+      return room;
+    }
 
     if (room.status === 'playing') {
-      room.state = GAMES[room.gameType]!.forfeit(room.state, playerId);
+      room.state = GAMES[room.gameType]!.forfeit(room.state, playerId, this.ctx(), 'left');
       room.status = 'finished';
+      this.armTimer(room);
     }
     room.players = room.players.filter((p) => p.id !== playerId);
+    room.rematchVotes = [];
     room.lastActivity = Date.now();
+    this.fillSeats(room);
 
     if (room.players.length === 0) {
-      this.rooms.delete(room.code);
+      this.deleteRoom(room);
       return undefined;
     }
     if (room.hostId === playerId) room.hostId = room.players[0].id;
@@ -119,8 +175,28 @@ export class RoomManager {
       return { ok: false, error: 'NOT_ENOUGH_PLAYERS' };
     }
 
-    room.state = GAMES[room.gameType]!.setup(room.players.map((p) => p.id));
+    // Host first, so games can honour the host's chosen side.
+    const ids = [room.hostId, ...room.players.map((p) => p.id).filter((id) => id !== room.hostId)];
+    room.state = GAMES[room.gameType]!.setup(ids, room.options, this.ctx(), room.state);
     room.status = 'playing';
+    room.rematchVotes = [];
+    room.lastActivity = Date.now();
+    this.armTimer(room);
+    return { ok: true, room };
+  }
+
+  setOptions(playerId: string, options: unknown): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (room.hostId !== playerId) return { ok: false, error: 'NOT_HOST' };
+    if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
+    if (typeof options !== 'object' || options === null) return { ok: false, error: 'INVALID_OPTIONS' };
+    const { timeControl = room.options.timeControl, hostColor = room.options.hostColor } = options as Partial<RoomOptions>;
+    if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
+      return { ok: false, error: 'INVALID_OPTIONS' };
+    }
+    if (!HOST_COLORS.includes(hostColor)) return { ok: false, error: 'INVALID_OPTIONS' };
+    room.options = { ...room.options, timeControl, hostColor };
     room.lastActivity = Date.now();
     return { ok: true, room };
   }
@@ -133,7 +209,7 @@ export class RoomManager {
     const game = GAMES[room.gameType]!;
     let result: MoveResult<unknown>;
     try {
-      result = game.applyMove(room.state, playerId, move);
+      result = game.applyMove(room.state, playerId, move, this.ctx());
     } catch {
       // Client input is untrusted: a malformed move must not crash the server.
       return { ok: false, error: 'INVALID_MOVE' };
@@ -143,17 +219,84 @@ export class RoomManager {
     room.state = result.state;
     if (game.isOver(room.state)) room.status = 'finished';
     room.lastActivity = Date.now();
+    this.armTimer(room);
     return { ok: true, room };
   }
 
-  view(room: Room, playerId: string, isConnected: (id: string) => boolean): RoomView {
+  // Any seated player can ask for another game; it starts once every seat has asked.
+  requestRematch(playerId: string): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (!room.players.some((p) => p.id === playerId)) return { ok: false, error: 'NOT_A_PLAYER' };
+    if (room.status !== 'finished') return { ok: false, error: 'GAME_IN_PROGRESS' };
+    if (!room.rematchVotes.includes(playerId)) room.rematchVotes = [...room.rematchVotes, playerId];
+    if (room.players.every((p) => room.rematchVotes.includes(p.id))) return this.start(room.hostId);
+    return { ok: true, room };
+  }
+
+  // A seated player may claim the win once every opponent has been offline long enough.
+  claimWin(playerId: string, offlineSince: (id: string) => number | null): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (!room.players.some((p) => p.id === playerId)) return { ok: false, error: 'NOT_A_PLAYER' };
+    if (room.status !== 'playing') return { ok: false, error: 'GAME_NOT_STARTED' };
+    const now = this.clock();
+    const absent = room.players.filter((p) => p.id !== playerId);
+    const allGone = absent.every((p) => {
+      const since = offlineSince(p.id);
+      return since !== null && now - since >= ABANDON_CLAIM_MS;
+    });
+    if (!allGone) return { ok: false, error: 'CLAIM_TOO_EARLY' };
+    const game = GAMES[room.gameType]!;
+    for (const p of absent) room.state = game.forfeit(room.state, p.id, this.ctx(), 'abandoned');
+    room.status = 'finished';
+    room.lastActivity = Date.now();
+    this.armTimer(room);
+    return { ok: true, room };
+  }
+
+  chat(playerId: string, text: unknown): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    const clean = typeof text === 'string' ? text.trim().slice(0, MAX_CHAT_LENGTH) : '';
+    if (!clean) return { ok: false, error: 'MESSAGE_INVALID' };
+
+    const now = this.clock();
+    const recent = (this.chatTimes.get(playerId) ?? []).filter((t) => now - t < CHAT_WINDOW_MS);
+    if (recent.length >= CHAT_BURST) return { ok: false, error: 'MESSAGE_TOO_FAST' };
+    this.chatTimes.set(playerId, [...recent, now]);
+
+    const author = [...room.players, ...room.spectators].find((p) => p.id === playerId)!;
+    room.chat = [...room.chat, { id: this.nextMessageId++, playerId, name: author.name, text: clean, at: now }].slice(
+      -CHAT_HISTORY,
+    );
+    room.lastActivity = Date.now();
+    return { ok: true, room };
+  }
+
+  view(
+    room: Room,
+    playerId: string,
+    isConnected: (id: string) => boolean,
+    offlineSince: (id: string) => number | null = () => null,
+  ): RoomView {
+    const now = this.clock();
+    const info = (p: Player) => {
+      const since = isConnected(p.id) ? null : offlineSince(p.id);
+      return { ...p, connected: isConnected(p.id), offlineMs: since === null ? null : Math.max(0, now - since) };
+    };
     return {
+      you: playerId,
       code: room.code,
       gameType: room.gameType,
       hostId: room.hostId,
       status: room.status,
-      players: room.players.map((p) => ({ ...p, connected: isConnected(p.id) })),
-      game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId),
+      options: room.options,
+      players: room.players.map(info),
+      spectators: room.spectators.map(info),
+      rematchVotes: room.rematchVotes,
+      chat: room.chat,
+      game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
     };
   }
 
@@ -162,10 +305,53 @@ export class RoomManager {
     const now = Date.now();
     for (const room of this.rooms.values()) {
       if (now - room.lastActivity < idleMs) continue;
-      if (room.players.some((p) => isConnected(p.id))) continue;
-      for (const p of room.players) this.playerRoom.delete(p.id);
-      this.rooms.delete(room.code);
+      const members = [...room.players, ...room.spectators];
+      if (members.some((p) => isConnected(p.id))) continue;
+      for (const p of members) this.playerRoom.delete(p.id);
+      this.deleteRoom(room);
     }
+  }
+
+  // Spectators take free seats between games, oldest first.
+  private fillSeats(room: Room): void {
+    const max = GAME_CATALOG[room.gameType].maxPlayers;
+    while (room.status !== 'playing' && room.players.length < max && room.spectators.length > 0) {
+      room.players.push(room.spectators.shift()!);
+    }
+  }
+
+  // Schedules the next clock check for a room, replacing any earlier one.
+  private armTimer(room: Room): void {
+    clearTimeout(this.timers.get(room.code));
+    this.timers.delete(room.code);
+    const game = GAMES[room.gameType]!;
+    if (room.status !== 'playing' || !game.deadline) return;
+    const deadline = game.deadline(room.state);
+    if (deadline === null) return;
+    const timer = setTimeout(() => this.checkClock(room), Math.max(0, deadline - this.clock()));
+    timer.unref?.();
+    this.timers.set(room.code, timer);
+  }
+
+  private checkClock(room: Room): void {
+    this.timers.delete(room.code);
+    const game = GAMES[room.gameType]!;
+    if (this.rooms.get(room.code) !== room || room.status !== 'playing' || !game.timeout) return;
+    room.state = game.timeout(room.state, this.ctx());
+    if (game.isOver(room.state)) {
+      room.status = 'finished';
+      room.lastActivity = Date.now();
+      this.onAutoUpdate(room);
+    } else {
+      // Timers can fire a little early; check again at the real deadline.
+      this.armTimer(room);
+    }
+  }
+
+  private deleteRoom(room: Room): void {
+    clearTimeout(this.timers.get(room.code));
+    this.timers.delete(room.code);
+    this.rooms.delete(room.code);
   }
 
   private newCode(): string {
@@ -181,4 +367,8 @@ export class RoomManager {
 
 function sanitizeName(name: unknown): string {
   return typeof name === 'string' ? name.trim().slice(0, MAX_NAME_LENGTH) : '';
+}
+
+function isMember(room: Room, playerId: string): boolean {
+  return room.players.some((p) => p.id === playerId) || room.spectators.some((p) => p.id === playerId);
 }

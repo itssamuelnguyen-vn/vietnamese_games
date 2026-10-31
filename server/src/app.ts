@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import express from 'express';
@@ -6,6 +7,9 @@ import type { ClientToServerEvents, ServerToClientEvents, SocketAuth } from '@vg
 import { RoomManager, type Room } from './rooms';
 
 const ROOM_IDLE_MS = 10 * 60 * 1000;
+// Flood control per connection: at most RATE_MAX events in any RATE_WINDOW_MS.
+const RATE_MAX = 60;
+const RATE_WINDOW_MS = 10_000;
 const SWEEP_INTERVAL_MS = 60 * 1000;
 
 export interface GameServerOptions {
@@ -22,7 +26,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   const app = express();
   const httpServer = createServer(app);
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer);
-  const rooms = new RoomManager();
+  const rooms = new RoomManager({ onAutoUpdate: (room) => broadcast(room) });
 
   app.get('/healthz', (_req, res) => {
     res.send('ok');
@@ -37,12 +41,15 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   // A player may have several tabs open, so count connections per playerId.
   const connections = new Map<string, number>();
   const isConnected = (id: string) => (connections.get(id) ?? 0) > 0;
+  // When each player's last connection dropped, for abandonment claims.
+  const offlineAt = new Map<string, number>();
+  const offlineSince = (id: string) => (isConnected(id) ? null : (offlineAt.get(id) ?? null));
   const channel = (playerId: string) => `player:${playerId}`;
 
   function broadcast(room: Room | undefined) {
     if (!room) return;
-    for (const p of room.players) {
-      io.to(channel(p.id)).emit('room:state', rooms.view(room, p.id, isConnected));
+    for (const p of [...room.players, ...room.spectators]) {
+      io.to(channel(p.id)).emit('room:state', rooms.view(room, p.id, isConnected, offlineSince));
     }
   }
 
@@ -52,18 +59,31 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   }
 
   io.use((socket, next) => {
-    const { playerId } = (socket.handshake.auth ?? {}) as Partial<SocketAuth>;
-    if (typeof playerId !== 'string' || playerId.length < 8 || playerId.length > 64) {
-      return next(new Error('invalid playerId'));
+    const { token } = (socket.handshake.auth ?? {}) as Partial<SocketAuth>;
+    if (typeof token !== 'string' || token.length < 8 || token.length > 64) {
+      return next(new Error('invalid token'));
     }
-    socket.data.playerId = playerId;
+    socket.data.playerId = publicId(token);
     next();
   });
 
   io.on('connection', (socket) => {
     const playerId: string = socket.data.playerId;
+    let recent: number[] = [];
+    socket.use((packet, next) => {
+      const now = Date.now();
+      recent = recent.filter((t) => now - t < RATE_WINDOW_MS);
+      if (recent.length >= RATE_MAX) {
+        const ack = packet.at(-1);
+        if (typeof ack === 'function') ack({ ok: false, error: 'RATE_LIMITED' });
+        return;
+      }
+      recent.push(now);
+      next();
+    });
     socket.join(channel(playerId));
     connections.set(playerId, (connections.get(playerId) ?? 0) + 1);
+    offlineAt.delete(playerId);
     broadcast(rooms.roomOf(playerId));
 
     socket.on('room:create', (p, ack) => {
@@ -98,6 +118,14 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       broadcast(r.room);
     });
 
+    socket.on('room:options', (options, ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.setOptions(playerId, options);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
     socket.on('game:move', (move, ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
       const r = rooms.move(playerId, move);
@@ -106,14 +134,45 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       broadcast(r.room);
     });
 
+    socket.on('room:rematch', (ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.requestRematch(playerId);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
+    socket.on('game:claim-win', (ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.claimWin(playerId, offlineSince);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
+    socket.on('chat:send', (text, ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.chat(playerId, text);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
     socket.on('disconnect', () => {
       connections.set(playerId, (connections.get(playerId) ?? 1) - 1);
-      if (!isConnected(playerId)) connections.delete(playerId);
+      if (!isConnected(playerId)) {
+        connections.delete(playerId);
+        offlineAt.set(playerId, Date.now());
+      }
       broadcast(rooms.roomOf(playerId));
     });
   });
 
-  const sweeper = setInterval(() => rooms.sweep(isConnected, ROOM_IDLE_MS), SWEEP_INTERVAL_MS);
+  const sweeper = setInterval(() => {
+    rooms.sweep(isConnected, ROOM_IDLE_MS);
+    const cutoff = Date.now() - ROOM_IDLE_MS;
+    for (const [id, at] of offlineAt) if (at < cutoff) offlineAt.delete(id);
+  }, SWEEP_INTERVAL_MS);
   sweeper.unref();
 
   return {
@@ -124,4 +183,9 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
         io.close(() => resolve());
       }),
   };
+}
+
+// One-way: other players see this id, but cannot turn it back into the token.
+export function publicId(token: string): string {
+  return createHash('sha256').update(token).digest('base64url').slice(0, 16);
 }

@@ -6,7 +6,8 @@ import { useTheme } from './theme';
 import { Lobby } from './components/Lobby';
 import { RoomScreen } from './components/RoomScreen';
 import { Toaster } from './components/Toaster';
-import { LogoMark, MoonIcon, SunIcon } from './components/icons';
+import { LogoMark, MoonIcon, MuteIcon, SoundIcon, SunIcon } from './components/icons';
+import { isSoundOn, setSoundOn } from './sound';
 
 function roomCodeFromUrl(): string {
   return new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '';
@@ -15,6 +16,7 @@ function roomCodeFromUrl(): string {
 export function App() {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggle: toggleTheme } = useTheme();
+  const [sound, setSound] = useState(isSoundOn);
   const [room, setRoom] = useState<RoomView | null>(null);
   const [connected, setConnected] = useState(socket.connected);
   // Read once at page load: only an invite link should prefill the join box, not a room we just left.
@@ -53,6 +55,13 @@ export function App() {
         <div className="brand">
           <LogoMark />
           <span className="brand-name">{t.appName}</span>
+          {room && (
+            <span className="topbar-game">
+              <span className="topbar-divider" />
+              {t.games[room.gameType]}
+              {room.gameType === 'chess' && <span className="chip static">{t.timeControls[room.options.timeControl]}</span>}
+            </span>
+          )}
         </div>
         <div className="topbar-actions">
           <div className="lang-switch" role="group" aria-label={t.settings.language}>
@@ -69,6 +78,17 @@ export function App() {
             title={theme === 'dark' ? t.settings.toLight : t.settings.toDark}
           >
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </button>
+          <button
+            className="icon-btn"
+            onClick={() => {
+              setSoundOn(!sound);
+              setSound(!sound);
+            }}
+            aria-label={sound ? t.settings.soundOn : t.settings.soundOff}
+            title={sound ? t.settings.soundOn : t.settings.soundOff}
+          >
+            {sound ? <SoundIcon /> : <MuteIcon />}
           </button>
           <span className={`conn-pill ${connected ? 'on' : 'off'}`} title={connected ? t.connected : t.connecting}>
             <span className="conn-dot" />

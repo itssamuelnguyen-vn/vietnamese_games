@@ -8,7 +8,7 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 
 | Game | Status |
 |---|---|
-| Chess | Playable |
+| Chess | Playable: clocks, draw offers, takebacks, premoves, promotion picker, move review, opening names, PGN/FEN export, sounds |
 | Xiangqi | Planned |
 | Tiến lên miền Nam | Planned |
 | Property-trading game | Planned (original design, not a Monopoly clone) |
@@ -57,6 +57,16 @@ as Tiến lên, this is how other players' hands stay hidden.
 Errors cross the wire as codes (`ErrorCode` in `shared/src/protocol.ts`); the client maps
 them to text.
 
+Players are identified by a secret per-browser token sent only in the Socket.IO handshake; the
+server derives the public player id from it (SHA-256), so ids visible to others can't be used to
+log in as someone else. Every connection is rate-limited (60 events per 10 seconds).
+
+If every opponent has been offline for 60 seconds, the remaining player can claim the win. Timed
+games are aborted if a side doesn't make its first move within 30 seconds.
+
+Rooms also hold a chat (last 50 messages, flood-limited) and up to 20 spectators, who get the
+same game view as players but cannot move.
+
 Rooms live in server memory, so restarting the server drops all rooms.
 
 ## UI text, languages and themes
@@ -78,7 +88,9 @@ button. Colours are CSS custom properties on `:root`, overridden under
 ## Adding a game
 
 1. Write `shared/src/games/<game>.ts` exporting a `GameDefinition` (use `chess.ts` as a
-   template): `setup`, `applyMove`, `forfeit`, `isOver`, `playerView`.
+   template): `setup`, `applyMove`, `forfeit`, `isOver`, `playerView`, plus optional
+   `deadline`/`timeout` for clocks. Rules are pure functions; the server passes the current
+   time in a `GameContext` so tests can use a fake clock.
 2. Export it from `shared/src/index.ts`.
 3. Register it in `GAMES` in `server/src/rooms.ts`.
 4. Build its board component in `client/src/games/` and render it from `RoomScreen.tsx`.
