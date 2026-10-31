@@ -96,7 +96,7 @@ describe('game server', () => {
 
     const created = await call(a, 'room:create', { gameType: 'chess', name: 'An' });
     expect(created.ok).toBe(true);
-    expect((await call(b, 'room:join', { code: created.code!.toLowerCase(), name: 'Bình' })).ok).toBe(true);
+    expect((await call(b, 'room:join', { code: created.code!.toLowerCase(), name: 'Bob' })).ok).toBe(true);
     expect(await call(b, 'room:start')).toEqual({ ok: false, error: 'NOT_HOST' });
     expect((await call(a, 'room:start')).ok).toBe(true);
 
@@ -128,7 +128,7 @@ describe('game server', () => {
     const a = await client('cccccccccccc');
     const b = await client('dddddddddddd');
     const { code } = await call(a, 'room:create', { gameType: 'chess', name: 'An' });
-    await call(b, 'room:join', { code: code!, name: 'Bình' });
+    await call(b, 'room:join', { code: code!, name: 'Bob' });
     await call(a, 'room:start');
 
     b.socket.close();
@@ -145,7 +145,7 @@ describe('game server', () => {
     const b = await client('gggggggggggg');
     const watcher = await client('hhhhhhhhhhhh');
     const { code } = await call(a, 'room:create', { gameType: 'chess', name: 'An' });
-    await call(b, 'room:join', { code: code!, name: 'Bình' });
+    await call(b, 'room:join', { code: code!, name: 'Bob' });
     await call(a, 'room:start');
     expect((await call(watcher, 'room:join', { code: code!, name: 'Chi' })).ok).toBe(true);
 
@@ -153,10 +153,10 @@ describe('game server', () => {
     expect(watching.spectators.map((p) => p.name)).toEqual(['Chi']);
     expect((watching.game as ChessView).fen).toBeTruthy();
 
-    expect((await call(watcher, 'chat:send', 'hay quá')).ok).toBe(true);
+    expect((await call(watcher, 'chat:send', 'nice move')).ok).toBe(true);
     for (const c of [a, b]) {
       const room = await c.waitFor((r) => r.chat.length > 0);
-      expect(room.chat.at(-1)).toMatchObject({ name: 'Chi', text: 'hay quá' });
+      expect(room.chat.at(-1)).toMatchObject({ name: 'Chi', text: 'nice move' });
     }
   });
 

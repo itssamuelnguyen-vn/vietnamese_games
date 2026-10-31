@@ -1,3 +1,6 @@
 export * from './types';
 export * from './protocol';
 export * from './games/chess';
+export * from './games/match';
+export * from './games/xiangqi-engine';
+export * from './games/xiangqi';

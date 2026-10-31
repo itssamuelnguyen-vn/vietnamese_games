@@ -1,10 +1,23 @@
-import type { ChessEndReason, ErrorCode, GameType, HostColor, TimeControlId } from '@vg/shared';
+import type { ChessEndReason, ErrorCode, GameType, HandicapId, HostColor, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { NotationStyle } from '../games/xiangqi/notation';
+import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
+
+// Vietnamese xiangqi notation: "P2-5" (bình), "M8.7" (tiến), "X1/2" (thoái); t/s = trước/sau.
+const VI_NOTATION: NotationStyle = {
+  pieces: { k: 'Tg', a: 'S', b: 'T', n: 'M', r: 'X', c: 'P', p: 'B' },
+  advance: '.',
+  retreat: '/',
+  traverse: '-',
+  front: 't',
+  rear: 's',
+  markFirst: false,
+};
 
 // Vietnamese UI strings. This is the only place user-facing text should live;
 // a new locale is a copy of this object with the same shape.
 export const vi = {
-  appName: 'Sân Chơi',
+  appName: 'Games Nhà Chang',
   connected: 'Trực tuyến',
   connecting: 'Đang kết nối…',
   footer: 'Làm cho vui, chơi cho vui.',
@@ -219,6 +232,59 @@ export const vi = {
     noMoves: 'Trắng đi trước. Chúc may mắn!',
     resign: 'Xin thua',
     confirmResign: 'Bạn chắc chắn muốn xin thua?',
+  },
+
+  xiangqi: {
+    red: 'Quân đỏ',
+    black: 'Quân đen',
+    redToMove: 'Lượt Đỏ',
+    blackToMove: 'Lượt Đen',
+    gameStarted: 'Ván đấu bắt đầu, Đỏ đi trước.',
+    noMoves: 'Đỏ đi trước. Chúc may mắn!',
+    hostColors: { random: 'Ngẫu nhiên', white: 'Đỏ', black: 'Đen' } satisfies Record<HostColor, string>,
+    // Traditional river inscription, shown on the board in both languages.
+    riverLeft: '楚 河',
+    riverRight: '漢 界',
+    pieces: { k: 'Tướng', a: 'Sĩ', b: 'Tượng', n: 'Mã', r: 'Xe', c: 'Pháo', p: 'Tốt' } satisfies Record<XPieceType, string>,
+    notation: VI_NOTATION,
+    openings: {
+      'central-cannon': 'Pháo đầu',
+      'same-direction-cannons': 'Thuận pháo',
+      'opposite-direction-cannons': 'Nghịch pháo',
+      'screen-horses': 'Pháo đầu đối Bình phong mã',
+      'palcorner-cannon': 'Quá cung pháo',
+      'advisor-cannon': 'Sĩ giác pháo',
+      'pawn-opening': 'Tiên nhân chỉ lộ',
+      'pawn-vs-pawn': 'Đối binh',
+      'elephant-opening': 'Phi tượng cục',
+      'horse-opening': 'Khởi mã cục',
+    } satisfies Record<XqOpeningId, string>,
+    pieceLetters: { k: 'Tướng', a: 'Sĩ', b: 'Tượng', n: 'Mã', r: 'Xe', c: 'Pháo', p: 'Tốt' } satisfies Record<XPieceType, string>,
+    pieceStyle: { han: 'Chữ Hán', letters: 'Chữ Việt' },
+    pieceStyleTitle: 'Đổi chữ trên quân cờ',
+    handicapLabel: 'Chủ phòng chấp quân',
+    handicaps: { none: 'Không chấp', chariot: 'Chấp Xe', horse: 'Chấp Mã', cannon: 'Chấp Pháo', 'two-horses': 'Chấp 2 Mã' } satisfies Record<
+      HandicapId,
+      string
+    >,
+    describe: {
+      move: (who: string, notation: string) => `${who} vừa đi ${notation}`,
+      capture: (who: string, notation: string, captured: string) => `${who} vừa đi ${notation}, ăn ${captured}`,
+      check: ' và chiếu tướng!',
+    },
+    endReasons: {
+      checkmate: 'Chiếu bí',
+      stalemate: 'Hết nước đi',
+      'perpetual-check': 'Chiếu dai',
+      repetition: 'Lặp lại thế cờ',
+      'no-capture': '60 nước không ăn quân',
+      insufficient: 'Hai bên không còn quân tấn công',
+      resign: 'Đối thủ xin thua',
+      agreement: 'Hai bên đồng ý hòa',
+      timeout: 'Hết giờ',
+      aborted: 'Ván bị hủy vì không đi nước đầu',
+      abandoned: 'Đối thủ đã bỏ đi',
+    } satisfies Record<XiangqiEndReason, string>,
   },
 
   errors: {

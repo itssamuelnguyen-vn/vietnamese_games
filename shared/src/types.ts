@@ -13,7 +13,7 @@ export interface GameInfo {
 // Display names live in the client locale files.
 export const GAME_CATALOG: Record<GameType, GameInfo> = {
   chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true },
-  xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: false },
+  xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
   tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: false },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: false },
 };
@@ -36,14 +36,19 @@ export const TIME_CONTROLS: Record<TimeControlId, TimeControl | null> = {
 
 export type HostColor = 'random' | 'white' | 'black';
 
+// Pieces the host gives up at the start (xiangqi odds games); 'none' for an even game.
+export type HandicapId = 'none' | 'chariot' | 'horse' | 'cannon' | 'two-horses';
+export const HANDICAPS: HandicapId[] = ['none', 'chariot', 'horse', 'cannon', 'two-horses'];
+
 // Settings the host picks before starting a game.
 export interface RoomOptions {
   timeControl: TimeControlId;
   // The host's side in the first game; rematches swap sides.
   hostColor: HostColor;
+  handicap: HandicapId;
 }
 
-export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random' };
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none' };
 
 export interface PlayerInfo {
   id: string;

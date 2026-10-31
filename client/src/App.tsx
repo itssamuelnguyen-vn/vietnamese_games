@@ -6,6 +6,7 @@ import { useTheme } from './theme';
 import { Lobby } from './components/Lobby';
 import { RoomScreen } from './components/RoomScreen';
 import { Toaster } from './components/Toaster';
+import { Ellipsis } from './components/Ellipsis';
 import { LogoMark, MoonIcon, MuteIcon, SoundIcon, SunIcon } from './components/icons';
 import { isSoundOn, setSoundOn } from './sound';
 
@@ -59,7 +60,12 @@ export function App() {
             <span className="topbar-game">
               <span className="topbar-divider" />
               {t.games[room.gameType]}
-              {room.gameType === 'chess' && <span className="chip static">{t.timeControls[room.options.timeControl]}</span>}
+              {(room.gameType === 'chess' || room.gameType === 'xiangqi') && (
+                <span className="chip static">
+                  {t.timeControls[room.options.timeControl]}
+                  {room.gameType === 'xiangqi' && room.options.handicap !== 'none' && ` · ${t.xiangqi.handicaps[room.options.handicap]}`}
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -92,7 +98,9 @@ export function App() {
           </button>
           <span className={`conn-pill ${connected ? 'on' : 'off'}`} title={connected ? t.connected : t.connecting}>
             <span className="conn-dot" />
-            <span className="conn-label">{connected ? t.connected : t.connecting}</span>
+            <span className="conn-label">
+              <Ellipsis text={connected ? t.connected : t.connecting} />
+            </span>
           </span>
         </div>
       </header>

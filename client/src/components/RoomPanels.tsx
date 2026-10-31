@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { GAME_CATALOG, TIME_CONTROLS, type HostColor, type RoomOptions, type RoomView, type TimeControlId } from '@vg/shared';
+import { GAME_CATALOG, HANDICAPS, TIME_CONTROLS, type HostColor, type RoomOptions, type RoomView, type TimeControlId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -127,10 +127,20 @@ export function ChessOptionsPicker({ room }: { room: RoomView }) {
         label={t.room.hostColor}
         options={['random', 'white', 'black'] as HostColor[]}
         value={room.options.hostColor}
-        labelOf={(c) => t.room.hostColors[c]}
+        labelOf={(c) => (room.gameType === 'xiangqi' ? t.xiangqi.hostColors[c] : t.room.hostColors[c])}
         disabled={locked}
         onPick={(hostColor) => set({ hostColor })}
       />
+      {room.gameType === 'xiangqi' && (
+        <ChipGroup
+          label={t.xiangqi.handicapLabel}
+          options={HANDICAPS}
+          value={room.options.handicap}
+          labelOf={(h) => t.xiangqi.handicaps[h]}
+          disabled={locked}
+          onPick={(handicap) => set({ handicap })}
+        />
+      )}
     </>
   );
 }

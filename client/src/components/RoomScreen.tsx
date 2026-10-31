@@ -1,8 +1,10 @@
-import { GAME_CATALOG, type ChessView, type RoomView } from '@vg/shared';
+import { GAME_CATALOG, type ChessView, type RoomView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
+import { XiangqiGame } from '../games/xiangqi/XiangqiGame';
 import { Avatar } from './Avatar';
+import { Ellipsis } from './Ellipsis';
 import { ChatCard, ChessOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -23,6 +25,7 @@ export function RoomScreen({ room }: Props) {
   if (room.game === null) return <WaitingRoom room={room} onLeave={leave} />;
 
   if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
+  if (room.gameType === 'xiangqi') return <XiangqiGame room={room} view={room.game as XiangqiView} onLeave={leave} />;
   return null;
 }
 
@@ -90,7 +93,9 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                 return (
                   <li key={`empty-${i}`} className="seat empty">
                     <span className="seat-placeholder" />
-                    <span className="seat-name">{t.room.emptySeat}</span>
+                    <span className="seat-name">
+                      <Ellipsis text={t.room.emptySeat} />
+                    </span>
                   </li>
                 );
               }
@@ -116,11 +121,11 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
             {t.room.spectators} · {room.spectators.length ? room.spectators.map((p) => p.name).join(', ') : t.room.noSpectators}
           </p>
 
-          {room.gameType === 'chess' && <ChessOptionsPicker room={room} />}
+          {(room.gameType === 'chess' || room.gameType === 'xiangqi') && <ChessOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>
-              {missing > 0 ? t.room.needMore(missing) : isHost ? t.room.ready : t.room.waitingForHost}
+              <Ellipsis text={missing > 0 ? t.room.needMore(missing) : isHost ? t.room.ready : t.room.waitingForHost} />
             </p>
             {isHost && (
               <button className="btn btn-primary btn-lg" disabled={missing > 0} onClick={() => startGame(t)}>

@@ -304,6 +304,7 @@ main {
   font-size: 1.3rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .topbar-actions {
@@ -956,6 +957,7 @@ main {
 .panel {
   padding: 20px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-content: start;
 }
@@ -1193,7 +1195,11 @@ main {
 .game-left,
 .game-right {
   display: grid;
+  /* A single track exactly as wide as the column, so long content (opening names,
+     chat) shrinks or wraps instead of widening it. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+  min-width: 0;
 }
 
 .game-center {
@@ -1433,6 +1439,8 @@ main {
 
 .panel-tools {
   display: inline-flex;
+  flex: 1;
+  justify-content: flex-end;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -1593,6 +1601,258 @@ main {
 .confetti span:nth-child(3n) { background: var(--gold); }
 .confetti span:nth-child(3n + 1) { background: #2e9a68; }
 
+/* Xiangqi board (SVG, units are board points: 10 per intersection) */
+
+.xq-board {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Dragging a piece must not scroll the page on touch screens. */
+  touch-action: none;
+}
+
+.xq-board.is-dragging,
+.xq-board.is-dragging .xq-hit {
+  cursor: grabbing;
+}
+
+.xq-wood {
+  fill: #e8c48b;
+}
+
+.xq-lines {
+  fill: none;
+  stroke: #6b3f22;
+  stroke-width: 0.35;
+}
+
+.xq-border {
+  fill: none;
+  stroke: #6b3f22;
+  stroke-width: 0.8;
+}
+
+.xq-river {
+  fill: #6b3f22;
+  opacity: 0.55;
+  font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  font-size: 4.4px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.xq-file text {
+  fill: #6b3f22;
+  opacity: 0.75;
+  font-size: 2.8px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.xq-last {
+  fill: rgba(224, 172, 69, 0.55);
+}
+
+.xq-piece {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.xq-face {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.15s ease;
+}
+
+.xq-piece.selected .xq-face {
+  transform: scale(1.08);
+}
+
+/* The dragged piece follows the pointer exactly, lifted and slightly enlarged. */
+.xq-piece.dragging {
+  transition: none;
+}
+
+.xq-piece.dragging .xq-face {
+  transform: scale(1.16);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+}
+
+.xq-piece.leaving .xq-face {
+  animation: xq-leave 0.26s ease forwards;
+}
+
+@keyframes xq-leave {
+  to {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.xq-premove {
+  fill: rgba(70, 120, 200, 0.45);
+}
+
+.xq-hover {
+  fill: rgba(224, 172, 69, 0.4);
+}
+
+.xq-disc {
+  fill: #f7e9cc;
+  stroke: #8a5a2b;
+  stroke-width: 0.45;
+  filter: drop-shadow(0 0.6px 0.6px rgba(0, 0, 0, 0.45));
+}
+
+.xq-ring {
+  fill: none;
+  stroke-width: 0.3;
+}
+
+.xq-glyph {
+  font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  font-size: 4.7px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.xq-glyph.latin {
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  font-weight: 800;
+}
+
+.xq-glyph.len-1 {
+  font-size: 4.2px;
+}
+
+.xq-glyph.len-2 {
+  font-size: 3.1px;
+}
+
+.xq-glyph.len-3 {
+  font-size: 2.3px;
+}
+
+.xq-piece.red .xq-ring {
+  stroke: #b3261e;
+}
+
+.xq-piece.red .xq-glyph {
+  fill: #b3261e;
+}
+
+.xq-piece.black .xq-ring {
+  stroke: #1f1a17;
+}
+
+.xq-piece.black .xq-glyph {
+  fill: #1f1a17;
+}
+
+.xq-piece.selected .xq-disc {
+  stroke: #e0ac45;
+  stroke-width: 1;
+}
+
+.xq-piece.in-check .xq-disc {
+  stroke: #dc2626;
+  stroke-width: 1;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.xq-target {
+  fill: rgba(60, 30, 10, 0.4);
+  pointer-events: none;
+}
+
+.xq-target.capture {
+  fill: none;
+  stroke: rgba(60, 30, 10, 0.45);
+  stroke-width: 0.8;
+}
+
+.xq-hit {
+  fill: transparent;
+}
+
+.xq-hit.grab {
+  cursor: grab;
+}
+
+.xq-hit.target {
+  cursor: pointer;
+}
+
+.xq-mini {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: -3px;
+  border-radius: 50%;
+  border: 1px solid #8a5a2b;
+  background: #f7e9cc;
+  font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.xq-mini.letters {
+  /* Words don't fit a tiny disc; use a pill that grows with the label. */
+  width: auto;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.glyph-toggle {
+  font-family: 'Noto Serif SC', 'Be Vietnam Pro', serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.xq-mini.red {
+  color: #b3261e;
+}
+
+.xq-mini.black {
+  color: #1f1a17;
+}
+
+.xq-side-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.xq-side-dot.red {
+  background: #b3261e;
+}
+
+.xq-side-dot.black {
+  background: #1f1a17;
+}
+
+.board-frame:has(.xq-board) {
+  padding: 6px;
+}
+
+@media (min-width: 861px) {
+  /* The xiangqi board is taller than it is wide; size it so it fits the viewport height. */
+  .game-center:has(.xq-board) {
+    width: min(100%, max(320px, calc((100vh - 230px) * 0.8)));
+  }
+}
+
 /* Toasts */
 
 .toaster {
@@ -1615,6 +1875,26 @@ main {
   font-weight: 600;
   box-shadow: var(--shadow-lg);
   animation: toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Animated "…": the dots appear one after another; hidden dots keep their space so text doesn't shift. */
+
+.dots span:nth-child(2) {
+  animation: dot-2 1.5s steps(1, end) infinite;
+}
+
+.dots span:nth-child(3) {
+  animation: dot-3 1.5s steps(1, end) infinite;
+}
+
+@keyframes dot-2 {
+  0% { opacity: 0; }
+  33.33% { opacity: 1; }
+}
+
+@keyframes dot-3 {
+  0% { opacity: 0; }
+  66.66% { opacity: 1; }
 }
 
 /* Motion */
@@ -1782,5 +2062,46 @@ main {
   .clock {
     font-size: 1.3rem;
     padding: 6px 10px;
+  }
+}
+
+/* Narrow phones: keep the brand on one line; the connection dot only shows when offline. */
+@media (max-width: 420px) {
+  .brand {
+    gap: 8px;
+  }
+
+  .brand svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .brand-name {
+    font-size: 1rem;
+  }
+
+  /* Too narrow for one row: brand on top, controls below on the right. */
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px 8px;
+  }
+
+  .topbar-actions {
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .lang-switch button {
+    padding: 4px 8px;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .conn-pill.on {
+    display: none;
   }
 }

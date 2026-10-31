@@ -2,7 +2,7 @@ import type { Strings } from './vi';
 
 // English UI strings. Must keep the same shape as vi.ts.
 export const en: Strings = {
-  appName: 'Sân Chơi',
+  appName: 'Games Nhà Chang',
   connected: 'Online',
   connecting: 'Connecting…',
   footer: 'Made for fun, played for fun.',
@@ -217,6 +217,64 @@ export const en: Strings = {
     noMoves: 'White moves first. Good luck!',
     resign: 'Resign',
     confirmResign: 'Are you sure you want to resign?',
+  },
+
+  xiangqi: {
+    red: 'Red',
+    black: 'Black',
+    redToMove: 'Red to move',
+    blackToMove: 'Black to move',
+    gameStarted: 'The game has started. Red moves first.',
+    noMoves: 'Red moves first. Good luck!',
+    hostColors: { random: 'Random', white: 'Red', black: 'Black' },
+    riverLeft: '楚 河',
+    riverRight: '漢 界',
+    pieces: { k: 'General', a: 'Advisor', b: 'Elephant', n: 'Horse', r: 'Chariot', c: 'Cannon', p: 'Soldier' },
+    // WXF notation: "C2=5", "H8+7", "R1-2"; +/- before the letter marks front/rear.
+    notation: {
+      pieces: { k: 'K', a: 'A', b: 'E', n: 'H', r: 'R', c: 'C', p: 'P' },
+      advance: '+',
+      retreat: '-',
+      traverse: '=',
+      front: '+',
+      rear: '-',
+      markFirst: true,
+    },
+    openings: {
+      'central-cannon': 'Central Cannon',
+      'same-direction-cannons': 'Same Direction Cannons',
+      'opposite-direction-cannons': 'Opposite Direction Cannons',
+      'screen-horses': 'Central Cannon vs Screen Horses',
+      'palcorner-cannon': 'Palcorner Cannon',
+      'advisor-cannon': 'Advisor Corner Cannon',
+      'pawn-opening': 'Pawn Opening',
+      'pawn-vs-pawn': 'Pawn vs Pawn',
+      'elephant-opening': 'Elephant Opening',
+      'horse-opening': 'Horse Opening',
+    },
+    pieceLetters: { k: 'K', a: 'A', b: 'E', n: 'H', r: 'R', c: 'C', p: 'P' },
+    pieceStyle: { han: 'Chinese characters', letters: 'Letters' },
+    pieceStyleTitle: 'Switch piece labels',
+    handicapLabel: 'Host gives odds',
+    handicaps: { none: 'No odds', chariot: 'Chariot odds', horse: 'Horse odds', cannon: 'Cannon odds', 'two-horses': 'Two-horse odds' },
+    describe: {
+      move: (who: string, notation: string) => `${who} played ${notation}`,
+      capture: (who: string, notation: string, captured: string) => `${who} played ${notation}, taking the ${captured}`,
+      check: ', check!',
+    },
+    endReasons: {
+      checkmate: 'Checkmate',
+      stalemate: 'No legal moves',
+      'perpetual-check': 'Perpetual check',
+      repetition: 'Repetition',
+      'no-capture': '60 moves without a capture',
+      insufficient: 'No attacking pieces left',
+      resign: 'Opponent resigned',
+      agreement: 'Draw agreed',
+      timeout: 'Time out',
+      aborted: 'Aborted: no first move',
+      abandoned: 'Opponent left the game',
+    },
   },
 
   errors: {
