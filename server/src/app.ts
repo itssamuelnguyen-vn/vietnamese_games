@@ -48,7 +48,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
 
   function broadcast(room: Room | undefined) {
     if (!room) return;
-    for (const p of [...room.players, ...room.spectators]) {
+    for (const p of [...room.players, ...room.spectators].filter((p) => !p.bot)) {
       io.to(channel(p.id)).emit('room:state', rooms.view(room, p.id, isConnected, offlineSince));
     }
   }
@@ -145,6 +145,22 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     socket.on('game:claim-win', (ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
       const r = rooms.claimWin(playerId, offlineSince);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
+    socket.on('room:add-bot', (ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.addBot(playerId);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
+    socket.on('room:remove-bot', (botId, ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.removeBot(playerId, botId);
       if (!r.ok) return reply(r);
       reply({ ok: true });
       broadcast(r.room);

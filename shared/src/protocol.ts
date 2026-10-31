@@ -35,6 +35,8 @@ export interface ClientToServerEvents {
   'chat:send': (text: string, ack: (r: Ack) => void) => void;
   'room:rematch': (ack: (r: Ack) => void) => void;
   'game:claim-win': (ack: (r: Ack) => void) => void;
+  'room:add-bot': (ack: (r: Ack) => void) => void;
+  'room:remove-bot': (botId: string, ack: (r: Ack) => void) => void;
 }
 
 export interface ServerToClientEvents {

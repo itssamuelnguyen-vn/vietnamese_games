@@ -21,6 +21,8 @@ export interface GameInfo {
   minPlayers: number;
   maxPlayers: number;
   available: boolean;
+  // Whether the host can fill seats with computer players.
+  bots?: boolean;
 }
 
 // Games shown in the lobby. Flip `available` once a game has both rules and a UI.
@@ -29,7 +31,7 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true },
   xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
   tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true },
-  typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: false },
+  typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
   caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: false },
   cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: false },
   maubinh: { type: 'maubinh', minPlayers: 2, maxPlayers: 4, available: false },
@@ -90,6 +92,8 @@ export interface PlayerInfo {
   connected: boolean;
   // How long this player has been disconnected, as of when the view was built.
   offlineMs: number | null;
+  // A computer player added by the host.
+  bot: boolean;
 }
 
 // An opponent offline this long can be beaten by claiming the win.
@@ -158,6 +162,8 @@ export interface GameDefinition<S, M, V> {
   timeout?(state: S, ctx: GameContext): S;
   // Points each player earned in a finished game, for the room's running scoreboard.
   points?(state: S): Record<string, { points: number; place: number }> | null;
+  // Games that support computer players: the bot's next move, or null while it has nothing to do.
+  botMove?(state: S, playerId: string, ctx: GameContext): M | null;
 }
 
 export interface TallyEntry {

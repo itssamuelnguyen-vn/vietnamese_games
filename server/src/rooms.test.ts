@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChessView, TienLenView } from '@vg/shared';
+import type { ChessView, TienLenView, TyPhuView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -28,7 +28,7 @@ describe('RoomManager', () => {
 
   it('refuses unavailable games and blank names', () => {
     const rooms = new RoomManager();
-    expect(rooms.create(A, 'An', 'typhu')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    expect(rooms.create(A, 'An', 'caro')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
     expect(rooms.create(A, '   ', 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
@@ -425,6 +425,77 @@ describe('RoomManager', () => {
       rooms.leave(B);
       vi.advanceTimersByTime(10 * 60_000);
       expect(updates).toEqual([]);
+    });
+  });
+
+  describe('bots', () => {
+    afterEach(() => vi.useRealTimers());
+
+    function typhuRoom(options = {}) {
+      const rooms = new RoomManager({ botDelayMs: 10, ...options });
+      const created = rooms.create(A, 'An', 'typhu');
+      if (!created.ok) throw new Error(created.error);
+      return { rooms, room: created.room };
+    }
+
+    it('only the host adds or removes bots, between games, in games that have them', () => {
+      const { rooms, room } = typhuRoom();
+      rooms.join(B, 'Bob', room.code);
+      expect(rooms.addBot(B)).toEqual({ ok: false, error: 'NOT_HOST' });
+      expect(rooms.addBot(A).ok).toBe(true);
+      expect(rooms.addBot(A).ok).toBe(true);
+      expect(room.players.map((p) => p.name)).toEqual(['An', 'Bob', 'Bot 1', 'Bot 2']);
+      const view = rooms.view(room, A, () => false);
+      expect(view.players.filter((p) => p.bot).every((p) => p.connected)).toBe(true);
+      expect(rooms.removeBot(A, 'bot:1').ok).toBe(true);
+      expect(rooms.removeBot(A, B)).toEqual({ ok: false, error: 'INVALID_MOVE' });
+      expect(rooms.addBot(A).ok).toBe(true);
+      expect(room.players.map((p) => p.id)).toContain('bot:1');
+
+      const chess = rooms.create(C, 'Chi', 'chess');
+      expect(chess.ok && rooms.addBot(C)).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    });
+
+    it('fills the table up to the maximum and not past it', () => {
+      const { rooms } = typhuRoom();
+      for (let i = 0; i < 5; i++) expect(rooms.addBot(A).ok).toBe(true);
+      expect(rooms.addBot(A)).toEqual({ ok: false, error: 'ROOM_FULL' });
+    });
+
+    it('bots play on their own, and a game with one person and bots runs to the end', async () => {
+      vi.useFakeTimers();
+      const updates: string[] = [];
+      const { rooms, room } = typhuRoom({ onAutoUpdate: (r: { status: string }) => updates.push(r.status) });
+      rooms.addBot(A);
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      // Whenever it's the person's turn, they roll and skip buying.
+      for (let i = 0; i < 2000 && room.status === 'playing'; i++) {
+        const view = rooms.view(room, A, allOnline).game as TyPhuView;
+        if (view.turn === A) rooms.move(A, view.phase === 'move' ? { type: 'roll' } : view.phase === 'fly' ? { type: 'stay' } : { type: 'end' });
+        else vi.advanceTimersByTime(10);
+      }
+      expect(room.status).toBe('finished');
+      expect(updates.length).toBeGreaterThan(10);
+      const result = (rooms.view(room, A, allOnline).game as TyPhuView).result!;
+      expect(result.ranking.toSorted()).toEqual([A, 'bot:1', 'bot:2'].toSorted());
+      expect(Object.keys(room.tally)).toHaveLength(3);
+
+      // Bots always agree to a rematch.
+      expect(rooms.requestRematch(A).ok).toBe(true);
+      expect(room.status).toBe('playing');
+    });
+
+    it('a room left with only bots closes', () => {
+      vi.useFakeTimers();
+      const { rooms, room } = typhuRoom();
+      rooms.addBot(A);
+      rooms.start(A);
+      expect(rooms.leave(A)).toBeUndefined();
+      expect(rooms.roomOf(A)).toBeUndefined();
+      // Leaving ends the two-seat game, and nothing is left running for the closed room.
+      expect(room.status).toBe('finished');
+      expect(vi.getTimerCount()).toBe(0);
     });
   });
 });
