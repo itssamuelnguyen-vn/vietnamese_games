@@ -16,7 +16,8 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 | Caro (gomoku) | Playable: 15×15 or 19×19 board, optional Vietnamese blocked-ends rule, chess-style clocks, draws, takebacks, move review, a bot to play against, in-app rules |
 | Cờ cá ngựa (horse race) | Playable: 2-4 players, traditional Vietnamese rules (a 6 to come out and roll again, no jumping, kicking, exact home gate, numbered home steps), optional jumping and fast climb home, bots, in-app rules |
 | Nối từ tiếng Việt (word chain) | Playable: 2-8 players, two-syllable words linked by syllable (either tone-mark placement, hoà or hòa, is accepted), turn timer, knock-outs, bots that know part of the dictionary. Word list: about 18,000 words from Wiktionary via kaikki.org, CC BY-SA 4.0 (server/data/noitu-words.txt) |
-| Mậu binh, Sâm lốc, Color Switch (original colour-matching card game), English word chain, Ma sói (werewolf), Bầu cua, Xì dách | Planned, listed in the lobby as coming soon |
+| English word chain | Playable: 2-8 players, each word starts with the previous word's last letter, same knock-out rules as nối từ; ENABLE word list (public domain, server/data/wordchain-words.txt) with rude words removed; bots prefer everyday words |
+| Mậu binh, Sâm lốc, Color Switch (original colour-matching card game), Ma sói (werewolf), Bầu cua, Xì dách | Planned, listed in the lobby as coming soon |
 
 ## Running locally
 

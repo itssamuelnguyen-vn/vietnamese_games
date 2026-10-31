@@ -471,6 +471,31 @@ export const en: Strings = {
     youWon: 'You won!',
     youPlaced: (place: number) => `You finished #${place}`,
     winnerIs: (who: string) => `${who} is the last one standing!`,
+    enRulesTitle: 'English word chain rules',
+    enRulesIntro: 'Take turns chaining English words: each starts with the last letter of the one before. Get stuck and you’re out; the last player left wins.',
+    enRules: [
+      {
+        title: 'Linking words',
+        items: [
+          'On your turn, type an English word of three or more letters that starts with the last letter of the previous word. For example: apple → eagle → elephant → tiger.',
+          'The word must be in the dictionary and not used yet this game (plurals and other forms count as different words). A wrong word can be retyped while time remains.',
+        ],
+      },
+      {
+        title: 'Getting knocked out',
+        items: [
+          'Run out of time or press “Give up” and you’re out; the next player starts again from a fresh word.',
+          'The last player left wins.',
+        ],
+      },
+      {
+        title: 'Dictionary and bots',
+        items: [
+          'The dictionary is the ENABLE word list, about 172,000 words (rude words removed).',
+          'Bots stick to everyday words and know about 60% of the dictionary.',
+        ],
+      },
+    ],
     noituRulesTitle: 'Vietnamese word chain rules',
     noituRulesIntro: 'Take turns linking two-syllable Vietnamese words into one long chain. Get stuck and you’re out; the last player left wins.',
     noituRules: [

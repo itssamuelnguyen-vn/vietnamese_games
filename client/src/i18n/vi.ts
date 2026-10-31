@@ -482,6 +482,31 @@ export const vi = {
     youWon: 'Bạn thắng rồi!',
     youPlaced: (place: number) => `Bạn về thứ ${place}`,
     winnerIs: (who: string) => `${who} trụ lại cuối cùng!`,
+    enRulesTitle: 'Luật chơi Nối từ tiếng Anh',
+    enRulesIntro: 'Lần lượt nối các từ tiếng Anh: từ sau bắt đầu bằng chữ cái cuối của từ trước. Ai bí từ thì bị loại; người còn lại cuối cùng thắng.',
+    enRules: [
+      {
+        title: 'Cách nối',
+        items: [
+          'Mỗi lượt gõ một từ tiếng Anh có từ 3 chữ cái trở lên, bắt đầu bằng chữ cái cuối của từ trước. Ví dụ: apple → eagle → elephant → tiger.',
+          'Từ phải có trong từ điển và chưa được dùng trong ván (dạng số nhiều hay chia động từ được tính là từ khác). Gõ sai thì gõ lại, miễn là còn giờ.',
+        ],
+      },
+      {
+        title: 'Bị loại',
+        items: [
+          'Hết giờ hoặc bấm “Chịu” thì bị loại; người kế tiếp bắt đầu lại với một từ mở đầu mới.',
+          'Người còn lại cuối cùng thắng.',
+        ],
+      },
+      {
+        title: 'Từ điển và máy',
+        items: [
+          'Từ điển là bộ ENABLE với khoảng 172.000 từ (đã bỏ từ tục).',
+          'Máy chỉ dùng từ thông dụng và biết khoảng 60% từ điển.',
+        ],
+      },
+    ],
     noituRulesTitle: 'Luật chơi Nối từ tiếng Việt',
     noituRulesIntro: 'Lần lượt nối các từ ghép hai tiếng thành một chuỗi dài. Ai bí từ thì bị loại; người còn lại cuối cùng thắng.',
     noituRules: [

@@ -39,6 +39,7 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   caro: caroGame,
   cangua: caNguaGame,
   noitu: createWordChainGame('noitu', loadDictionary('vi', 'noitu-words.txt')),
+  wordchain: createWordChainGame('wordchain', loadDictionary('en', 'wordchain-words.txt', 'wordchain-common.txt')),
 };
 
 // Uniform in [0, 1) from the OS CSPRNG, so card deals can't be predicted.

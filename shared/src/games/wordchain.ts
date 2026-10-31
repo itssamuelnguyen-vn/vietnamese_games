@@ -16,6 +16,9 @@ export interface WordChainDictionary {
   words: Map<string, string>;
   // Link (first syllable or letter) → keys of the words that start with it.
   byStart: Map<string, string[]>;
+  // Everyday words, if the dictionary is large and full of rare ones: bots and starting words
+  // stick to these.
+  common: Set<string> | null;
 }
 
 const TONES: Record<string, string> = { '\u0300': '2', '\u0301': '1', '\u0303': '4', '\u0309': '3', '\u0323': '5' };
@@ -45,7 +48,7 @@ export function wordKey(lang: WordChainLang, text: unknown): string | null {
 const firstLink = (lang: WordChainLang, key: string) => (lang === 'en' ? key[0] : key.split(' ')[0]);
 const lastLink = (lang: WordChainLang, key: string) => (lang === 'en' ? key.at(-1)! : key.split(' ')[1]);
 
-export function buildDictionary(lang: WordChainLang, list: string[]): WordChainDictionary {
+export function buildDictionary(lang: WordChainLang, list: string[], commonList?: string[]): WordChainDictionary {
   const words = new Map<string, string>();
   const byStart = new Map<string, string[]>();
   for (const word of list) {
@@ -57,7 +60,8 @@ export function buildDictionary(lang: WordChainLang, list: string[]): WordChainD
     if (bucket) bucket.push(key);
     else byStart.set(link, [key]);
   }
-  return { lang, words, byStart };
+  const common = commonList ? new Set(commonList.map((w) => wordKey(lang, w)).filter((k): k is string => k !== null && words.has(k))) : null;
+  return { lang, words, byStart, common };
 }
 
 export interface ChainLink {
@@ -137,7 +141,7 @@ const startTurn = (s: WordChainState, turn: string, now: number): WordChainState
 
 // A fresh starting word for `player` to continue: unused, and with somewhere to go.
 function deal(dict: WordChainDictionary, s: WordChainState, player: string, now: number, random: () => number): WordChainState {
-  const keys = [...dict.words.keys()];
+  const keys = [...(dict.common ?? dict.words.keys())];
   let key = keys[Math.floor(random() * keys.length)];
   for (let tries = 0; tries < 200 && (s.used.includes(key) || followers(dict, s, key).length < 3); tries++) {
     key = keys[Math.floor(random() * keys.length)];
@@ -259,7 +263,10 @@ export function createWordChainGame(type: GameType, dict: WordChainDictionary): 
     botMove(state, playerId, { random = Math.random }) {
       if (state.result || state.turn !== playerId) return null;
       const last = wordKey(dict.lang, state.chain.at(-1)!.word)!;
-      const options = followers(dict, state, last).filter((k) => botKnows(playerId, k));
+      const known = followers(dict, state, last).filter((k) => botKnows(playerId, k));
+      // Prefer everyday words, so bots don't play obscure ones.
+      const everyday = dict.common ? known.filter((k) => dict.common!.has(k)) : [];
+      const options = everyday.length ? everyday : known;
       if (options.length === 0) return { type: 'give-up' };
       return { type: 'word', text: dict.words.get(options[Math.floor(random() * options.length)])! };
     },

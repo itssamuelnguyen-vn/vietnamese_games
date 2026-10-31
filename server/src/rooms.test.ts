@@ -603,6 +603,21 @@ describe('RoomManager', () => {
       expect(view.used).toBeGreaterThan(2);
     });
 
+    it('English word chain: the dictionary loads and refuses unknown words', () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'wordchain');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      const view = rooms.view(room, A, allOnline).game as WordChainView;
+      expect(view.turn).toBe(A);
+      expect(rooms.move(A, { type: 'word', text: `${view.link}qqqzz` })).toEqual({ ok: false, error: 'WORD_UNKNOWN' });
+      expect(rooms.move(A, { type: 'give-up' }).ok).toBe(true);
+      expect(room.status).toBe('finished');
+    });
+
     it('a room left with only bots closes', () => {
       vi.useFakeTimers();
       const { rooms, room } = typhuRoom();

@@ -101,4 +101,15 @@ describe('word chain', () => {
     expect(r.ok && r.state.chain.at(-1)!.word).toBe('eagle');
     expect(en.applyMove(s, 'a', word('goat'), ctx)).toEqual({ ok: false, error: 'WORD_LINK' });
   });
+
+  it('bots prefer everyday words when the dictionary marks them', () => {
+    const list = ['apple', 'eagle', 'eel', 'egg', 'ear', 'eye', 'eon', 'emu', 'elk', 'ebb', 'edge', 'east', 'easy', 'echo'];
+    const en = createWordChainGame('wordchain', buildDictionary('en', list, ['easy', 'east', 'echo', 'edge', 'egg', 'eye']));
+    const s0 = en.setup(['bot:1', 'b'], options, ctx, null);
+    const s = { ...s0, chain: [{ word: 'apple', by: null }], used: ['apple'], turn: 'bot:1' };
+    for (let i = 0; i < 20; i++) {
+      const move = en.botMove!(s, 'bot:1', { now: 0, random: () => i / 20 });
+      if (move?.type === 'word') expect(['easy', 'east', 'echo', 'edge', 'egg', 'eye']).toContain(move.text);
+    }
+  });
 });

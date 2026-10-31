@@ -3991,7 +3991,8 @@ main {
 }
 
 .wc-bubble mark {
-  padding: 0 3px;
+  /* Tight padding, so a highlighted last letter doesn't look split from the word. */
+  padding: 0 1px;
   border-radius: 6px;
   background: var(--gold-soft);
   color: inherit;

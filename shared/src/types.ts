@@ -38,7 +38,7 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   samloc: { type: 'samloc', minPlayers: 2, maxPlayers: 5, available: false },
   colors: { type: 'colors', minPlayers: 2, maxPlayers: 8, available: false },
   noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
-  wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: false },
+  wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   masoi: { type: 'masoi', minPlayers: 5, maxPlayers: 12, available: false },
   baucua: { type: 'baucua', minPlayers: 2, maxPlayers: 10, available: false },
   xidach: { type: 'xidach', minPlayers: 2, maxPlayers: 8, available: false },

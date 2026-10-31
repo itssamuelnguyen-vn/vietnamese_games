@@ -33,7 +33,7 @@ export function RoomScreen({ room }: Props) {
   if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
   if (room.gameType === 'xiangqi') return <XiangqiGame room={room} view={room.game as XiangqiView} onLeave={leave} />;
   if (room.gameType === 'tienlen') return <TienLenGame room={room} view={room.game as TienLenView} onLeave={leave} />;
-  if (room.gameType === 'noitu') return <WordChainGame room={room} view={room.game as WordChainView} onLeave={leave} />;
+  if (room.gameType === 'noitu' || room.gameType === 'wordchain') return <WordChainGame room={room} view={room.game as WordChainView} onLeave={leave} />;
   if (room.gameType === 'cangua') return <CaNguaGame room={room} view={room.game as CaNguaView} onLeave={leave} />;
   if (room.gameType === 'caro') return <CaroGame room={room} view={room.game as CaroView} onLeave={leave} />;
   if (room.gameType === 'typhu') return <TyPhuGame room={room} view={room.game as TyPhuView} onLeave={leave} />;
@@ -152,7 +152,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
 
           {(room.gameType === 'chess' || room.gameType === 'xiangqi' || room.gameType === 'caro') && <ChessOptionsPicker room={room} />}
           {room.gameType === 'tienlen' && <TienLenOptionsPicker room={room} />}
-          {(room.gameType === 'typhu' || room.gameType === 'noitu') && <TyPhuOptionsPicker room={room} />}
+          {(room.gameType === 'typhu' || room.gameType === 'noitu' || room.gameType === 'wordchain') && <TyPhuOptionsPicker room={room} />}
           {room.gameType === 'cangua' && <CaNguaOptionsPicker room={room} />}
 
           <div className="seats-foot">

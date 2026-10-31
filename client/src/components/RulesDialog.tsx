@@ -18,6 +18,7 @@ function rulesFor(t: Strings, gameType: GameType, houseRules: HouseRuleId[], caN
     };
     return { title: t.cangua.rulesTitle, intro: t.cangua.rulesIntro, sections: [...t.cangua.rulesSections, extra] };
   }
+  if (gameType === 'wordchain') return { title: t.wordchain.enRulesTitle, intro: t.wordchain.enRulesIntro, sections: t.wordchain.enRules };
   if (gameType === 'noitu') return { title: t.wordchain.noituRulesTitle, intro: t.wordchain.noituRulesIntro, sections: t.wordchain.noituRules };
   if (gameType === 'caro') return { title: t.caro.rulesTitle, intro: t.caro.rulesIntro, sections: t.caro.rules };
   if (gameType === 'typhu') return { title: t.typhu.rulesTitle, intro: t.typhu.rulesIntro, sections: t.typhu.rules };
