@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import type { Ack, ClientToServerEvents, ErrorCode, GameType, ServerToClientEvents } from '@vg/shared';
+import type { Ack, ClientToServerEvents, ErrorCode, GameType, ServerToClientEvents, TimeControlId } from '@vg/shared';
 import { loadSetting, saveSetting } from './settings';
 
 function randomId(): string {
@@ -35,5 +35,8 @@ export const api = {
     call(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:join', { code, name })),
   start: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:start')),
   move: (move: unknown) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('game:move', move)),
+  options: (timeControl: TimeControlId) =>
+    call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:options', { timeControl })),
+  chat: (text: string) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('chat:send', text)),
   leave: () => socket.emit('room:leave'),
 };

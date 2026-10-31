@@ -53,6 +53,13 @@ export function App() {
         <div className="brand">
           <LogoMark />
           <span className="brand-name">{t.appName}</span>
+          {room && (
+            <span className="topbar-game">
+              <span className="topbar-divider" />
+              {t.games[room.gameType]}
+              {room.gameType === 'chess' && <span className="chip static">{t.timeControls[room.options.timeControl]}</span>}
+            </span>
+          )}
         </div>
         <div className="topbar-actions">
           <div className="lang-switch" role="group" aria-label={t.settings.language}>

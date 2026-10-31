@@ -121,6 +121,57 @@ export const MoonIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const QrIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <path d="M14 14h3v3M21 14v.01M14 21h3M21 17v4h-1" />
+  </Svg>
+);
+
+export const SendIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z" />
+  </Svg>
+);
+
+export const FlipIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4" />
+  </Svg>
+);
+
+export const EqualIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 9h14M5 15h14" />
+  </Svg>
+);
+
+export const ChevronLeftIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M15 6l-6 6 6 6" />
+  </Svg>
+);
+
+export const ChevronRightIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 6l6 6-6 6" />
+  </Svg>
+);
+
+export const ChevronsLeftIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M18 6l-6 6 6 6M12 6l-6 6 6 6" />
+  </Svg>
+);
+
+export const ChevronsRightIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 6l6 6-6 6M12 6l6 6-6 6" />
+  </Svg>
+);
+
 // Game illustrations: drawn on a 64x64 grid, used large on lobby cards and small in headers.
 
 function ChessArt() {

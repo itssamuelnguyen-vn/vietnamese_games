@@ -1,4 +1,4 @@
-import type { ChessEndReason, ErrorCode, GameType } from '@vg/shared';
+import type { ChessEndReason, ErrorCode, GameType, TimeControlId } from '@vg/shared';
 
 // Vietnamese UI strings. This is the only place user-facing text should live;
 // a new locale is a copy of this object with the same shape.
@@ -26,6 +26,13 @@ export const vi = {
     tienlen: '13 lá bài, ai đánh hết trước thì thắng.',
     typhu: 'Gieo xúc xắc, mua đất, xây nhà, thu tiền.',
   } satisfies Record<GameType, string>,
+  timeControls: {
+    none: 'Không giới hạn',
+    '3+2': 'Cờ chớp · 3+2',
+    '5+0': 'Cờ chớp · 5 phút',
+    '10+0': 'Cờ nhanh · 10 phút',
+    '15+10': 'Cờ nhanh · 15+10',
+  } satisfies Record<TimeControlId, string>,
   playerCount: (min: number, max: number) => (min === max ? `${min} người` : `${min}–${max} người`),
 
   hero: {
@@ -54,6 +61,14 @@ export const vi = {
     ],
   },
 
+  chat: {
+    title: 'Trò chuyện',
+    placeholder: 'Nhắn tin…',
+    placeholderTo: (name: string) => `Nhắn cho ${name}…`,
+    send: 'Gửi',
+    empty: 'Chưa có tin nhắn nào. Chào nhau một câu đi!',
+  },
+
   room: {
     codeLabel: 'Mã phòng',
     copyLink: 'Chép link mời',
@@ -72,6 +87,13 @@ export const vi = {
     needMore: (n: number) => `Cần thêm ${n} người nữa. Gửi link mời cho bạn bè nhé!`,
     ready: 'Đủ người rồi, bắt đầu thôi!',
     leave: 'Rời phòng',
+    timeControl: 'Thời gian mỗi bên',
+    playersTitle: 'Người chơi',
+    spectators: 'Khán giả',
+    noSpectators: 'chưa có ai xem',
+    youSuffix: '(bạn)',
+    showQr: 'Hiện mã QR',
+    qrAlt: 'Mã QR của link mời',
     confirmLeaveMidGame: 'Rời phòng giữa ván sẽ bị tính là thua. Rời phòng?',
   },
 
@@ -86,6 +108,39 @@ export const vi = {
       agreement: 'Hai bên đồng ý hòa',
       timeout: 'Hết giờ',
     } satisfies Record<ChessEndReason, string>,
+    white: 'Quân trắng',
+    black: 'Quân đen',
+    balanced: 'Cân bằng',
+    yourTurnTitle: 'Lượt của bạn',
+    turnOfTitle: (name: string) => `Lượt của ${name}`,
+    hintYourTurn: 'Chọn quân để xem nước đi hợp lệ.',
+    hintWaiting: 'Đang chờ đối thủ đi…',
+    hintSpectating: 'Bạn đang xem ván đấu.',
+    gameStarted: 'Ván đấu bắt đầu, Trắng đi trước.',
+    pieces: { p: 'Tốt', n: 'Mã', b: 'Tượng', r: 'Xe', q: 'Hậu', k: 'Vua' },
+    describe: {
+      move: (who: string, piece: string, to: string) => `${who} vừa đi ${piece} ${to}`,
+      capture: (who: string, piece: string, captured: string, to: string) => `${who} vừa dùng ${piece} ăn ${captured} ở ${to}`,
+      castleKing: (who: string) => `${who} vừa nhập thành cánh vua`,
+      castleQueen: (who: string) => `${who} vừa nhập thành cánh hậu`,
+      block: (who: string, piece: string, to: string) => `${who} vừa chặn chiếu bằng ${piece} ${to}`,
+      escape: (who: string, to: string) => `${who} vừa tránh chiếu bằng Vua ${to}`,
+      promote: (who: string, piece: string) => `${who} vừa phong cấp Tốt thành ${piece}`,
+      check: ' và chiếu!',
+    },
+    offerDraw: 'Cầu hòa',
+    drawOffered: 'Đã mời hòa',
+    drawOfferFrom: (name: string) => `${name} mời hòa`,
+    drawOfferHint: 'Đồng ý thì ván đấu kết thúc với tỉ số hòa.',
+    drawOfferSent: 'Đang chờ đối thủ trả lời lời mời hòa.',
+    acceptDraw: 'Đồng ý',
+    declineDraw: 'Từ chối',
+    flipBoard: 'Lật bàn cờ',
+    firstMove: 'Về đầu ván',
+    prevMove: 'Nước trước',
+    nextMove: 'Nước sau',
+    lastMove: 'Nước hiện tại',
+    reviewing: 'Đang xem lại nước cũ',
     youResigned: 'Bạn đã xin thua',
     resultWin: 'Bạn thắng!',
     resultLose: 'Bạn thua rồi',
@@ -94,10 +149,7 @@ export const vi = {
     reviewBoard: 'Xem lại bàn cờ',
     whiteToMove: 'Lượt Trắng',
     blackToMove: 'Lượt Đen',
-    yourTurn: 'Đến lượt bạn',
-    turnOf: (name: string) => `${name} đang nghĩ…`,
     opponent: 'Đối thủ',
-    check: 'Chiếu!',
     moves: 'Nước đi',
     noMoves: 'Trắng đi trước. Chúc may mắn!',
     resign: 'Xin thua',
