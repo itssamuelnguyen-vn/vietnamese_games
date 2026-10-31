@@ -14,7 +14,7 @@ export interface GameInfo {
 export const GAME_CATALOG: Record<GameType, GameInfo> = {
   chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true },
   xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
-  tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: false },
+  tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: false },
 };
 
@@ -40,15 +40,20 @@ export type HostColor = 'random' | 'white' | 'black';
 export type HandicapId = 'none' | 'chariot' | 'horse' | 'cannon' | 'two-horses';
 export const HANDICAPS: HandicapId[] = ['none', 'chariot', 'horse', 'cannon', 'two-horses'];
 
+// Per-turn time limit for card games; on expiry the player passes (or leads their lowest card).
+export type TurnTimerId = 'none' | '15' | '30' | '60';
+export const TURN_TIMERS: Record<TurnTimerId, number | null> = { none: null, '15': 15_000, '30': 30_000, '60': 60_000 };
+
 // Settings the host picks before starting a game.
 export interface RoomOptions {
   timeControl: TimeControlId;
   // The host's side in the first game; rematches swap sides.
   hostColor: HostColor;
   handicap: HandicapId;
+  turnTimer: TurnTimerId;
 }
 
-export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none' };
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30' };
 
 export interface PlayerInfo {
   id: string;
@@ -98,6 +103,8 @@ export type MoveResult<S> = { ok: true; state: S } | { ok: false; error: ErrorCo
 // Server-supplied context, so game logic stays pure and testable with a fake clock.
 export interface GameContext {
   now: number;
+  // Source of randomness for shuffling; the server passes a cryptographic one.
+  random?: () => number;
 }
 
 // Each game is a set of pure functions: the server owns the real state,
