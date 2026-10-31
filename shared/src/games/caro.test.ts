@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RoomOptions } from '../types';
 import { caroBoard, caroBotCell, caroGame, cellName, winningLine, type CaroMove, type CaroState } from './caro';
 
-const options: RoomOptions = { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true };
+const options: RoomOptions = { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] };
 const ctx = { now: 0 };
 const S = 15;
 const at = (r: number, c: number) => r * S + c;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { GameType, HouseRuleId } from '@vg/shared';
+import type { CaNguaRuleId, GameType, HouseRuleId } from '@vg/shared';
 import { useI18n, type Strings } from '../i18n';
 import { BookIcon, CloseIcon } from './icons';
 
@@ -10,7 +10,14 @@ interface RulesText {
 }
 
 // Games that publish their house rules; others don't show the button.
-function rulesFor(t: Strings, gameType: GameType, houseRules: HouseRuleId[]): RulesText | null {
+function rulesFor(t: Strings, gameType: GameType, houseRules: HouseRuleId[], caNguaRules: CaNguaRuleId[]): RulesText | null {
+  if (gameType === 'cangua') {
+    const extra = {
+      title: t.cangua.extraRulesTitle,
+      items: caNguaRules.length ? caNguaRules.map((r) => t.cangua.ruleDetails[r]) : [t.cangua.noExtraRules],
+    };
+    return { title: t.cangua.rulesTitle, intro: t.cangua.rulesIntro, sections: [...t.cangua.rulesSections, extra] };
+  }
   if (gameType === 'caro') return { title: t.caro.rulesTitle, intro: t.caro.rulesIntro, sections: t.caro.rules };
   if (gameType === 'typhu') return { title: t.typhu.rulesTitle, intro: t.typhu.rulesIntro, sections: t.typhu.rules };
   if (gameType !== 'tienlen') return null;
@@ -22,10 +29,17 @@ function rulesFor(t: Strings, gameType: GameType, houseRules: HouseRuleId[]): Ru
   return { title: t.tienlen.rulesTitle, intro: t.tienlen.rulesIntro, sections: [...t.tienlen.rules, extra] };
 }
 
-export function RulesButton({ gameType, houseRules = [], wide = false }: { gameType: GameType; houseRules?: HouseRuleId[]; wide?: boolean }) {
+interface RulesButtonProps {
+  gameType: GameType;
+  houseRules?: HouseRuleId[];
+  caNguaRules?: CaNguaRuleId[];
+  wide?: boolean;
+}
+
+export function RulesButton({ gameType, houseRules = [], caNguaRules = [], wide = false }: RulesButtonProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const rules = rulesFor(t, gameType, houseRules);
+  const rules = rulesFor(t, gameType, houseRules, caNguaRules);
   if (!rules) return null;
   return (
     <>

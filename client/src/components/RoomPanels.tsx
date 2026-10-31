@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { CARO_SIZE_IDS, GAME_CATALOG, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
+import { CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -365,4 +365,30 @@ function TurnTimerPicker({ room, locked }: { room: RoomView; locked: boolean }) 
 // Co ti phu only has a turn timer to choose.
 export function TyPhuOptionsPicker({ room }: { room: RoomView }) {
   return <TurnTimerPicker room={room} locked={room.hostId !== room.you || room.status === 'playing'} />;
+}
+
+// Co ca ngua: a turn timer and optional house rules.
+export function CaNguaOptionsPicker({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const locked = room.hostId !== room.you || room.status === 'playing';
+  const rules = room.options.caNguaRules;
+  async function toggle(rule: CaNguaRuleId) {
+    const r = await api.options({ caNguaRules: rules.includes(rule) ? rules.filter((x) => x !== rule) : [...rules, rule] });
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <>
+      <TurnTimerPicker room={room} locked={locked} />
+      <div className="time-picker">
+        <span className="field-label">{t.cangua.rulesLabel}</span>
+        <div className="chip-group" role="group" aria-label={t.cangua.rulesLabel}>
+          {CANGUA_RULES.map((rule) => (
+            <button key={rule} className="chip toggle" aria-pressed={rules.includes(rule)} disabled={locked} onClick={() => toggle(rule)}>
+              {t.cangua.rules[rule]}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
 }

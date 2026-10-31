@@ -11,7 +11,9 @@ import {
   tienlenGame,
   typhuGame,
   caroGame,
+  caNguaGame,
   CARO_SIZE_IDS,
+  CANGUA_RULES,
   xiangqiGame,
   type ChatMessage,
   type TallyEntry,
@@ -33,6 +35,7 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   tienlen: tienlenGame,
   typhu: typhuGame,
   caro: caroGame,
+  cangua: caNguaGame,
 };
 
 // Uniform in [0, 1) from the OS CSPRNG, so card deals can't be predicted.
@@ -295,6 +298,7 @@ export class RoomManager {
       houseRules = room.options.houseRules,
       caroSize = room.options.caroSize,
       caroBlock = room.options.caroBlock,
+      caNguaRules = room.options.caNguaRules,
     } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
@@ -303,7 +307,18 @@ export class RoomManager {
     if (typeof turnTimer !== 'string' || !Object.hasOwn(TURN_TIMERS, turnTimer)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (!Array.isArray(houseRules) || !houseRules.every((r) => HOUSE_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
     if (!CARO_SIZE_IDS.includes(caroSize) || typeof caroBlock !== 'boolean') return { ok: false, error: 'INVALID_OPTIONS' };
-    room.options = { ...room.options, timeControl, hostColor, handicap, turnTimer, houseRules: [...new Set(houseRules)], caroSize, caroBlock };
+    if (!Array.isArray(caNguaRules) || !caNguaRules.every((r) => CANGUA_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
+    room.options = {
+      ...room.options,
+      timeControl,
+      hostColor,
+      handicap,
+      turnTimer,
+      houseRules: [...new Set(houseRules)],
+      caroSize,
+      caroBlock,
+      caNguaRules: [...new Set(caNguaRules)],
+    };
     room.lastActivity = Date.now();
     return { ok: true, room };
   }

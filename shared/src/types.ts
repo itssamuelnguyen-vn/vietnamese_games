@@ -33,7 +33,7 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
   caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
-  cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: false },
+  cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
   maubinh: { type: 'maubinh', minPlayers: 2, maxPlayers: 4, available: false },
   samloc: { type: 'samloc', minPlayers: 2, maxPlayers: 5, available: false },
   colors: { type: 'colors', minPlayers: 2, maxPlayers: 8, available: false },
@@ -78,6 +78,10 @@ export const HOUSE_RULES: HouseRuleId[] = ['no-two-finish', 'no-stack-chop', 'fo
 export type CaroSizeId = '15' | '19';
 export const CARO_SIZE_IDS: CaroSizeId[] = ['15', '19'];
 
+// Optional cờ cá ngựa rules: jumping over other horses, and climbing home by the full roll.
+export type CaNguaRuleId = 'jump' | 'fast-home';
+export const CANGUA_RULES: CaNguaRuleId[] = ['jump', 'fast-home'];
+
 // Settings the host picks before starting a game.
 export interface RoomOptions {
   timeControl: TimeControlId;
@@ -89,9 +93,10 @@ export interface RoomOptions {
   caroSize: CaroSizeId;
   // Caro's "blocked at both ends" rule: a five stopped by the opponent at both ends doesn't win.
   caroBlock: boolean;
+  caNguaRules: CaNguaRuleId[];
 }
 
-export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true };
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] };
 
 export interface PlayerInfo {
   id: string;

@@ -14,7 +14,8 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 | Tiến lên miền Nam | Playable: 2-4 players, house rules shown in-app (Luật chơi), chops, instant wins, full ranking, per-turn timer, optional house rules and scoring, room scoreboard, hints, drag-to-arrange hand |
 | Cờ tỉ phú (property-trading game) | Playable: original design on a road through Vietnam's 34 provinces, 2-6 players, last player not bankrupt wins (3-year limit), monthly events and yearly fee growth, shared provinces with business chains, dice or scarce move cards, credit limits and forced sales, player trades, computer players (bots), in-app rules |
 | Caro (gomoku) | Playable: 15×15 or 19×19 board, optional Vietnamese blocked-ends rule, chess-style clocks, draws, takebacks, move review, a bot to play against, in-app rules |
-| Cờ cá ngựa (horse race), Mậu binh, Sâm lốc, Color Switch (original colour-matching card game), Vietnamese and English word chain, Ma sói (werewolf), Bầu cua, Xì dách | Planned, listed in the lobby as coming soon |
+| Cờ cá ngựa (horse race) | Playable: 2-4 players, traditional Vietnamese rules (a 6 to come out and roll again, no jumping, kicking, exact home gate, numbered home steps), optional jumping and fast climb home, bots, in-app rules |
+| Mậu binh, Sâm lốc, Color Switch (original colour-matching card game), Vietnamese and English word chain, Ma sói (werewolf), Bầu cua, Xì dách | Planned, listed in the lobby as coming soon |
 
 ## Running locally
 

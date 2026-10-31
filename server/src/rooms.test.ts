@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CaroView, ChessView, TienLenView, TyPhuView } from '@vg/shared';
+import type { CaNguaView, CaroView, ChessView, TienLenView, TyPhuView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -28,7 +28,7 @@ describe('RoomManager', () => {
 
   it('refuses unavailable games and blank names', () => {
     const rooms = new RoomManager();
-    expect(rooms.create(A, 'An', 'cangua')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    expect(rooms.create(A, 'An', 'maubinh')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
     expect(rooms.create(A, '   ', 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
@@ -369,14 +369,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
@@ -542,6 +542,27 @@ describe('RoomManager', () => {
       expect(room.status).toBe('finished');
       // Playing the first free cell every time, the person loses to the bot.
       expect((rooms.view(room, A, allOnline).game as CaroView).result?.winner).toBe('bot:1');
+    });
+
+    it('cờ cá ngựa: bots race a person to the end', () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'cangua');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.setOptions(A, { turnTimer: 'none', caNguaRules: ['jump', 'fast-home'] });
+      expect(rooms.setOptions(A, { caNguaRules: ['bogus'] as never })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      rooms.addBot(A);
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      for (let i = 0; i < 20_000 && room.status === 'playing'; i++) {
+        const view = rooms.view(room, A, allOnline).game as CaNguaView;
+        if (view.turn !== A) vi.advanceTimersByTime(10);
+        else if (view.phase === 'roll') rooms.move(A, { type: 'roll' });
+        else rooms.move(A, { type: 'move', horse: view.choices[0].horse });
+      }
+      expect(room.status).toBe('finished');
+      expect((rooms.view(room, A, allOnline).game as CaNguaView).result?.ranking).toHaveLength(3);
     });
 
     it('a room left with only bots closes', () => {

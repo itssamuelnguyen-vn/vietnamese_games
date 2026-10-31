@@ -1,4 +1,4 @@
-import { GAME_CATALOG, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
@@ -6,9 +6,10 @@ import { XiangqiGame } from '../games/xiangqi/XiangqiGame';
 import { TienLenGame } from '../games/tienlen/TienLenGame';
 import { TyPhuGame } from '../games/typhu/TyPhuGame';
 import { CaroGame } from '../games/caro/CaroGame';
+import { CaNguaGame } from '../games/cangua/CaNguaGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { ChatCard, ChessOptionsPicker, TienLenOptionsPicker, TyPhuOptionsPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
+import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, TienLenOptionsPicker, TyPhuOptionsPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
 import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -31,6 +32,7 @@ export function RoomScreen({ room }: Props) {
   if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
   if (room.gameType === 'xiangqi') return <XiangqiGame room={room} view={room.game as XiangqiView} onLeave={leave} />;
   if (room.gameType === 'tienlen') return <TienLenGame room={room} view={room.game as TienLenView} onLeave={leave} />;
+  if (room.gameType === 'cangua') return <CaNguaGame room={room} view={room.game as CaNguaView} onLeave={leave} />;
   if (room.gameType === 'caro') return <CaroGame room={room} view={room.game as CaroView} onLeave={leave} />;
   if (room.gameType === 'typhu') return <TyPhuGame room={room} view={room.game as TyPhuView} onLeave={leave} />;
   return null;
@@ -65,7 +67,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           <h1>{gameName}</h1>
         </div>
         <div className="waiting-actions">
-          <RulesButton gameType={room.gameType} houseRules={room.options.houseRules} wide />
+          <RulesButton gameType={room.gameType} houseRules={room.options.houseRules} caNguaRules={room.options.caNguaRules} wide />
           <button className="btn btn-ghost" onClick={onLeave}>
             <ExitIcon /> {t.room.leave}
           </button>
@@ -149,6 +151,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           {(room.gameType === 'chess' || room.gameType === 'xiangqi' || room.gameType === 'caro') && <ChessOptionsPicker room={room} />}
           {room.gameType === 'tienlen' && <TienLenOptionsPicker room={room} />}
           {room.gameType === 'typhu' && <TyPhuOptionsPicker room={room} />}
+          {room.gameType === 'cangua' && <CaNguaOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>

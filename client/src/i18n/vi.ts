@@ -1,4 +1,4 @@
-import type { BizType, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, ProvinceId, Region, SpecialKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { BizType, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, ProvinceId, Region, SpecialKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -370,6 +370,88 @@ export const vi = {
         ],
       },
     ],
+  },
+
+  cangua: {
+    colors: ['Đỏ', 'Xanh lá', 'Xanh dương', 'Vàng'],
+    roll: 'Gieo xúc xắc',
+    yourRoll: 'Tới lượt bạn, gieo xúc xắc nào!',
+    pickHorse: 'Chọn một con ngựa để đi (bấm vào ngựa đang sáng).',
+    turnOf: (who: string) => `Lượt của ${who}`,
+    rollAgain: 'Gieo được 6, bạn được gieo thêm!',
+    spectating: 'Bạn đang xem ván này',
+    release: 'Ra quân',
+    advance: (n: number) => `Đi ${n} ô`,
+    toGate: 'Tới cửa chuồng',
+    climb: (step: number) => `Lên bậc ${step}`,
+    kick: (who: string) => `đá ngựa ${who}`,
+    horse: (n: number) => `Ngựa ${n}`,
+    stable: 'Chuồng',
+    home: 'Về đích',
+    homeCount: (n: number) => `${n}/4 lên chuồng`,
+    rulesLabel: 'Luật thêm (bấm để bật/tắt)',
+    rules: { jump: 'Được nhảy qua đầu ngựa', 'fast-home': 'Lên chuồng nhanh' } satisfies Record<CaNguaRuleId, string>,
+    ruleDetails: {
+      jump: 'Được nhảy qua đầu ngựa: ngựa đi qua được ô có ngựa khác, chỉ không được dừng trên ngựa của mình.',
+      'fast-home': 'Lên chuồng nhanh: trong dãy về chuồng, gieo bao nhiêu thì leo bấy nhiêu bậc (miễn là không vượt quá bậc 6 và không nhảy qua ngựa mình).',
+    } satisfies Record<CaNguaRuleId, string>,
+    resultTitle: 'Kết thúc ván',
+    youWon: 'Bạn thắng rồi!',
+    youPlaced: (place: number) => `Bạn về thứ ${place}`,
+    winnerIs: (who: string) => `${who} đưa đủ 4 ngựa lên chuồng!`,
+    history: 'Diễn biến',
+    noHistory: 'Chưa có gì xảy ra.',
+    showLog: 'Hiện diễn biến',
+    hideLog: 'Ẩn diễn biến',
+    log: {
+      roll: (who: string, n: number) => `${who} gieo được ${n}`,
+      autoRoll: (who: string, n: number) => `${who} hết giờ, tự gieo được ${n}`,
+      release: (who: string) => `${who} ra quân`,
+      move: (who: string, n: number) => `${who} cho ngựa đi ${n} ô`,
+      kicked: (who: string) => `, đá ngựa của ${who} về chuồng!`,
+      climb: (who: string, step: number) => `${who} lên bậc ${step}`,
+      stuck: (who: string) => `${who} không có nước đi`,
+      sixes: (who: string) => `${who} gieo 6 ba lần liền, mất lượt`,
+      left: (who: string) => `${who} đã rời bàn`,
+    },
+    rulesTitle: 'Luật chơi Cờ cá ngựa',
+    rulesIntro: 'Mỗi người có 4 con ngựa trong chuồng. Đua ngựa một vòng quanh bàn rồi leo lên chuồng của mình; ai đưa đủ 4 ngựa lên trước thì thắng.',
+    rulesSections: [
+      {
+        title: 'Gieo và ra quân',
+        items: [
+          'Mỗi lượt gieo 1 xúc xắc. Gieo được 6 mới được đưa một ngựa từ chuồng ra ô xuất phát.',
+          'Gieo được 6 thì được gieo thêm một lần nữa; gieo 6 ba lần liền thì mất lượt.',
+          'Không có nước nào đi được thì lượt chuyển sang người kế tiếp.',
+        ],
+      },
+      {
+        title: 'Đi và đá ngựa',
+        items: [
+          'Chọn một ngựa đi đúng số ô vừa gieo, theo chiều kim đồng hồ.',
+          'Không được nhảy qua đầu ngựa khác (của mình hay của người khác), và không được dừng trên ngựa của mình.',
+          'Dừng đúng ô có ngựa đối thủ thì đá ngựa đó về chuồng. Ra quân lên ô xuất phát cũng đá được ngựa đang đứng ở đó.',
+        ],
+      },
+      {
+        title: 'Về chuồng',
+        items: [
+          'Ngựa đi gần một vòng tới cửa chuồng của mình (ô ngay trước dãy số) và phải dừng đúng ở đó.',
+          'Từ cửa chuồng, gieo được số nào thì lên bậc số đó (không nhảy qua ngựa mình đã ở trên dãy).',
+          'Đang ở bậc nào thì phải gieo đúng số của bậc kế tiếp mới leo lên được.',
+          'Ai có đủ 4 ngựa trên 4 bậc cao nhất (3, 4, 5, 6) trước thì thắng.',
+        ],
+      },
+      {
+        title: 'Hết giờ và máy',
+        items: [
+          'Hết giờ lượt: tự gieo và tự chọn nước đi.',
+          'Chủ phòng có thể thêm máy (bot) vào chỗ trống ở phòng chờ.',
+        ],
+      },
+    ],
+    extraRulesTitle: 'Luật thêm của bàn này',
+    noExtraRules: 'Bàn này chơi theo luật truyền thống, không bật luật thêm.',
   },
 
   tienlen: {
