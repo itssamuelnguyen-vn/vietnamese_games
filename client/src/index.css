@@ -67,6 +67,16 @@
 .art-xiangqi { --art-a: #8a1a15; --art-b: #d24a33; --art-fg: #f8e3b8; --art-ink: #8a1a15; }
 .art-tienlen { --art-a: #12553a; --art-b: #2e9a68; --art-fg: #fffaf2; --art-ink: #12553a; }
 .art-typhu { --art-a: #9a4a16; --art-b: #e49b3d; --art-fg: #fff3dc; --art-ink: #9a4a16; }
+.art-caro { --art-a: #1d4f6e; --art-b: #3d8fb8; --art-fg: #f1f8fc; --art-ink: #1d4f6e; }
+.art-cangua { --art-a: #6b2f7a; --art-b: #b25fc0; --art-fg: #fbf0fd; --art-ink: #6b2f7a; }
+.art-maubinh { --art-a: #23305f; --art-b: #4c63b0; --art-fg: #f2f4fd; --art-ink: #23305f; }
+.art-samloc { --art-a: #6e1f3a; --art-b: #c14a70; --art-fg: #fdf0f4; --art-ink: #6e1f3a; }
+.art-colors { --art-a: #b5361e; --art-b: #f0a020; --art-fg: #fffaf0; --art-ink: #b5361e; }
+.art-noitu { --art-a: #0f5e5a; --art-b: #2fa59c; --art-fg: #effbfa; --art-ink: #0f5e5a; }
+.art-wordchain { --art-a: #3b4a1a; --art-b: #7d9a36; --art-fg: #f7fbe9; --art-ink: #3b4a1a; }
+.art-masoi { --art-a: #1c1f33; --art-b: #4a4f7a; --art-fg: #eceefc; --art-ink: #1c1f33; }
+.art-baucua { --art-a: #a2261f; --art-b: #e2603b; --art-fg: #fff2e8; --art-ink: #a2261f; }
+.art-xidach { --art-a: #14432d; --art-b: #2f7d55; --art-fg: #fffaf2; --art-ink: #14432d; }
 
 *,
 *::before,
@@ -2936,5 +2946,51 @@ main {
 
   .conn-pill.on {
     display: none;
+  }
+}
+
+/* On phones, coming-soon games sit two to a row so the playable ones aren't buried. */
+@media (max-width: 560px) {
+  .game-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .game-card:not(.soon) {
+    grid-column: 1 / -1;
+  }
+
+  .game-card.soon .game-art {
+    height: 92px;
+  }
+
+  .game-card.soon .game-art svg {
+    width: 56px;
+    height: 56px;
+  }
+
+  .game-card.soon .ribbon {
+    top: 8px;
+    right: 8px;
+    padding: 3px 8px;
+    font-size: 0.68rem;
+  }
+
+  .game-card.soon .game-body {
+    padding: 12px 12px 14px;
+    gap: 4px;
+  }
+
+  .game-card.soon .game-body h3 {
+    font-size: 1rem;
+  }
+
+  .game-card.soon .game-body p {
+    font-size: 0.8rem;
+  }
+
+  .game-card.soon .game-foot {
+    margin-top: 6px;
+    min-height: 0;
   }
 }

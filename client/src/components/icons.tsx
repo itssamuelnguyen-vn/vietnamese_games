@@ -277,11 +277,159 @@ function PropertyArt() {
   );
 }
 
+function CaroArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="8" y="8" width="48" height="48" rx="6" fill="currentColor" />
+      <path d="M24 8v48M40 8v48M8 24h48M8 40h48" stroke="var(--art-ink)" strokeWidth="1.5" opacity="0.35" />
+      <g stroke="var(--art-ink)" strokeWidth="3.5" strokeLinecap="round" fill="none">
+        <path d="M11 11l10 10M21 11L11 21M27 27l10 10M37 27L27 37M43 43l10 10M53 43L43 53" />
+        <circle cx="48" cy="16" r="5" />
+        <circle cx="16" cy="48" r="5" />
+      </g>
+    </svg>
+  );
+}
+
+function HorseRaceArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path
+        d="M14 54h24l-3-6c4-3 6-8 5-13l-6-13-6-6-2 6c-5 1-9 5-10 10l3 3 6-3 3 3-11 13z"
+        fill="currentColor"
+      />
+      <circle cx="28" cy="24" r="1.8" fill="var(--art-ink)" />
+      <g transform="rotate(-12 48 44)">
+        <rect x="38" y="34" width="20" height="20" rx="4.5" fill="currentColor" stroke="var(--art-ink)" strokeWidth="2" />
+        <g fill="var(--art-ink)">
+          <circle cx="43" cy="39" r="1.8" />
+          <circle cx="53" cy="39" r="1.8" />
+          <circle cx="48" cy="44" r="1.8" />
+          <circle cx="43" cy="49" r="1.8" />
+          <circle cx="53" cy="49" r="1.8" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+function ThreeHandsArt() {
+  // Thirteen cards arranged as the three hands of mau binh: 3 on top, 5 and 5 below.
+  const row = (y: number, n: number, w: number) =>
+    Array.from({ length: n }, (_, i) => (
+      <rect key={i} x={32 - (n * w) / 2 + i * w} y={y} width={w + 4} height="13" rx="2" />
+    ));
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <g fill="currentColor" stroke="var(--art-ink)" strokeWidth="1.2">
+        {row(10, 3, 8)}
+        {row(26, 5, 8)}
+        {row(42, 5, 8)}
+      </g>
+    </svg>
+  );
+}
+
+function FanArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <g fill="currentColor" stroke="var(--art-ink)" strokeWidth="1.5">
+        {[-36, -18, 0, 18, 36].map((a) => (
+          <rect key={a} x="22" y="10" width="20" height="30" rx="3" transform={`rotate(${a} 32 52)`} />
+        ))}
+      </g>
+      <path d="M32 16l5 7-5 7-5-7z" fill="var(--art-ink)" transform="rotate(36 32 52)" />
+    </svg>
+  );
+}
+
+function ColorCardsArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="10" y="14" width="26" height="38" rx="4" fill="currentColor" opacity="0.55" transform="rotate(-14 23 33)" />
+      <rect x="22" y="10" width="30" height="44" rx="5" fill="currentColor" />
+      <ellipse cx="37" cy="32" rx="9" ry="15" fill="none" stroke="var(--art-ink)" strokeWidth="2.5" transform="rotate(28 37 32)" />
+      <path d="M33 27a6 6 0 0 1 9 2m0 0l1-4m-1 4l-4-1M41 37a6 6 0 0 1-9-2m0 0l-1 4m1-4l4 1" stroke="var(--art-ink)" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function WordChainArt({ first, second }: { first: string; second: string }) {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M6 14a6 6 0 0 1 6-6h22a6 6 0 0 1 6 6v12a6 6 0 0 1-6 6H18l-7 6v-6a6 6 0 0 1-5-6z" fill="currentColor" />
+      <path d="M58 38a6 6 0 0 0-6-6H30a6 6 0 0 0-6 6v12a6 6 0 0 0 6 6h16l7 6v-6a6 6 0 0 0 5-6z" fill="currentColor" opacity="0.85" />
+      <g fill="var(--art-ink)" fontFamily="inherit" fontWeight="800" fontSize="13" textAnchor="middle">
+        <text x="23" y="25">{first}</text>
+        <text x="41" y="49">{second}</text>
+      </g>
+    </svg>
+  );
+}
+
+function WolfArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M44 6a20 20 0 1 0 14 30A16 16 0 1 1 44 6z" fill="currentColor" opacity="0.6" />
+      <path
+        d="M12 56l4-20-6-14 10 6 6-8 4 10 8 2 6 6-6 2-4 4 2 12z"
+        fill="currentColor"
+      />
+      <circle cx="27" cy="31" r="1.8" fill="var(--art-ink)" />
+    </svg>
+  );
+}
+
+function CrabArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <g stroke="currentColor" strokeWidth="3" strokeLinecap="round" fill="none">
+        <path d="M18 34l-8 4M18 40l-7 6M46 34l8 4M46 40l7 6" />
+        <path d="M20 28c-4-4-6-9-4-14M44 28c4-4 6-9 4-14" />
+      </g>
+      <g fill="currentColor">
+        <path d="M11 12c2-5 9-5 9 0l-4 1 4 3c-3 3-9 2-9-4z" />
+        <path d="M53 12c-2-5-9-5-9 0l4 1-4 3c3 3 9 2 9-4z" />
+        <ellipse cx="32" cy="36" rx="15" ry="11" />
+      </g>
+      <g fill="var(--art-ink)">
+        <circle cx="27" cy="31" r="2" />
+        <circle cx="37" cy="31" r="2" />
+      </g>
+    </svg>
+  );
+}
+
+function BlackjackArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <g fill="currentColor" stroke="var(--art-ink)" strokeWidth="1.5">
+        <rect x="8" y="14" width="26" height="38" rx="3" transform="rotate(-10 21 33)" />
+        <rect x="28" y="12" width="26" height="38" rx="3" transform="rotate(8 41 31)" />
+      </g>
+      <g fill="var(--art-ink)" fontFamily="inherit" fontWeight="800" textAnchor="middle">
+        <text x="16" y="30" fontSize="13" transform="rotate(-10 21 33)">A</text>
+        <text x="41" y="37" fontSize="18" transform="rotate(8 41 31)">K</text>
+      </g>
+    </svg>
+  );
+}
+
 const ART: Record<GameType, () => ReactElement> = {
   chess: ChessArt,
   xiangqi: XiangqiArt,
   tienlen: CardsArt,
   typhu: PropertyArt,
+  caro: CaroArt,
+  cangua: HorseRaceArt,
+  maubinh: ThreeHandsArt,
+  samloc: FanArt,
+  colors: ColorCardsArt,
+  noitu: () => <WordChainArt first="Ăn" second="Ơi" />,
+  wordchain: () => <WordChainArt first="Ab" second="Bc" />,
+  masoi: WolfArt,
+  baucua: CrabArt,
+  xidach: BlackjackArt,
 };
 
 export function GameArt({ type }: { type: GameType }) {

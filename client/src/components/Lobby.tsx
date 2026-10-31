@@ -8,6 +8,8 @@ import { CODE_LENGTH, CodeInput } from './CodeInput';
 import { toast } from './Toaster';
 import { GameArt, PlayIcon, SparkIcon, UsersIcon } from './icons';
 
+const HERO_GAMES: GameType[] = ['chess', 'xiangqi', 'tienlen', 'typhu'];
+
 interface Props {
   initialCode: string;
   connected: boolean;
@@ -67,9 +69,10 @@ export function Lobby({ initialCode, connected }: Props) {
           </h1>
           <p className="hero-subtitle">{t.hero.subtitle}</p>
           <div className="hero-pieces" aria-hidden="true">
-            {Object.values(GAME_CATALOG).map((g) => (
-              <span key={g.type} className={`hero-piece art-${g.type}`}>
-                <GameArt type={g.type} />
+            {/* The hero only has room for a handful; the full list is below. */}
+            {HERO_GAMES.map((type) => (
+              <span key={type} className={`hero-piece art-${type}`}>
+                <GameArt type={type} />
               </span>
             ))}
           </div>

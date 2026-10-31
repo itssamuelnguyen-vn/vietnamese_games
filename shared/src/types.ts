@@ -1,6 +1,20 @@
 import type { ErrorCode } from './protocol';
 
-export type GameType = 'chess' | 'xiangqi' | 'tienlen' | 'typhu';
+export type GameType =
+  | 'chess'
+  | 'xiangqi'
+  | 'tienlen'
+  | 'typhu'
+  | 'caro'
+  | 'cangua'
+  | 'maubinh'
+  | 'samloc'
+  | 'colors'
+  | 'noitu'
+  | 'wordchain'
+  | 'masoi'
+  | 'baucua'
+  | 'xidach';
 
 export interface GameInfo {
   type: GameType;
@@ -16,6 +30,16 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
   tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: false },
+  caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: false },
+  cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: false },
+  maubinh: { type: 'maubinh', minPlayers: 2, maxPlayers: 4, available: false },
+  samloc: { type: 'samloc', minPlayers: 2, maxPlayers: 5, available: false },
+  colors: { type: 'colors', minPlayers: 2, maxPlayers: 8, available: false },
+  noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: false },
+  wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: false },
+  masoi: { type: 'masoi', minPlayers: 5, maxPlayers: 12, available: false },
+  baucua: { type: 'baucua', minPlayers: 2, maxPlayers: 10, available: false },
+  xidach: { type: 'xidach', minPlayers: 2, maxPlayers: 8, available: false },
 };
 
 export type TimeControlId = 'none' | '3+2' | '5+0' | '10+0' | '15+10';
