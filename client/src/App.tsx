@@ -14,6 +14,8 @@ function roomCodeFromUrl(): string {
 export function App() {
   const [room, setRoom] = useState<RoomView | null>(null);
   const [connected, setConnected] = useState(socket.connected);
+  // Read once at page load: only an invite link should prefill the join box, not a room we just left.
+  const [inviteCode, setInviteCode] = useState(roomCodeFromUrl);
 
   useEffect(() => {
     const onConnect = () => setConnected(true);
@@ -35,6 +37,7 @@ export function App() {
   // Keep the room code in the URL so a refresh or a shared link lands in the same room.
   const code = room?.code;
   useEffect(() => {
+    if (code) setInviteCode('');
     const url = new URL(location.href);
     if (code) url.searchParams.set('room', code);
     else url.searchParams.delete('room');
@@ -54,7 +57,7 @@ export function App() {
         </span>
       </header>
       <main>
-        {room ? <RoomScreen room={room} /> : <Lobby initialCode={roomCodeFromUrl()} connected={connected} />}
+        {room ? <RoomScreen room={room} /> : <Lobby initialCode={inviteCode} connected={connected} />}
       </main>
       <footer className="footer">
         {t.appName} · {t.footer}

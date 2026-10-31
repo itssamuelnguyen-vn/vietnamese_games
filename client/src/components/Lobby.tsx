@@ -21,19 +21,20 @@ export function Lobby({ initialCode, connected }: Props) {
 
   const trimmedName = name.trim();
 
-  async function run(action: () => Promise<{ ok: true } | { ok: false; error: ErrorCode }>) {
+  async function run(action: () => Promise<{ ok: true } | { ok: false; error: ErrorCode }>): Promise<boolean> {
     if (!trimmedName) {
       toast(errorText('NAME_REQUIRED'));
       nameRef.current?.focus();
       setNudgeName(true);
       setTimeout(() => setNudgeName(false), 600);
-      return;
+      return false;
     }
     saveSetting('vg:name', trimmedName);
     setBusy(true);
     const r = await action();
     setBusy(false);
     if (!r.ok) toast(errorText(r.error));
+    return r.ok;
   }
 
   const create = (type: GameType) => run(() => api.create(type, trimmedName));
@@ -44,7 +45,10 @@ export function Lobby({ initialCode, connected }: Props) {
   useEffect(() => {
     if (!connected || autoJoined.current || !initialCode || !trimmedName) return;
     autoJoined.current = true;
-    join();
+    // A stale invite (room closed or full) shouldn't leave its code sitting in the join box.
+    join().then((ok) => {
+      if (!ok) setCode('');
+    });
   }, [connected]);
 
   return (
