@@ -831,6 +831,7 @@ export const en: Strings = {
         title: 'Trades, time limits and bots',
         items: [
           'Send other players trade offers of cash and businesses both ways. They have 30 seconds to accept or decline.',
+          'A player in debt can only hand over the cash beyond what they owe, so borrowed money can’t be passed on.',
           'Out of time: you roll automatically, skip buying, or stay at the airport.',
           'The host can add bots to empty seats in the waiting room. Bots play, trade and always agree to another game.',
         ],

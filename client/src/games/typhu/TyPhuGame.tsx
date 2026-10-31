@@ -32,6 +32,7 @@ import { RulesButton } from '../../components/RulesDialog';
 import { ChevronRightIcon, CloseIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { loadSetting, saveSetting } from '../../settings';
 import { playSound } from '../../sound';
+import { freshEntries } from '../freshLog';
 
 interface Props {
   room: RoomView;
@@ -177,6 +178,8 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   const shown = useShownPositions(view);
   const [selected, setSelected] = useState<number | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
+  // The card buttons can disappear under the pointer (e.g. an automatic roll), so clear the preview.
+  useEffect(() => setPreview(null), [myTurn, view.phase]);
   const [tradeOpen, setTradeOpen] = useState(false);
 
   // Server times are relative to when this view arrived, so client clock skew doesn't matter.
@@ -195,10 +198,11 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   }
 
   // Sounds for moves, our turn and the end of the game.
-  const seenLog = useRef(view.log.length);
+  // Logs keep only recent entries, so new ones are found by content, not by length.
+  const seenLog = useRef(view.log);
   useEffect(() => {
-    const fresh = view.log.slice(seenLog.current);
-    seenLog.current = view.log.length;
+    const fresh = freshEntries(seenLog.current, view.log);
+    seenLog.current = view.log;
     if (fresh.some((e) => e.kind === 'roll' || e.kind === 'card' || e.kind === 'fly')) playSound('move');
     else if (fresh.some((e) => e.kind === 'buy' || e.kind === 'upgrade' || e.kind === 'trade')) playSound('capture');
   }, [view.log]);
@@ -488,7 +492,8 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             <div className="tp-choices">
               {freeTypes(view, here).map((type) => {
                 const price = bizPrice(hereSquare, type, view.event);
-                const fee = visitFee([], { id: '', square: here, owner: me, type, level: 1, invested: 0 }, 'normal', view.month);
+                const candidate = { id: '', square: here, owner: me, type, level: 1, invested: 0 };
+                const fee = visitFee([...view.businesses, candidate], candidate, 'normal', view.month);
                 return (
                   <button key={type} className="btn btn-secondary tp-choice" disabled={cash < price} onClick={() => send({ type: 'buy', biz: type })}>
                     <span>
@@ -502,7 +507,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
               })}
               {upgradable(view, here, me).map((b) => {
                 const price = upgradePrice(hereSquare, b.type, view.event);
-                const fee = visitFee([], { ...b, level: b.level + 1 }, 'normal', view.month);
+                const fee = visitFee(view.businesses, { ...b, level: b.level + 1 }, 'normal', view.month);
                 return (
                   <button key={b.id} className="btn btn-secondary tp-choice" disabled={cash < price} onClick={() => send({ type: 'upgrade', id: b.id })}>
                     <span>
@@ -522,13 +527,14 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
           {myTurn &&
             view.phase === 'act' &&
             hereSquare.kind === 'province' &&
+            freeTypes(view, here).length + upgradable(view, here, me).length > 0 &&
             freeTypes(view, here).every((type) => cash < bizPrice(hereSquare, type, view.event)) &&
             upgradable(view, here, me).every((b) => cash < upgradePrice(hereSquare, b.type, view.event)) && <p className="tl-hint error">{T.needCash}</p>}
 
           {myTurn && view.phase === 'fly' && (
             <div className="tp-choices">
               {flyTarget !== null && (
-                <button className="btn btn-primary" onClick={() => send({ type: 'fly', to: flyTarget })}>
+                <button className="btn btn-primary" disabled={cash < AIRPORT_FEE} onClick={() => send({ type: 'fly', to: flyTarget })}>
                   ✈️ {T.flyTo(squareName(t, BOARD[flyTarget]))}
                 </button>
               )}
@@ -799,9 +805,13 @@ function TradeDialog({
   useEffect(() => setGet([]), [to]);
 
   const mine = view.businesses.filter((b) => b.owner === me);
-  const theirs = view.businesses.filter((b) => b.owner === to);
+  const theirs = view.businesses.filter((b) => b.owner === (others.some((s) => s.id === to) ? to : others[0]?.id));
+  // Businesses can be sold, traded or lost while the dialog is open; only offer what's still owned.
+  const giving = give.filter((id) => mine.some((b) => b.id === id));
+  const getting = get.filter((id) => theirs.some((b) => b.id === id));
+  const partner = others.some((s) => s.id === to) ? to : (others[0]?.id ?? '');
   const toggle = (list: string[], set: (l: string[]) => void, id: string) => set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-  const empty = giveCash + getCash + give.length + get.length === 0;
+  const empty = giveCash + getCash + giving.length + getting.length === 0;
   const cashInput = (value: number, set: (n: number) => void) => (
     <label className="tp-cash-input">
       <span className="muted small">{T.cashField}</span>
@@ -811,7 +821,7 @@ function TradeDialog({
 
   async function submit() {
     if (empty) return toast(T.emptyOffer);
-    if (await onSend({ type: 'offer', to, giveCash, getCash, give, get })) onClose();
+    if (await onSend({ type: 'offer', to: partner, giveCash, getCash, give: giving, get: getting })) onClose();
   }
 
   return (
@@ -827,7 +837,7 @@ function TradeDialog({
           <span className="field-label">{T.tradeWith}</span>
           <div className="chip-group">
             {others.map((s) => (
-              <button key={s.id} className="chip" aria-pressed={to === s.id} onClick={() => setTo(s.id)}>
+              <button key={s.id} className="chip" aria-pressed={partner === s.id} onClick={() => setTo(s.id)}>
                 {name(s.id)}
               </button>
             ))}
@@ -840,7 +850,7 @@ function TradeDialog({
             {mine.length === 0 && <p className="muted small">{T.noBusinesses}</p>}
             {mine.map((b) => (
               <label key={b.id} className="tp-check">
-                <input type="checkbox" checked={give.includes(b.id)} onChange={() => toggle(give, setGive, b.id)} />
+                <input type="checkbox" checked={giving.includes(b.id)} onChange={() => toggle(giving, setGive, b.id)} />
                 {bizLabel(b)}
               </label>
             ))}
@@ -851,14 +861,14 @@ function TradeDialog({
             {theirs.length === 0 && <p className="muted small">{T.noBusinesses}</p>}
             {theirs.map((b) => (
               <label key={b.id} className="tp-check">
-                <input type="checkbox" checked={get.includes(b.id)} onChange={() => toggle(get, setGet, b.id)} />
+                <input type="checkbox" checked={getting.includes(b.id)} onChange={() => toggle(getting, setGet, b.id)} />
                 {bizLabel(b)}
               </label>
             ))}
           </section>
         </div>
         <div className="tp-trade-actions">
-          <button className="btn btn-primary" disabled={!to || empty} onClick={submit}>
+          <button className="btn btn-primary" disabled={!partner || empty} onClick={submit}>
             🤝 {T.sendOffer}
           </button>
         </div>

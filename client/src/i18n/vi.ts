@@ -853,6 +853,7 @@ export const vi = {
         title: 'Mua bán, hết giờ và máy',
         items: [
           'Gửi đề nghị mua bán cho người khác: tiền và cơ sở hai bên đưa cho nhau. Người nhận có 30 giây để đồng ý hoặc từ chối.',
+          'Người đang nợ chỉ được đưa phần tiền mặt vượt quá số nợ, để tiền vay không bị chuyển sang người khác.',
           'Hết giờ lượt: tự gieo xúc xắc, bỏ qua việc mua hoặc ở lại sân bay.',
           'Chủ phòng có thể thêm máy (bot) vào chỗ trống ở phòng chờ. Máy tự chơi, tự mua bán và luôn đồng ý chơi ván mới.',
         ],

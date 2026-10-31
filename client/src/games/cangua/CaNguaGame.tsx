@@ -20,6 +20,7 @@ import { RulesButton } from '../../components/RulesDialog';
 import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { loadSetting, saveSetting } from '../../settings';
 import { playSound } from '../../sound';
+import { freshEntries } from '../freshLog';
 
 interface Props {
   room: RoomView;
@@ -133,6 +134,8 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
   const turnFraction = turnLeft !== null && view.turnLimitMs ? turnLeft / view.turnLimitMs : null;
 
   async function send(move: CaNguaMove) {
+    // The clicked horse or button may vanish without a mouseleave, so drop the target marker now.
+    setHover(null);
     const r = await api.move(move);
     if (!r.ok) toast(t.errors[r.error]);
     return r.ok;
@@ -147,10 +150,11 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
   const lastRoll = [...view.log].reverse().find((e) => e.kind === 'roll');
   const rollKey = view.log.length + (lastRoll && lastRoll.kind === 'roll' ? lastRoll.value : 0);
   const [rolling, setRolling] = useState(false);
-  const seenLog = useRef(view.log.length);
+  // Logs keep only recent entries, so new ones are found by content, not by length.
+  const seenLog = useRef(view.log);
   useEffect(() => {
-    const fresh = view.log.slice(seenLog.current);
-    seenLog.current = view.log.length;
+    const fresh = freshEntries(seenLog.current, view.log);
+    seenLog.current = view.log;
     if (fresh.some((e) => e.kind === 'roll')) {
       setRolling(true);
       const id = setTimeout(() => setRolling(false), 450);
