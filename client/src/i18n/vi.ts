@@ -83,6 +83,7 @@ export const vi = {
       insufficient: 'Không đủ quân chiếu hết',
       'fifty-moves': 'Luật 50 nước',
       resign: 'Đối thủ xin thua',
+      agreement: 'Hai bên đồng ý hòa',
     } satisfies Record<ChessEndReason, string>,
     youResigned: 'Bạn đã xin thua',
     resultWin: 'Bạn thắng!',

@@ -39,6 +39,13 @@ export class RoomManager {
   private rooms = new Map<string, Room>();
   private playerRoom = new Map<string, string>();
 
+  // `clock` is injectable so tests can control time.
+  constructor(private readonly clock: () => number = Date.now) {}
+
+  private ctx() {
+    return { now: this.clock() };
+  }
+
   roomOf(playerId: string): Room | undefined {
     const code = this.playerRoom.get(playerId);
     return code ? this.rooms.get(code) : undefined;
@@ -95,7 +102,7 @@ export class RoomManager {
     this.playerRoom.delete(playerId);
 
     if (room.status === 'playing') {
-      room.state = GAMES[room.gameType]!.forfeit(room.state, playerId);
+      room.state = GAMES[room.gameType]!.forfeit(room.state, playerId, this.ctx());
       room.status = 'finished';
     }
     room.players = room.players.filter((p) => p.id !== playerId);
@@ -119,7 +126,7 @@ export class RoomManager {
       return { ok: false, error: 'NOT_ENOUGH_PLAYERS' };
     }
 
-    room.state = GAMES[room.gameType]!.setup(room.players.map((p) => p.id));
+    room.state = GAMES[room.gameType]!.setup(room.players.map((p) => p.id), this.ctx());
     room.status = 'playing';
     room.lastActivity = Date.now();
     return { ok: true, room };
@@ -133,7 +140,7 @@ export class RoomManager {
     const game = GAMES[room.gameType]!;
     let result: MoveResult<unknown>;
     try {
-      result = game.applyMove(room.state, playerId, move);
+      result = game.applyMove(room.state, playerId, move, this.ctx());
     } catch {
       // Client input is untrusted: a malformed move must not crash the server.
       return { ok: false, error: 'INVALID_MOVE' };
@@ -153,7 +160,7 @@ export class RoomManager {
       hostId: room.hostId,
       status: room.status,
       players: room.players.map((p) => ({ ...p, connected: isConnected(p.id) })),
-      game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId),
+      game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
     };
   }
 

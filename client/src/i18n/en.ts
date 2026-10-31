@@ -82,6 +82,7 @@ export const en: Strings = {
       insufficient: 'Insufficient material',
       'fifty-moves': 'Fifty-move rule',
       resign: 'Opponent resigned',
+      agreement: 'Draw agreed',
     },
     youResigned: 'You resigned',
     resultWin: 'You win!',

@@ -39,14 +39,20 @@ export interface RoomView {
 
 export type MoveResult<S> = { ok: true; state: S } | { ok: false; error: ErrorCode };
 
+// Server-supplied context, so game logic stays pure and testable with a fake clock.
+export interface GameContext {
+  now: number;
+}
+
 // Each game is a set of pure functions: the server owns the real state,
 // clients only ever receive playerView.
 export interface GameDefinition<S, M, V> {
   type: GameType;
-  setup(playerIds: string[]): S;
-  applyMove(state: S, playerId: string, move: M): MoveResult<S>;
+  setup(playerIds: string[], ctx: GameContext): S;
+  applyMove(state: S, playerId: string, move: M, ctx: GameContext): MoveResult<S>;
   // Called when a player deliberately leaves mid-game.
-  forfeit(state: S, playerId: string): S;
+  forfeit(state: S, playerId: string, ctx: GameContext): S;
   isOver(state: S): boolean;
-  playerView(state: S, playerId: string): V;
+  // Spectators get a view too; their playerId is simply not one of the players.
+  playerView(state: S, playerId: string, ctx: GameContext): V;
 }
