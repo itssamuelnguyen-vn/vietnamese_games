@@ -1812,6 +1812,26 @@ main {
   animation: toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Animated "…": the dots appear one after another; hidden dots keep their space so text doesn't shift. */
+
+.dots span:nth-child(2) {
+  animation: dot-2 1.5s steps(1, end) infinite;
+}
+
+.dots span:nth-child(3) {
+  animation: dot-3 1.5s steps(1, end) infinite;
+}
+
+@keyframes dot-2 {
+  0% { opacity: 0; }
+  33.33% { opacity: 1; }
+}
+
+@keyframes dot-3 {
+  0% { opacity: 0; }
+  66.66% { opacity: 1; }
+}
+
 /* Motion */
 
 @keyframes pulse {

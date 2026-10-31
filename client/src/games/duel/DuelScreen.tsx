@@ -3,6 +3,7 @@ import { ABANDON_CLAIM_MS, type ClockView, type RoomView } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
+import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
 import { ChatCard, PlayersCard, RoomCodeCard } from '../../components/RoomPanels';
 import { playSound, type SoundKind } from '../../sound';
@@ -331,7 +332,7 @@ export function DuelScreen(props: DuelScreenProps) {
           </h2>
           {statusLines.map((line, i) => (
             <p key={i} className="muted">
-              {line}
+              <Ellipsis text={line} />
             </p>
           ))}
           {incomingTakeback && (
@@ -477,7 +478,9 @@ function ResultOverlay({ kind, headline, detail, rematch, onClose }: ResultOverl
               <PlayIcon /> {rematch.label}
             </button>
           ) : (
-            <span className="muted">{t.room.waitingForHost}</span>
+            <span className="muted">
+              <Ellipsis text={t.room.waitingForHost} />
+            </span>
           )}
           <button className="btn btn-ghost" onClick={onClose}>
             {t.chess.reviewBoard}

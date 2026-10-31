@@ -6,6 +6,7 @@ import { useTheme } from './theme';
 import { Lobby } from './components/Lobby';
 import { RoomScreen } from './components/RoomScreen';
 import { Toaster } from './components/Toaster';
+import { Ellipsis } from './components/Ellipsis';
 import { LogoMark, MoonIcon, MuteIcon, SoundIcon, SunIcon } from './components/icons';
 import { isSoundOn, setSoundOn } from './sound';
 
@@ -94,7 +95,9 @@ export function App() {
           </button>
           <span className={`conn-pill ${connected ? 'on' : 'off'}`} title={connected ? t.connected : t.connecting}>
             <span className="conn-dot" />
-            <span className="conn-label">{connected ? t.connected : t.connecting}</span>
+            <span className="conn-label">
+              <Ellipsis text={connected ? t.connected : t.connecting} />
+            </span>
           </span>
         </div>
       </header>
