@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CaNguaView, CaroView, ChessView, TienLenView, TyPhuView } from '@vg/shared';
+import type { CaNguaView, CaroView, ChessView, WordChainView, TienLenView, TyPhuView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -564,7 +564,7 @@ describe('RoomManager', () => {
       expect((rooms.view(room, A, allOnline).game as CaroView).result?.winner).toBe('bot:1');
     });
 
-    it('cờ cá ngựa: bots race a person to the end', () => {
+    it('co ca ngua: bots race a person to the end', () => {
       vi.useFakeTimers();
       const rooms = new RoomManager({ botDelayMs: 10 });
       const created = rooms.create(A, 'An', 'cangua');
@@ -583,6 +583,24 @@ describe('RoomManager', () => {
       }
       expect(room.status).toBe('finished');
       expect((rooms.view(room, A, allOnline).game as CaNguaView).result?.ranking).toHaveLength(3);
+    });
+
+    it('noi tu: the real dictionary loads and bots play a game to the end', () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'noitu');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.addBot(A);
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      // The person gives up straight away; the two bots play it out.
+      expect(rooms.move(A, { type: 'give-up' }).ok).toBe(true);
+      for (let i = 0; i < 5000 && room.status === 'playing'; i++) vi.advanceTimersByTime(10);
+      expect(room.status).toBe('finished');
+      const view = rooms.view(room, A, allOnline).game as WordChainView;
+      expect(view.result?.ranking.at(-1)).toBe(A);
+      expect(view.used).toBeGreaterThan(2);
     });
 
     it('a room left with only bots closes', () => {

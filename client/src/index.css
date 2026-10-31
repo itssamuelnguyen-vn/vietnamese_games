@@ -3926,3 +3926,125 @@ main {
 .cn-choice.green { --c: #2e9a4f; }
 .cn-choice.blue { --c: #2f6fd1; }
 .cn-choice.yellow { --c: #e5b014; }
+
+/* ---- Word chain ---- */
+
+.wc-board {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  height: min(62vh, 560px);
+  padding: 16px;
+}
+
+.wc-board-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.wc-board-head h2 {
+  font-size: 1.05rem;
+}
+
+.wc-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px 0 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.wc-word {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: pop-in 0.25s ease;
+}
+
+.wc-word.mine {
+  flex-direction: row-reverse;
+}
+
+.wc-bubble {
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.wc-word.mine .wc-bubble {
+  background: var(--brand-soft);
+}
+
+.wc-word.dealt .wc-bubble {
+  border: 2px dashed var(--border);
+  background: transparent;
+}
+
+.wc-word.last .wc-bubble {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+
+.wc-bubble mark {
+  padding: 0 3px;
+  border-radius: 6px;
+  background: var(--gold-soft);
+  color: inherit;
+}
+
+.wc-dealt-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wc-out {
+  justify-self: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.wc-me .tl-me-head {
+  flex-wrap: wrap;
+}
+
+.wc-bar {
+  flex-basis: 100%;
+}
+
+.wc-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wc-input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.wc-input:focus {
+  outline: none;
+  border-color: var(--gold);
+}

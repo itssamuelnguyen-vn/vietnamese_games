@@ -443,6 +443,62 @@ export const en: Strings = {
     noExtraRules: 'This table plays the traditional rules, with no house rules.',
   },
 
+  wordchain: {
+    yourTurn: 'Your turn!',
+    turnOf: (who: string) => `${who}’s turn`,
+    mustStart: (link: string) => `The next word must start with “${link}”`,
+    mustStartLetter: (letter: string) => `The next word must start with “${letter.toUpperCase()}”`,
+    placeholder: (link: string) => `${link}…`,
+    send: 'Send',
+    giveUp: 'Give up',
+    startWord: 'Starting word',
+    usedCount: (n: number) => `${n} words used`,
+    outTag: 'Out',
+    wordCount: (n: number) => `${n} words`,
+    youOut: 'You’re out. Stay and watch the rest',
+    spectating: 'You are watching this game',
+    feed: 'Word chain',
+    log: {
+      start: (who: string) => `Starting word for ${who}`,
+      out: {
+        timeout: (who: string) => `${who} ran out of time and is out`,
+        'gave-up': (who: string) => `${who} gave up and is out`,
+        'dead-end': (who: string) => `${who} had nothing to follow with and is out`,
+        left: (who: string) => `${who} left the table`,
+      },
+    },
+    resultTitle: 'Game over',
+    youWon: 'You won!',
+    youPlaced: (place: number) => `You finished #${place}`,
+    winnerIs: (who: string) => `${who} is the last one standing!`,
+    noituRulesTitle: 'Vietnamese word chain rules',
+    noituRulesIntro: 'Take turns linking two-syllable Vietnamese words into one long chain. Get stuck and you’re out; the last player left wins.',
+    noituRules: [
+      {
+        title: 'Linking words',
+        items: [
+          'On your turn, type a two-syllable word whose first syllable matches the last syllable of the previous word, tone marks included. For example: hoa hồng → hồng hào → hào hoa.',
+          'The word must be in the dictionary and not used yet this game. A wrong word can be retyped while time remains. “hoà” and “hòa” both work.',
+        ],
+      },
+      {
+        title: 'Getting knocked out',
+        items: [
+          'Run out of time or press “Give up” and you’re out; the next player starts again from a fresh word.',
+          'Play a word that nothing can follow and the next player is out at once.',
+          'The last player left wins.',
+        ],
+      },
+      {
+        title: 'Dictionary and bots',
+        items: [
+          'The dictionary has about 18,000 two-syllable words from Wiktionary, without proper names or rude words.',
+          'The host can add bots; a bot knows about 60% of the dictionary, so it gets stuck sometimes.',
+        ],
+      },
+    ],
+  },
+
   tienlen: {
     combos: {
       single: 'single',
@@ -867,5 +923,9 @@ export const en: Strings = {
     SERVER_FULL: 'The server is full right now, please try again later',
     CLAIM_TOO_EARLY: 'It’s too early to claim the win',
     DISCONNECTED: 'Lost connection to the server',
+    WORD_INVALID: 'That isn’t a valid word',
+    WORD_LINK: 'That word doesn’t link to the last one',
+    WORD_UNKNOWN: 'That word isn’t in the dictionary',
+    WORD_USED: 'That word has already been used',
   },
 };

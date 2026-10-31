@@ -1,4 +1,4 @@
-import { GAME_CATALOG, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
@@ -7,6 +7,7 @@ import { TienLenGame } from '../games/tienlen/TienLenGame';
 import { TyPhuGame } from '../games/typhu/TyPhuGame';
 import { CaroGame } from '../games/caro/CaroGame';
 import { CaNguaGame } from '../games/cangua/CaNguaGame';
+import { WordChainGame } from '../games/wordchain/WordChainGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
 import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, TienLenOptionsPicker, TyPhuOptionsPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
@@ -32,6 +33,7 @@ export function RoomScreen({ room }: Props) {
   if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
   if (room.gameType === 'xiangqi') return <XiangqiGame room={room} view={room.game as XiangqiView} onLeave={leave} />;
   if (room.gameType === 'tienlen') return <TienLenGame room={room} view={room.game as TienLenView} onLeave={leave} />;
+  if (room.gameType === 'noitu') return <WordChainGame room={room} view={room.game as WordChainView} onLeave={leave} />;
   if (room.gameType === 'cangua') return <CaNguaGame room={room} view={room.game as CaNguaView} onLeave={leave} />;
   if (room.gameType === 'caro') return <CaroGame room={room} view={room.game as CaroView} onLeave={leave} />;
   if (room.gameType === 'typhu') return <TyPhuGame room={room} view={room.game as TyPhuView} onLeave={leave} />;
@@ -150,7 +152,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
 
           {(room.gameType === 'chess' || room.gameType === 'xiangqi' || room.gameType === 'caro') && <ChessOptionsPicker room={room} />}
           {room.gameType === 'tienlen' && <TienLenOptionsPicker room={room} />}
-          {room.gameType === 'typhu' && <TyPhuOptionsPicker room={room} />}
+          {(room.gameType === 'typhu' || room.gameType === 'noitu') && <TyPhuOptionsPicker room={room} />}
           {room.gameType === 'cangua' && <CaNguaOptionsPicker room={room} />}
 
           <div className="seats-foot">

@@ -21,7 +21,12 @@ export type ErrorCode =
   | 'RATE_LIMITED'
   | 'SERVER_FULL'
   | 'CLAIM_TOO_EARLY'
-  | 'DISCONNECTED';
+  | 'DISCONNECTED'
+  // Word chain games: why a word was refused.
+  | 'WORD_INVALID'
+  | 'WORD_LINK'
+  | 'WORD_UNKNOWN'
+  | 'WORD_USED';
 
 export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
 

@@ -362,7 +362,7 @@ function TurnTimerPicker({ room, locked }: { room: RoomView; locked: boolean }) 
   );
 }
 
-// Co ti phu only has a turn timer to choose.
+// Co ti phu and the word chain games only have a turn timer to choose.
 export function TyPhuOptionsPicker({ room }: { room: RoomView }) {
   return <TurnTimerPicker room={room} locked={room.hostId !== room.you || room.status === 'playing'} />;
 }
