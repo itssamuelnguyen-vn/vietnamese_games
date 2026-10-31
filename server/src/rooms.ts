@@ -11,6 +11,7 @@ import {
   tienlenGame,
   xiangqiGame,
   type ChatMessage,
+  type TallyEntry,
   ABANDON_CLAIM_MS,
   type ErrorCode,
   type HostColor,
@@ -45,6 +46,9 @@ export interface Room {
   spectators: Player[];
   // Players who left mid-game; cleared when the next game starts.
   departed: Player[];
+  // Running scoreboard, and whether the current game has been added to it.
+  tally: Record<string, TallyEntry>;
+  tallied: boolean;
   status: RoomStatus;
   options: RoomOptions;
   state: unknown;
@@ -121,6 +125,8 @@ export class RoomManager {
       players: [{ id: playerId, name: cleanName }],
       spectators: [],
       departed: [],
+      tally: {},
+      tallied: false,
       status: 'waiting',
       options: { ...DEFAULT_ROOM_OPTIONS },
       state: null,
@@ -172,6 +178,7 @@ export class RoomManager {
       room.state = game.forfeit(room.state, playerId, this.ctx(), 'left');
       // Two-player games end; in bigger games the others play on.
       if (game.isOver(room.state)) room.status = 'finished';
+      this.settle(room);
       this.armTimer(room);
     }
     room.players = room.players.filter((p) => p.id !== playerId);
@@ -199,10 +206,14 @@ export class RoomManager {
 
     // Host first, so games can honour the host's chosen side.
     const ids = [room.hostId, ...room.players.map((p) => p.id).filter((id) => id !== room.hostId)];
-    room.state = GAMES[room.gameType]!.setup(ids, room.options, this.ctx(), room.state);
-    room.status = 'playing';
+    const game = GAMES[room.gameType]!;
+    room.state = game.setup(ids, room.options, this.ctx(), room.state);
     room.rematchVotes = [];
     room.departed = [];
+    room.tallied = false;
+    // A game can be decided on the deal (tien len instant wins).
+    room.status = game.isOver(room.state) ? 'finished' : 'playing';
+    this.settle(room);
     room.lastActivity = Date.now();
     this.armTimer(room);
     return { ok: true, room };
@@ -249,6 +260,7 @@ export class RoomManager {
 
     room.state = result.state;
     if (game.isOver(room.state)) room.status = 'finished';
+    this.settle(room);
     room.lastActivity = Date.now();
     this.armTimer(room);
     return { ok: true, room };
@@ -281,6 +293,7 @@ export class RoomManager {
     const game = GAMES[room.gameType]!;
     for (const p of absent) room.state = game.forfeit(room.state, p.id, this.ctx(), 'abandoned');
     if (game.isOver(room.state)) room.status = 'finished';
+    this.settle(room);
     room.lastActivity = Date.now();
     this.armTimer(room);
     return { ok: true, room };
@@ -326,6 +339,7 @@ export class RoomManager {
       players: room.players.map(info),
       spectators: room.spectators.map(info),
       departed: room.departed.map(({ id, name }) => ({ id, name })),
+      tally: Object.values(room.tally).sort((a, b) => b.points - a.points || b.wins - a.wins),
       rematchVotes: room.rematchVotes,
       chat: room.chat,
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
@@ -341,6 +355,19 @@ export class RoomManager {
       if (members.some((p) => isConnected(p.id))) continue;
       for (const p of members) this.playerRoom.delete(p.id);
       this.deleteRoom(room);
+    }
+  }
+
+  // Adds a finished game to the room's scoreboard, once.
+  private settle(room: Room): void {
+    if (room.status !== 'finished' || room.tallied) return;
+    room.tallied = true;
+    const scores = GAMES[room.gameType]!.points?.(room.state);
+    if (!scores) return;
+    for (const [id, { points, place }] of Object.entries(scores)) {
+      const name = [...room.players, ...room.departed].find((p) => p.id === id)?.name ?? room.tally[id]?.name ?? '?';
+      const prev = room.tally[id] ?? { id, name, games: 0, wins: 0, points: 0 };
+      room.tally[id] = { ...prev, name, games: prev.games + 1, wins: prev.wins + (place === 1 ? 1 : 0), points: prev.points + points };
     }
   }
 
@@ -374,6 +401,7 @@ export class RoomManager {
     // A timeout can end the game (chess flag) or just move it on (an automatic pass).
     if (room.state !== before) {
       if (game.isOver(room.state)) room.status = 'finished';
+      this.settle(room);
       room.lastActivity = Date.now();
       this.onAutoUpdate(room);
     }

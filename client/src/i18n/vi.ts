@@ -1,4 +1,4 @@
-import type { ChessEndReason, ComboType, ErrorCode, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { ChessEndReason, ComboType, ErrorCode, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -314,6 +314,7 @@ export const vi = {
       finish: (who: string, place: string) => `${who} về ${place}!`,
       round: (who: string) => `Vòng mới, ${who} đi trước`,
       left: (who: string) => `${who} đã rời bàn`,
+      frozen: (who: string) => `${who} bị cóng!`,
     },
     // Pieces of a log row: the player's name and the cards are rendered separately.
     logParts: {
@@ -324,6 +325,7 @@ export const vi = {
       autoPassed: 'hết giờ, tự bỏ lượt',
       finished: (place: string) => `về ${place}!`,
       left: 'đã rời bàn',
+      frozen: 'bị cóng!',
       newRound: (who: string) => `Vòng mới · ${who} đi trước`,
     },
     offline: (names: string) => `${names} đã mất kết nối`,
@@ -349,6 +351,21 @@ export const vi = {
     stackedChop: 'Bàn này không cho chặt chồng',
     twoFinish: 'Bàn này không cho về bằng heo',
     chopNow: 'Bạn có thể chặt ngay bằng 4 đôi thông!',
+    frozenTag: 'Cóng',
+    penalties: {
+      frozen: 'Cóng',
+      'black-two': 'Thối heo đen',
+      'red-two': 'Thối heo đỏ',
+      quad: 'Thối tứ quý',
+      'pair-run': 'Thối đôi thông',
+    } satisfies Record<PenaltyKind, string>,
+    points: (n: number) => `${n > 0 ? '+' : ''}${n} điểm`,
+    scoreboard: 'Bảng điểm',
+    scoreGames: 'Ván',
+    scoreWins: 'Nhất',
+    scorePoints: 'Điểm',
+    showScoreboard: 'Hiện bảng điểm',
+    hideScoreboard: 'Ẩn bảng điểm',
     play: 'Đánh',
     pass: 'Bỏ lượt',
     clear: 'Bỏ chọn',

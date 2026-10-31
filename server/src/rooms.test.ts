@@ -258,6 +258,38 @@ describe('RoomManager', () => {
       expect(rooms.view(room, A, allOnline).departed).toEqual([]);
     });
 
+    it('adds each finished game to the room scoreboard once', () => {
+      const { rooms, room } = tableOfThree();
+      rooms.leave(B);
+      rooms.leave(C);
+      const tally = rooms.view(room, A, allOnline).tally;
+      expect(tally.map((e) => [e.name, e.games, e.wins, e.points])).toEqual([
+        ['An', 1, 1, 2],
+        ['Chi', 1, 0, 0],
+        ['Bob', 1, 0, -2],
+      ]);
+      // Viewing again doesn't count the game twice.
+      expect(rooms.view(room, A, allOnline).tally[0].games).toBe(1);
+    });
+
+    it('a game decided on the deal finishes at once so a rematch can start', () => {
+      // Find a seed whose deal is an instant win.
+      for (let seed = 1; seed < 500; seed++) {
+        const rooms = new RoomManager({ random: seeded(seed) });
+        const created = rooms.create(A, 'An', 'tienlen');
+        if (!created.ok) throw new Error();
+        rooms.join(B, 'Bob', created.room.code);
+        rooms.start(A);
+        if ((rooms.view(created.room, A, allOnline).game as TienLenView).result) {
+          expect(created.room.status).toBe('finished');
+          expect(rooms.view(created.room, A, allOnline).tally).toHaveLength(2);
+          expect(rooms.start(A).ok).toBe(true);
+          return;
+        }
+      }
+      throw new Error('no instant-win seed found');
+    });
+
     it('removes a player who has been offline for a minute while the others play on', () => {
       const { rooms, room, view } = tableOfThree();
       const offline = (id: string) => (id === C ? Date.now() - 60_000 : null);

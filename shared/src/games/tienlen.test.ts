@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RoomOptions } from '../types';
-import { beats, classify, combosIn, hintPlays, instantWin, quickPick, tienlenGame, type Card, type TienLenState } from './tienlen';
+import { beats, classify, combosIn, hintPlays, instantWin, leftoverPenalties, quickPick, tienlenGame, type Card, type TienLenState } from './tienlen';
 
 const RANKS = '3456789TJQKA2';
 const SUITS = 'scdh'; // ♠ ♣ ♦ ♥
@@ -23,6 +23,8 @@ function table(hands: Record<string, string>, extra: Partial<TienLenState> = {})
     passed: [],
     finished: [],
     out: [],
+    frozen: [],
+    played: [],
     mustPlay: null,
     result: null,
     log: [],
@@ -201,7 +203,7 @@ describe('tienlenGame', () => {
     t = act(t, 'b', '4h');
     t = act(t, 'c', '6c');
     t = act(t, 'b', '9h');
-    expect(t.result).toEqual({ ranking: ['a', 'b', 'c'], instant: null });
+    expect(t.result).toMatchObject({ ranking: ['a', 'b', 'c'], instant: null });
   });
 
   it('when the trick owner has gone out and the rest pass, the next player leads', () => {
@@ -257,7 +259,7 @@ describe('tienlenGame', () => {
   });
 
   it('the previous winner leads the next game with no required card', () => {
-    const previous = { ...table({ a: '', b: '' }), result: { ranking: ['b', 'a'], instant: null } } as TienLenState;
+    const previous = { ...table({ a: '', b: '' }), result: { ranking: ['b', 'a'], instant: null, scores: {} } } as TienLenState;
     let seed = 7;
     const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
     const s = tienlenGame.setup(['a', 'b'], options, { now: 0, random }, previous);
@@ -292,6 +294,44 @@ describe('tienlenGame', () => {
       // Without the rule it's just not c's turn.
       const plain = act(act(table(hands, { turn: 'c', trick: { cards: [card('Qd')], combo: combo('Qd'), by: 'b', chop: false } }), 'c', 'pass'), 'a', '2h');
       expect(tienlenGame.applyMove(plain, 'c', { type: 'play', cards: cards('3s 3h 4s 4h 5c 5d 6s 6h') }, ctx)).toEqual({ ok: false, error: 'NOT_YOUR_TURN' });
+    });
+  });
+
+  describe('scoring', () => {
+    it('awards points by place', () => {
+      let t = table({ a: '3s', b: '4h 9h', c: '6c 8c' });
+      t = act(t, 'a', '3s');
+      t = act(t, 'b', '4h');
+      t = act(t, 'c', '6c');
+      t = act(t, 'b', '9h');
+      expect(Object.fromEntries(Object.entries(t.result!.scores).map(([id, sc]) => [id, sc.points]))).toEqual({ a: 2, b: 0, c: -2 });
+    });
+
+    it('penalises leftover 2s and bombs', () => {
+      expect(leftoverPenalties(cards('2s 2h 3s'))).toEqual([
+        { kind: 'black-two', points: -1 },
+        { kind: 'red-two', points: -2 },
+      ]);
+      expect(leftoverPenalties(cards('7s 7c 7d 7h')).map((p) => p.kind)).toEqual(['quad']);
+      expect(leftoverPenalties(cards('3s 3h 4s 4h 5c 5d 9s')).map((p) => p.kind)).toEqual(['pair-run']);
+    });
+
+    it('with the scoring rule, the last player pays for leftovers', () => {
+      let t = table({ a: '3s', b: '2h 9h' }, { rules: ['penalties'], played: ['b'] });
+      t = act(t, 'a', '3s');
+      expect(t.result!.scores.b).toEqual({ place: 2, points: -1 - 2, penalties: [{ kind: 'red-two', points: -2 }] });
+      expect(t.result!.scores.a.points).toBe(1);
+    });
+
+    it('with the scoring rule, players who never played are frozen when someone goes out', () => {
+      // a goes out on the first play; b already played earlier, c never did.
+      let t = table({ a: '9s', b: '3h 4h', c: '6c 8c' }, { rules: ['penalties'], played: ['b'] });
+      t = act(t, 'a', '9s');
+      expect(t.frozen).toEqual(['c']);
+      expect(t.log.at(-1)).toMatchObject({ kind: 'frozen', player: 'c' });
+      // Only b is left holding cards, so the game ends with c ranked behind b.
+      expect(t.result?.ranking).toEqual(['a', 'b', 'c']);
+      expect(t.result!.scores.c.penalties.map((p) => p.kind)).toContain('frozen');
     });
   });
 });

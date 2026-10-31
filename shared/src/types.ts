@@ -101,6 +101,8 @@ export interface RoomView {
   options: RoomOptions;
   // Seated players who asked for another game.
   rematchVotes: string[];
+  // Running scores across the games played in this room, best first.
+  tally: TallyEntry[];
   chat: ChatMessage[];
   game: unknown;
 }
@@ -130,4 +132,14 @@ export interface GameDefinition<S, M, V> {
   deadline?(state: S): number | null;
   // Settles a flag fall once the deadline has passed; returns the state unchanged otherwise.
   timeout?(state: S, ctx: GameContext): S;
+  // Points each player earned in a finished game, for the room's running scoreboard.
+  points?(state: S): Record<string, { points: number; place: number }> | null;
+}
+
+export interface TallyEntry {
+  id: string;
+  name: string;
+  games: number;
+  wins: number;
+  points: number;
 }

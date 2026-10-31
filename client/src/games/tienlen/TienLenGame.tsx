@@ -83,6 +83,10 @@ function LogRow({ entry, me, name, players }: { entry: TienLenLogEntry; me: stri
       verb = P.left;
       tone = 'pass';
       break;
+    case 'frozen':
+      verb = P.frozen;
+      tone = 'chop';
+      break;
   }
   return (
     <li className={`tl-log-row ${tone} ${entry.player === me ? 'mine' : ''}`}>
@@ -117,6 +121,8 @@ function describe(t: Strings, entry: TienLenLogEntry, name: (id: string) => stri
       return L.round(name(entry.leader));
     case 'left':
       return L.left(name(entry.player));
+    case 'frozen':
+      return L.frozen(name(entry.player));
   }
 }
 
@@ -265,6 +271,11 @@ export function TienLenGame({ room, view, onLeave }: Props) {
     saveSetting('vg:tlLog', logOpen ? 'closed' : 'open');
     setLogOpen(!logOpen);
   }
+  const [scoresOpen, setScoresOpen] = useState(() => loadSetting('vg:tlScores') !== 'closed');
+  function toggleScores() {
+    saveSetting('vg:tlScores', scoresOpen ? 'closed' : 'open');
+    setScoresOpen(!scoresOpen);
+  }
   const logRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
@@ -317,6 +328,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                 </span>
                 <span className="tl-seat-tags">
                   {seat.out && <span className="tag tag-muted">{t.tienlen.left}</span>}
+                  {seat.frozen && <span className="tag tag-danger">{t.tienlen.frozenTag}</span>}
                   {seat.place && !seat.out && <span className="tag tag-gold">{t.tienlen.place(seat.place, view.seats.length)}</span>}
                   {seat.passed && <span className="tag">{t.tienlen.passed}</span>}
                 </span>
@@ -366,6 +378,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                 <ol className="tl-podium">
                   {view.result.ranking.map((id, i) => {
                     const left = view.revealed?.[id] ?? [];
+                    const score = view.result!.scores[id];
                     const place = i + 1;
                     const last = place === view.result!.ranking.length;
                     return (
@@ -379,6 +392,20 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                             {left.length > 0 ? t.tienlen.cardsLeft(left.length) : t.tienlen.cleared}
                           </span>
                         </span>
+                        {score && (
+                          <span className={`tl-points ${score.points > 0 ? 'up' : score.points < 0 ? 'down' : ''}`}>
+                            {t.tienlen.points(score.points)}
+                          </span>
+                        )}
+                        {score && score.penalties.length > 0 && (
+                          <span className="tl-penalties">
+                            {score.penalties.map((p, k) => (
+                              <span key={k} className="tag tag-danger">
+                                {t.tienlen.penalties[p.kind]} {p.points}
+                              </span>
+                            ))}
+                          </span>
+                        )}
                         {left.length > 0 && (
                           <span className="tl-revealed" title={t.tienlen.remaining}>
                             {left.map((c) => (
@@ -487,6 +514,41 @@ export function TienLenGame({ room, view, onLeave }: Props) {
             <p className="tl-log-latest muted small">{describe(t, view.log.at(-1)!, name, view.seats.length)}</p>
           )}
         </section>
+        {room.tally.length > 0 && (
+          <section className={`card panel tl-score-panel ${scoresOpen ? 'open' : 'closed'}`}>
+            <button className="panel-toggle" aria-expanded={scoresOpen} onClick={toggleScores} title={scoresOpen ? t.tienlen.hideScoreboard : t.tienlen.showScoreboard}>
+              <h2>{t.tienlen.scoreboard}</h2>
+              <ChevronRightIcon className="panel-chevron" />
+            </button>
+            {scoresOpen && (
+              <table className="tl-scores">
+                <thead>
+                  <tr>
+                    <th />
+                    <th />
+                    <th>{t.tienlen.scoreGames}</th>
+                    <th>{t.tienlen.scoreWins}</th>
+                    <th>{t.tienlen.scorePoints}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {room.tally.map((entry, i) => (
+                    <tr key={entry.id} className={entry.id === me ? 'mine' : ''}>
+                      <td className="muted">{i + 1}</td>
+                      <td className="tl-scores-name">{entry.id === me ? t.room.you : entry.name}</td>
+                      <td>{entry.games}</td>
+                      <td>{entry.wins}</td>
+                      <td className={entry.points > 0 ? 'up' : entry.points < 0 ? 'down' : ''}>
+                        {entry.points > 0 ? '+' : ''}
+                        {entry.points}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )}
         <ChatCard room={room} />
       </aside>
     </div>

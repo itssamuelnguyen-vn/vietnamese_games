@@ -28,12 +28,22 @@ export type TienLenLogEntry =
   | { kind: 'pass'; player: string; auto: boolean }
   | { kind: 'finish'; player: string; place: number }
   | { kind: 'round'; leader: string }
-  | { kind: 'left'; player: string };
+  | { kind: 'left'; player: string }
+  | { kind: 'frozen'; player: string };
+
+export type PenaltyKind = 'frozen' | 'black-two' | 'red-two' | 'quad' | 'pair-run';
+
+export interface TienLenScore {
+  place: number;
+  points: number;
+  penalties: { kind: PenaltyKind; points: number }[];
+}
 
 export interface TienLenResult {
   // Player ids from first place to last.
   ranking: string[];
   instant: { player: string; kind: InstantWinKind } | null;
+  scores: Record<string, TienLenScore>;
 }
 
 export interface TienLenState {
@@ -51,6 +61,10 @@ export interface TienLenState {
   finished: string[];
   // Players who left mid-game; they rank last.
   out: string[];
+  // Players "frozen" (cóng) for not playing a card before someone went out; they rank last.
+  frozen: string[];
+  // Players who have made at least one play this game.
+  played: string[];
   // The first play of the first game must include this card (the lowest one dealt).
   mustPlay: Card | null;
   result: TienLenResult | null;
@@ -63,7 +77,7 @@ export type TienLenMove = { type: 'play'; cards: Card[] } | { type: 'pass' };
 
 export interface TienLenView {
   rules: HouseRuleId[];
-  seats: { id: string; cards: number; passed: boolean; place: number | null; out: boolean }[];
+  seats: { id: string; cards: number; passed: boolean; place: number | null; out: boolean; frozen: boolean }[];
   // The viewer's own hand (empty for spectators).
   hand: Card[];
   turn: string | null;
@@ -217,7 +231,47 @@ function shuffled(random: () => number): Card[] {
   return deck;
 }
 
-const active = (s: TienLenState, id: string) => (s.hands[id]?.length ?? 0) > 0 && !s.out.includes(id);
+const active = (s: TienLenState, id: string) =>
+  (s.hands[id]?.length ?? 0) > 0 && !s.out.includes(id) && !s.frozen.includes(id);
+
+// Points by finishing place, for 2, 3 and 4 players.
+const PLACE_POINTS: Record<number, number[]> = { 2: [1, -1], 3: [2, 0, -2], 4: [3, 1, -1, -3] };
+const FROZEN_POINTS = -2;
+const BOMB_POINTS = -3;
+
+// Penalties for cards left in hand ("thối"): 2s by colour, four of a kind, runs of 3+ pairs.
+export function leftoverPenalties(hand: Card[]): { kind: PenaltyKind; points: number }[] {
+  const out: { kind: PenaltyKind; points: number }[] = [];
+  for (const c of hand) {
+    if (rankOf(c) === TWO) out.push(suitOf(c) >= 2 ? { kind: 'red-two', points: -2 } : { kind: 'black-two', points: -1 });
+  }
+  const counts = Array<number>(13).fill(0);
+  for (const c of hand) counts[rankOf(c)]++;
+  for (let r = 0; r < TWO; r++) if (counts[r] === 4) out.push({ kind: 'quad', points: BOMB_POINTS });
+  let run = 0;
+  for (let r = 0; r <= TWO; r++) {
+    if (r < TWO && counts[r] >= 2) run++;
+    else {
+      if (run >= 3) out.push({ kind: 'pair-run', points: BOMB_POINTS });
+      run = 0;
+    }
+  }
+  return out;
+}
+
+function scoreGame(s: TienLenState, ranking: string[]): Record<string, TienLenScore> {
+  const table = PLACE_POINTS[ranking.length] ?? ranking.map(() => 0);
+  const penalties = s.rules.includes('penalties');
+  return Object.fromEntries(
+    ranking.map((id, i) => {
+      const extra: { kind: PenaltyKind; points: number }[] = [];
+      if (penalties && s.frozen.includes(id)) extra.push({ kind: 'frozen', points: FROZEN_POINTS });
+      if (penalties && i === ranking.length - 1) extra.push(...leftoverPenalties(s.hands[id] ?? []));
+      const points = table[i] + extra.reduce((sum, p) => sum + p.points, 0);
+      return [id, { place: i + 1, points, penalties: extra }];
+    }),
+  );
+}
 const withLog = (s: TienLenState, entry: TienLenLogEntry) => [...s.log, entry].slice(-LOG_LIMIT);
 
 function nextActiveAfter(s: TienLenState, from: string): string | null {
@@ -237,8 +291,8 @@ function startTurn(s: TienLenState, turn: string | null, now: number): TienLenSt
 function maybeFinish(s: TienLenState): TienLenState {
   const remaining = s.seats.filter((id) => active(s, id));
   if (remaining.length > 1) return s;
-  const ranking = [...s.finished, ...remaining, ...[...s.out].reverse()];
-  return { ...s, turn: null, turnDeadline: null, result: { ranking, instant: null } };
+  const ranking = [...s.finished, ...remaining, ...s.frozen, ...[...s.out].reverse()];
+  return { ...s, turn: null, turnDeadline: null, result: { ranking, instant: null, scores: scoreGame(s, ranking) } };
 }
 
 // Hands the turn to the next player who can still respond, or starts a new round when
@@ -291,6 +345,7 @@ function play(s: TienLenState, player: string, cards: Card[], now: number, auto:
     hands: { ...s.hands, [player]: rest },
     // An out-of-turn chop brings a player who had passed back into the round.
     passed: s.passed.filter((id) => id !== player),
+    played: s.played.includes(player) ? s.played : [...s.played, player],
     trick: { cards: sortCards(cards), combo, by: player, chop },
     mustPlay: null,
     log: withLog(s, { kind: 'play', player, cards: sortCards(cards), combo: combo.type, chop, auto }),
@@ -298,6 +353,12 @@ function play(s: TienLenState, player: string, cards: Card[], now: number, auto:
   if (rest.length === 0) {
     const finished = [...next.finished, player];
     next = { ...next, finished, log: withLog(next, { kind: 'finish', player, place: finished.length }) };
+    // Scoring rule: when the first player goes out, anyone yet to play a card is frozen (cóng).
+    if (finished.length === 1 && next.rules.includes('penalties')) {
+      for (const id of next.seats.filter((p) => active(next, p) && !next.played.includes(p))) {
+        next = { ...next, frozen: [...next.frozen, id], log: withLog(next, { kind: 'frozen', player: id }) };
+      }
+    }
   }
   next = maybeFinish(next);
   return next.result ? next : advance(next, player, now);
@@ -318,6 +379,8 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
       passed: [],
       finished: [],
       out: [],
+      frozen: [],
+      played: [],
       mustPlay: null,
       result: null,
       log: [],
@@ -339,7 +402,10 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
     const order = [...playerIds.slice(playerIds.indexOf(leader)), ...playerIds.slice(0, playerIds.indexOf(leader))];
     for (const id of order) {
       const kind = instantWin(hands[id]);
-      if (kind) return { ...base, mustPlay: null, result: { ranking: [id, ...order.filter((p) => p !== id)], instant: { player: id, kind } } };
+      if (kind) {
+        const ranking = [id, ...order.filter((p) => p !== id)];
+        return { ...base, mustPlay: null, result: { ranking, instant: { player: id, kind }, scores: scoreGame(base, ranking) } };
+      }
     }
     return startTurn(base, leader, now);
   },
@@ -402,6 +468,10 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
     return state.result !== null;
   },
 
+  points(state) {
+    return state.result?.scores ?? null;
+  },
+
   playerView(state, playerId, { now }) {
     return {
       rules: state.rules,
@@ -411,6 +481,7 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
         passed: state.passed.includes(id),
         place: state.result ? state.result.ranking.indexOf(id) + 1 : state.finished.includes(id) ? state.finished.indexOf(id) + 1 : null,
         out: state.out.includes(id),
+        frozen: state.frozen.includes(id),
       })),
       hand: state.hands[playerId] ?? [],
       turn: state.turn,
