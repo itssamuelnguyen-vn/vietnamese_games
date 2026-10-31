@@ -14,10 +14,12 @@
     "dev": "concurrently -k -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm start -w server",
-    "typecheck": "tsc --noEmit -p shared && tsc --noEmit -p server && tsc --noEmit -p client"
+    "typecheck": "tsc --noEmit -p shared && tsc --noEmit -p server && tsc --noEmit -p client",
+    "test": "vitest run"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }
