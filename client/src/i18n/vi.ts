@@ -315,6 +315,7 @@ export const vi = {
       round: (who: string) => `Vòng mới, ${who} đi trước`,
       left: (who: string) => `${who} đã rời bàn`,
       frozen: (who: string) => `${who} bị cóng!`,
+      stuck: (who: string) => `${who} chỉ còn heo, bị xử thua (thối heo)!`,
     },
     // Pieces of a log row: the player's name and the cards are rendered separately.
     logParts: {
@@ -326,6 +327,7 @@ export const vi = {
       finished: (place: string) => `về ${place}!`,
       left: 'đã rời bàn',
       frozen: 'bị cóng!',
+      stuck: 'chỉ còn heo, bị xử thua (thối heo)!',
       newRound: (who: string) => `Vòng mới · ${who} đi trước`,
     },
     offline: (names: string) => `${names} đã mất kết nối`,
@@ -340,7 +342,8 @@ export const vi = {
       penalties: 'Tính điểm: thối heo, thối hàng, cóng',
     } satisfies Record<HouseRuleId, string>,
     houseRuleDetails: {
-      'no-two-finish': 'Không được về bằng heo: lượt đánh hết bài cuối cùng không được có heo.',
+      'no-two-finish':
+        'Không được về bằng heo: lượt đánh hết bài cuối cùng không được có heo. Tới lượt đi đầu mà chỉ còn một con heo thì bị xử thua (thối heo), xếp dưới những người còn đang chơi.',
       'no-stack-chop': 'Không chặt chồng: bộ vừa dùng để chặt thì không ai chặt lại được nữa.',
       'four-pairs-anytime': '4 đôi thông chặt được heo hoặc hàng bất cứ lúc nào, kể cả khi chưa tới lượt hay đã bỏ lượt.',
       penalties:
@@ -352,6 +355,7 @@ export const vi = {
     twoFinish: 'Bàn này không cho về bằng heo',
     chopNow: 'Bạn có thể chặt ngay bằng 4 đôi thông!',
     frozenTag: 'Cóng',
+    stuckTag: 'Thối heo',
     penalties: {
       frozen: 'Cóng',
       'black-two': 'Thối heo đen',

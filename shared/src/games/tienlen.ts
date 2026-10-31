@@ -29,7 +29,8 @@ export type TienLenLogEntry =
   | { kind: 'finish'; player: string; place: number }
   | { kind: 'round'; leader: string }
   | { kind: 'left'; player: string }
-  | { kind: 'frozen'; player: string };
+  | { kind: 'frozen'; player: string }
+  | { kind: 'stuck'; player: string };
 
 export type PenaltyKind = 'frozen' | 'black-two' | 'red-two' | 'quad' | 'pair-run';
 
@@ -63,6 +64,9 @@ export interface TienLenState {
   out: string[];
   // Players "frozen" (cóng) for not playing a card before someone went out; they rank last.
   frozen: string[];
+  // Under 'no-two-finish': players who had to lead holding nothing but a single 2 (thối heo).
+  // They drop out and rank below everyone still playing.
+  stuck: string[];
   // Players who have made at least one play this game.
   played: string[];
   // The first play of the first game must include this card (the lowest one dealt).
@@ -77,7 +81,7 @@ export type TienLenMove = { type: 'play'; cards: Card[] } | { type: 'pass' };
 
 export interface TienLenView {
   rules: HouseRuleId[];
-  seats: { id: string; cards: number; passed: boolean; place: number | null; out: boolean; frozen: boolean }[];
+  seats: { id: string; cards: number; passed: boolean; place: number | null; out: boolean; frozen: boolean; stuck: boolean }[];
   // The viewer's own hand (empty for spectators).
   hand: Card[];
   turn: string | null;
@@ -232,7 +236,7 @@ function shuffled(random: () => number): Card[] {
 }
 
 const active = (s: TienLenState, id: string) =>
-  (s.hands[id]?.length ?? 0) > 0 && !s.out.includes(id) && !s.frozen.includes(id);
+  (s.hands[id]?.length ?? 0) > 0 && !s.out.includes(id) && !s.frozen.includes(id) && !s.stuck.includes(id);
 
 // Points by finishing place, for 2, 3 and 4 players.
 const PLACE_POINTS: Record<number, number[]> = { 2: [1, -1], 3: [2, 0, -2], 4: [3, 1, -1, -3] };
@@ -266,7 +270,7 @@ function scoreGame(s: TienLenState, ranking: string[]): Record<string, TienLenSc
     ranking.map((id, i) => {
       const extra: { kind: PenaltyKind; points: number }[] = [];
       if (penalties && s.frozen.includes(id)) extra.push({ kind: 'frozen', points: FROZEN_POINTS });
-      if (penalties && i === ranking.length - 1) extra.push(...leftoverPenalties(s.hands[id] ?? []));
+      if (penalties && (i === ranking.length - 1 || s.stuck.includes(id))) extra.push(...leftoverPenalties(s.hands[id] ?? []));
       const points = table[i] + extra.reduce((sum, p) => sum + p.points, 0);
       return [id, { place: i + 1, points, penalties: extra }];
     }),
@@ -283,7 +287,21 @@ function nextActiveAfter(s: TienLenState, from: string): string | null {
   return null;
 }
 
+// Without a trick to answer, a player can always lead a single card, unless all they hold
+// is one 2 and the table forbids going out on a 2.
+function canLead(s: TienLenState, id: string): boolean {
+  const hand = s.hands[id] ?? [];
+  return !(s.rules.includes('no-two-finish') && hand.length === 1 && rankOf(hand[0]) === TWO);
+}
+
 function startTurn(s: TienLenState, turn: string | null, now: number): TienLenState {
+  if (turn && !s.trick && !canLead(s, turn)) {
+    // Stuck holding a 2 they may not go out on: they lose (thối heo) and the lead moves on.
+    const next = maybeFinish({ ...s, stuck: [...s.stuck, turn], log: withLog(s, { kind: 'stuck', player: turn }) });
+    if (next.result) return next;
+    const leader = nextActiveAfter(next, turn);
+    return startTurn({ ...next, log: leader ? withLog(next, { kind: 'round', leader }) : next.log }, leader, now);
+  }
   return { ...s, turn, turnDeadline: turn && s.turnLimitMs ? now + s.turnLimitMs : null };
 }
 
@@ -291,7 +309,7 @@ function startTurn(s: TienLenState, turn: string | null, now: number): TienLenSt
 function maybeFinish(s: TienLenState): TienLenState {
   const remaining = s.seats.filter((id) => active(s, id));
   if (remaining.length > 1) return s;
-  const ranking = [...s.finished, ...remaining, ...s.frozen, ...[...s.out].reverse()];
+  const ranking = [...s.finished, ...remaining, ...[...s.stuck].reverse(), ...s.frozen, ...[...s.out].reverse()];
   return { ...s, turn: null, turnDeadline: null, result: { ranking, instant: null, scores: scoreGame(s, ranking) } };
 }
 
@@ -380,6 +398,7 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
       finished: [],
       out: [],
       frozen: [],
+      stuck: [],
       played: [],
       mustPlay: null,
       result: null,
@@ -482,6 +501,7 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
         place: state.result ? state.result.ranking.indexOf(id) + 1 : state.finished.includes(id) ? state.finished.indexOf(id) + 1 : null,
         out: state.out.includes(id),
         frozen: state.frozen.includes(id),
+        stuck: state.stuck.includes(id),
       })),
       hand: state.hands[playerId] ?? [],
       turn: state.turn,
