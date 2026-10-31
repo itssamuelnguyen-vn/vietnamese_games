@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { GAME_CATALOG, HANDICAPS, TIME_CONTROLS, type HostColor, type RoomOptions, type RoomView, type TimeControlId } from '@vg/shared';
+import { GAME_CATALOG, HANDICAPS, TIME_CONTROLS, TURN_TIMERS, type HostColor, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -142,6 +142,27 @@ export function ChessOptionsPicker({ room }: { room: RoomView }) {
         />
       )}
     </>
+  );
+}
+
+export function TienLenOptionsPicker({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const locked = room.hostId !== room.you || room.status === 'playing';
+
+  async function set(options: Partial<RoomOptions>) {
+    const r = await api.options(options);
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+
+  return (
+    <ChipGroup
+      label={t.tienlen.turnTimer}
+      options={Object.keys(TURN_TIMERS) as TurnTimerId[]}
+      value={room.options.turnTimer}
+      labelOf={(id) => t.tienlen.turnTimers[id]}
+      disabled={locked}
+      onPick={(turnTimer) => set({ turnTimer })}
+    />
   );
 }
 

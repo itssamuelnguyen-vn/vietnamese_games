@@ -66,6 +66,7 @@ export function App() {
                   {room.gameType === 'xiangqi' && room.options.handicap !== 'none' && ` · ${t.xiangqi.handicaps[room.options.handicap]}`}
                 </span>
               )}
+              {room.gameType === 'tienlen' && <span className="chip static">{t.tienlen.turnTimers[room.options.turnTimer]}</span>}
             </span>
           )}
         </div>

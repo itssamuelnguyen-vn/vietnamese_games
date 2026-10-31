@@ -199,6 +199,19 @@ export const DownloadIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const BookIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z" />
+    <path d="M4 19a2 2 0 0 1 2-2h13M9 7h6M9 11h4" />
+  </Svg>
+);
+
+export const CloseIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 6l12 12M18 6L6 18" />
+  </Svg>
+);
+
 // Game illustrations: drawn on a 64x64 grid, used large on lobby cards and small in headers.
 
 function ChessArt() {
