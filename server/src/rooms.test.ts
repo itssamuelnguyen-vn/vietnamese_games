@@ -258,6 +258,16 @@ describe('RoomManager', () => {
       expect(rooms.view(room, A, allOnline).departed).toEqual([]);
     });
 
+    it('removes a player who has been offline for a minute while the others play on', () => {
+      const { rooms, room, view } = tableOfThree();
+      const offline = (id: string) => (id === C ? Date.now() - 60_000 : null);
+      expect(rooms.claimWin(A, (id) => (id === C ? Date.now() - 59_000 : null))).toEqual({ ok: false, error: 'CLAIM_TOO_EARLY' });
+      expect(rooms.claimWin(A, offline).ok).toBe(true);
+      expect(room.status).toBe('playing');
+      expect(view(A).seats.find((s) => s.id === C)?.out).toBe(true);
+      expect(view(A).turn).not.toBe(C);
+    });
+
     it('moves the game on by itself when a turn runs out', () => {
       const { view, updates } = tableOfThree({ turnTimer: '15' });
       const first = view(A).turn;

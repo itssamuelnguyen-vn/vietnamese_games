@@ -262,19 +262,19 @@ export class RoomManager {
     return { ok: true, room };
   }
 
-  // A seated player may claim the win once every opponent has been offline long enough.
+  // A seated player may remove opponents who have been offline long enough: in a two-player game
+  // that is claiming the win; in bigger games the absent players rank last and the rest play on.
   claimWin(playerId: string, offlineSince: (id: string) => number | null): Result<{ room: Room }> {
     const room = this.roomOf(playerId);
     if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
     if (!room.players.some((p) => p.id === playerId)) return { ok: false, error: 'NOT_A_PLAYER' };
     if (room.status !== 'playing') return { ok: false, error: 'GAME_NOT_STARTED' };
     const now = this.clock();
-    const absent = room.players.filter((p) => p.id !== playerId);
-    const allGone = absent.every((p) => {
-      const since = offlineSince(p.id);
+    const absent = room.players.filter((p) => {
+      const since = p.id === playerId ? null : offlineSince(p.id);
       return since !== null && now - since >= ABANDON_CLAIM_MS;
     });
-    if (!allGone) return { ok: false, error: 'CLAIM_TOO_EARLY' };
+    if (absent.length === 0) return { ok: false, error: 'CLAIM_TOO_EARLY' };
     const game = GAMES[room.gameType]!;
     for (const p of absent) room.state = game.forfeit(room.state, p.id, this.ctx(), 'abandoned');
     if (game.isOver(room.state)) room.status = 'finished';
