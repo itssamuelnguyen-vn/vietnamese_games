@@ -1,5 +1,5 @@
 import { GAME_CATALOG, type ChessView, type RoomView } from '@vg/shared';
-import { api, playerId } from '../socket';
+import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
 import { Avatar } from './Avatar';
@@ -15,7 +15,7 @@ export function RoomScreen({ room }: Props) {
   const { t } = useI18n();
   function leave() {
     // Only players forfeit by leaving; spectators can just go.
-    const seated = room.players.some((p) => p.id === playerId);
+    const seated = room.players.some((p) => p.id === room.you);
     if (room.status === 'playing' && seated && !confirm(t.room.confirmLeaveMidGame)) return;
     api.leave();
   }
@@ -29,7 +29,7 @@ export function RoomScreen({ room }: Props) {
 function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void }) {
   const { t } = useI18n();
   const info = GAME_CATALOG[room.gameType];
-  const isHost = room.hostId === playerId;
+  const isHost = room.hostId === room.you;
   const missing = Math.max(0, info.minPlayers - room.players.length);
   const gameName = t.games[room.gameType];
   const canShare = typeof navigator.share === 'function';
@@ -95,7 +95,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                 );
               }
               return (
-                <li key={p.id} className={`seat ${p.id === playerId ? 'me' : ''}`}>
+                <li key={p.id} className={`seat ${p.id === room.you ? 'me' : ''}`}>
                   <Avatar id={p.id} name={p.name} size={52} online={p.connected} />
                   <span className="seat-name">{p.name}</span>
                   <span className="seat-tags">
@@ -104,7 +104,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                         <CrownIcon /> {t.room.host}
                       </span>
                     )}
-                    {p.id === playerId && <span className="tag">{t.room.you}</span>}
+                    {p.id === room.you && <span className="tag">{t.room.you}</span>}
                     {!p.connected && <span className="tag tag-muted">{t.room.offline}</span>}
                   </span>
                 </li>

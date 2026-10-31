@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
 import { GAME_CATALOG, TIME_CONTROLS, type RoomView, type TimeControlId } from '@vg/shared';
-import { api, playerId } from '../socket';
+import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
 import { toast } from './Toaster';
@@ -79,11 +79,11 @@ export function PlayersCard({ room, subtitle }: PlayersCardProps) {
       </header>
       <ul className="player-list">
         {room.players.map((p) => (
-          <li key={p.id} className={p.id === playerId ? 'me' : ''}>
+          <li key={p.id} className={p.id === room.you ? 'me' : ''}>
             <Avatar id={p.id} name={p.name} size={40} online={p.connected} />
             <div className="player-list-text">
               <span className="player-list-name">
-                {p.name} {p.id === playerId && <span className="muted">{t.room.youSuffix}</span>}
+                {p.name} {p.id === room.you && <span className="muted">{t.room.youSuffix}</span>}
               </span>
               <span className="player-list-sub">
                 {subtitle && <span className="muted small">{subtitle(p.id)}</span>}
@@ -106,7 +106,7 @@ export function PlayersCard({ room, subtitle }: PlayersCardProps) {
 
 export function TimeControlPicker({ room }: { room: RoomView }) {
   const { t } = useI18n();
-  const isHost = room.hostId === playerId;
+  const isHost = room.hostId === room.you;
   const ids = Object.keys(TIME_CONTROLS) as TimeControlId[];
 
   async function pick(id: TimeControlId) {
@@ -163,9 +163,9 @@ export function ChatCard({ room, recipient }: { room: RoomView; recipient?: stri
       ) : (
         <ol className="chat-list" ref={listRef}>
           {room.chat.map((m) => (
-            <li key={m.id} className={m.playerId === playerId ? 'mine' : ''}>
-              {m.playerId !== playerId && <strong>{m.name}</strong>}
-              {m.playerId !== playerId && ' · '}
+            <li key={m.id} className={m.playerId === room.you ? 'mine' : ''}>
+              {m.playerId !== room.you && <strong>{m.name}</strong>}
+              {m.playerId !== room.you && ' · '}
               {m.text}
             </li>
           ))}

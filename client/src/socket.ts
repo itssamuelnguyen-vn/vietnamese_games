@@ -8,13 +8,17 @@ function randomId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// A stable per-browser playerId lets a refresh or dropped connection land back in the same seat.
-export const playerId = loadSetting('vg:playerId') ?? randomId();
-saveSetting('vg:playerId', playerId);
+// A stable per-browser secret lets a refresh or dropped connection land back in the same seat.
+// It never leaves this browser except in the handshake; rooms identify us by `room.you`.
+const token = loadSetting('vg:playerId') ?? randomId();
+saveSetting('vg:playerId', token);
+
+// Only used to colour the avatar preview before joining a room.
+export const localAvatarSeed = token.slice(0, 8);
 
 // autoConnect is off: App calls connect() after attaching listeners so the first room:state isn't missed.
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({
-  auth: { playerId },
+  auth: { token },
   autoConnect: false,
 });
 

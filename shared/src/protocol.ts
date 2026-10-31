@@ -37,6 +37,8 @@ export interface ServerToClientEvents {
   'room:closed': () => void;
 }
 
+// The token is a per-browser secret; the server derives the public player id from it
+// so ids shown to other players can never be used to log in as someone else.
 export interface SocketAuth {
-  playerId: string;
+  token: string;
 }

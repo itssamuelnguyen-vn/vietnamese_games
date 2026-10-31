@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Chess, type Move, type PieceSymbol, type Square } from 'chess.js';
 import { Chessboard, defaultPieces } from 'react-chessboard';
 import type { ChessColor, ChessMove, ChessView, RoomView } from '@vg/shared';
-import { api, playerId } from '../socket';
+import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from '../components/Avatar';
 import { toast } from '../components/Toaster';
@@ -104,6 +104,7 @@ function useLiveClock(clock: ChessView['clock']) {
 
 export function ChessGame({ room, view, onLeave }: Props) {
   const { t } = useI18n();
+  const playerId = room.you;
   const myColor: ChessColor | null = view.white === playerId ? 'w' : view.black === playerId ? 'b' : null;
   const [flipped, setFlipped] = useState(false);
   const bottomColor: ChessColor = flipped ? other(myColor ?? 'w') : (myColor ?? 'w');
@@ -248,8 +249,8 @@ export function ChessGame({ room, view, onLeave }: Props) {
   let statusLines: string[] = [];
   const incomingDraw = myColor && view.drawOffer && view.drawOffer !== playerId && !view.result;
   if (view.result) {
-    statusTitle = resultHeadline(t, view);
-    statusLines = [resultReason(t, view)];
+    statusTitle = resultHeadline(t, view, playerId);
+    statusLines = [resultReason(t, view, playerId)];
   } else if (incomingDraw) {
     statusTitle = t.chess.drawOfferFrom(opponent?.name ?? t.chess.opponent);
     statusLines = [t.chess.drawOfferHint];
@@ -428,7 +429,7 @@ export function ChessGame({ room, view, onLeave }: Props) {
   );
 }
 
-function resultHeadline(t: Strings, view: ChessView): string {
+function resultHeadline(t: Strings, view: ChessView, playerId: string): string {
   const winner = view.result?.winner;
   if (!winner) return t.chess.resultDraw;
   if (winner === playerId) return t.chess.resultWin;
@@ -436,7 +437,7 @@ function resultHeadline(t: Strings, view: ChessView): string {
   return t.chess.playerWins(winner === view.white ? t.chess.white : t.chess.black);
 }
 
-function resultReason(t: Strings, view: ChessView): string {
+function resultReason(t: Strings, view: ChessView, playerId: string): string {
   const result = view.result!;
   const lost = result.winner && result.winner !== playerId && (view.white === playerId || view.black === playerId);
   return lost && result.reason === 'resign' ? t.chess.youResigned : t.chess.endReasons[result.reason];
@@ -451,6 +452,7 @@ interface OverlayProps {
 
 function ResultOverlay({ view, room, isHost, onClose }: OverlayProps) {
   const { t } = useI18n();
+  const playerId = room.you;
   const winner = view.result?.winner;
   const isPlayer = view.white === playerId || view.black === playerId;
   const kind = !winner ? 'draw' : winner === playerId ? 'win' : isPlayer ? 'lose' : 'draw';
@@ -470,9 +472,9 @@ function ResultOverlay({ view, room, isHost, onClose }: OverlayProps) {
         <span className="result-icon">
           <Icon />
         </span>
-        <h2>{resultHeadline(t, view)}</h2>
+        <h2>{resultHeadline(t, view, playerId)}</h2>
         <p>
-          {resultReason(t, view)}
+          {resultReason(t, view, playerId)}
           {winner && winner !== playerId && winnerName ? ` · ${t.chess.playerWins(winnerName)}` : ''}
         </p>
         <div className="result-actions">

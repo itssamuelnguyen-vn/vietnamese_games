@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { GAME_CATALOG, type ErrorCode, type GameType } from '@vg/shared';
-import { api, playerId } from '../socket';
+import { api, localAvatarSeed } from '../socket';
 import { loadSetting, saveSetting } from '../settings';
 import { useI18n } from '../i18n';
 import { Avatar } from './Avatar';
@@ -77,7 +77,7 @@ export function Lobby({ initialCode, connected }: Props) {
           <label className={`name-field ${nudgeName ? 'nudge' : ''}`}>
             <span className="field-label">{t.lobby.yourName}</span>
             <span className="name-row">
-              <Avatar id={playerId} name={trimmedName || '?'} size={44} />
+              <Avatar id={localAvatarSeed} name={trimmedName || '?'} size={44} />
               <input
                 ref={nameRef}
                 value={name}

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import express from 'express';
@@ -52,11 +53,11 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   }
 
   io.use((socket, next) => {
-    const { playerId } = (socket.handshake.auth ?? {}) as Partial<SocketAuth>;
-    if (typeof playerId !== 'string' || playerId.length < 8 || playerId.length > 64) {
-      return next(new Error('invalid playerId'));
+    const { token } = (socket.handshake.auth ?? {}) as Partial<SocketAuth>;
+    if (typeof token !== 'string' || token.length < 8 || token.length > 64) {
+      return next(new Error('invalid token'));
     }
-    socket.data.playerId = playerId;
+    socket.data.playerId = publicId(token);
     next();
   });
 
@@ -140,4 +141,9 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
         io.close(() => resolve());
       }),
   };
+}
+
+// One-way: other players see this id, but cannot turn it back into the token.
+export function publicId(token: string): string {
+  return createHash('sha256').update(token).digest('base64url').slice(0, 16);
 }

@@ -62,6 +62,8 @@ export const MAX_CHAT_LENGTH = 200;
 // What a single player sees of a room. `game` is the game's playerView() output:
 // the server only sends what this player is allowed to know (e.g. their own hand).
 export interface RoomView {
+  // Public id of the player this view was built for.
+  you: string;
   code: string;
   gameType: GameType;
   hostId: string;

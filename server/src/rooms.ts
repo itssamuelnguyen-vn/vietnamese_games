@@ -228,6 +228,7 @@ export class RoomManager {
 
   view(room: Room, playerId: string, isConnected: (id: string) => boolean): RoomView {
     return {
+      you: playerId,
       code: room.code,
       gameType: room.gameType,
       hostId: room.hostId,
