@@ -6,3 +6,4 @@ export * from './games/xiangqi-engine';
 export * from './games/xiangqi';
 export * from './games/tienlen';
 export * from './games/typhu';
+export * from './games/caro';

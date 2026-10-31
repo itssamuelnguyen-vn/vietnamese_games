@@ -19,7 +19,7 @@ import {
   type TyPhuState,
 } from './typhu';
 
-const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [] };
+const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true };
 
 // Deterministic randomness for shuffles, dice and cards.
 const seeded = (seed: number) => () => {

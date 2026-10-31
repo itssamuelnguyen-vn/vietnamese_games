@@ -309,6 +309,61 @@ export const en: Strings = {
     },
   },
 
+  caro: {
+    x: 'X',
+    o: 'O',
+    xToMove: 'X to move',
+    oToMove: 'O to move',
+    gameStarted: 'The game has started. X moves first.',
+    noMoves: 'X moves first. Good luck!',
+    hostColors: { random: 'Random', white: 'X (moves first)', black: 'O' },
+    placed: (who: string, cell: string) => `${who} played ${cell}`,
+    sizeLabel: 'Board size',
+    sizes: { '15': '15 × 15', '19': '19 × 19' },
+    blockLabel: 'Blocked-ends rule',
+    blockOn: 'On: a five blocked at both ends doesn’t count',
+    blockOff: 'Off: any five wins',
+    blockTagOn: 'Blocked ends don’t win',
+    blockTagOff: 'Any five wins',
+    endReasons: {
+      five: 'Five in a row',
+      full: 'The board is full',
+      resign: 'Opponent resigned',
+      agreement: 'Draw agreed',
+      timeout: 'Out of time',
+      aborted: 'Aborted: no first move',
+      abandoned: 'Opponent left',
+    },
+    rulesTitle: 'Caro rules',
+    rulesIntro: 'Two players take turns placing X and O on empty cells. The first to get five in a row wins.',
+    rules: [
+      {
+        title: 'How to play',
+        items: [
+          'X always moves first. On your turn, place one mark on any empty cell.',
+          'Five (or more) in a row across, down or diagonally wins.',
+          'If the board fills up with no five, it’s a draw.',
+        ],
+      },
+      {
+        title: 'Blocked-ends rule',
+        items: [
+          'When on: a five with the opponent’s marks at both ends doesn’t win. The board’s edge doesn’t count as a block.',
+          'When off: any five in a row wins.',
+        ],
+      },
+      {
+        title: 'Time and rematches',
+        items: [
+          'Each player has a clock set by the host; running out of time loses.',
+          'You can ask for a takeback, offer a draw or resign, as in chess.',
+          'In the next game the players swap: whoever had O plays X and moves first.',
+          'The host can add a bot to play alone.',
+        ],
+      },
+    ],
+  },
+
   tienlen: {
     combos: {
       single: 'single',

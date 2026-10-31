@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { GAME_CATALOG, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
+import { CARO_SIZE_IDS, GAME_CATALOG, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -152,10 +152,30 @@ export function ChessOptionsPicker({ room }: { room: RoomView }) {
         label={t.room.hostColor}
         options={['random', 'white', 'black'] as HostColor[]}
         value={room.options.hostColor}
-        labelOf={(c) => (room.gameType === 'xiangqi' ? t.xiangqi.hostColors[c] : t.room.hostColors[c])}
+        labelOf={(c) => (room.gameType === 'xiangqi' ? t.xiangqi.hostColors[c] : room.gameType === 'caro' ? t.caro.hostColors[c] : t.room.hostColors[c])}
         disabled={locked}
         onPick={(hostColor) => set({ hostColor })}
       />
+      {room.gameType === 'caro' && (
+        <>
+          <ChipGroup
+            label={t.caro.sizeLabel}
+            options={CARO_SIZE_IDS}
+            value={room.options.caroSize}
+            labelOf={(id) => t.caro.sizes[id]}
+            disabled={locked}
+            onPick={(caroSize) => set({ caroSize })}
+          />
+          <ChipGroup
+            label={t.caro.blockLabel}
+            options={['on', 'off'] as ('on' | 'off')[]}
+            value={room.options.caroBlock ? 'on' : 'off'}
+            labelOf={(v) => (v === 'on' ? t.caro.blockOn : t.caro.blockOff)}
+            disabled={locked}
+            onPick={(v) => set({ caroBlock: v === 'on' })}
+          />
+        </>
+      )}
       {room.gameType === 'xiangqi' && (
         <ChipGroup
           label={t.xiangqi.handicapLabel}

@@ -1,4 +1,4 @@
-import type { BizType, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, ProvinceId, Region, SpecialKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { BizType, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, ProvinceId, Region, SpecialKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -315,6 +315,61 @@ export const vi = {
       aborted: 'Ván bị hủy vì không đi nước đầu',
       abandoned: 'Đối thủ đã bỏ đi',
     } satisfies Record<XiangqiEndReason, string>,
+  },
+
+  caro: {
+    x: 'Quân X',
+    o: 'Quân O',
+    xToMove: 'Lượt X',
+    oToMove: 'Lượt O',
+    gameStarted: 'Ván đấu bắt đầu, X đi trước.',
+    noMoves: 'X đi trước. Chúc may mắn!',
+    hostColors: { random: 'Ngẫu nhiên', white: 'X (đi trước)', black: 'O' } satisfies Record<HostColor, string>,
+    placed: (who: string, cell: string) => `${who} vừa đánh ${cell}`,
+    sizeLabel: 'Kích thước bàn',
+    sizes: { '15': '15 × 15', '19': '19 × 19' } satisfies Record<CaroSizeId, string>,
+    blockLabel: 'Luật chặn 2 đầu',
+    blockOn: 'Bật: 5 quân bị chặn cả 2 đầu không tính',
+    blockOff: 'Tắt: cứ 5 quân là thắng',
+    blockTagOn: 'Chặn 2 đầu',
+    blockTagOff: 'Không chặn 2 đầu',
+    endReasons: {
+      five: '5 quân liên tiếp',
+      full: 'Kín bàn, không ai thắng',
+      resign: 'Đối thủ xin thua',
+      agreement: 'Hai bên đồng ý hòa',
+      timeout: 'Hết giờ',
+      aborted: 'Ván bị hủy vì không đi nước đầu',
+      abandoned: 'Đối thủ đã bỏ đi',
+    } satisfies Record<CaroEndReason, string>,
+    rulesTitle: 'Luật chơi Cờ caro',
+    rulesIntro: 'Hai người lần lượt đánh X và O vào các ô trống. Ai xếp được 5 quân liên tiếp trước thì thắng.',
+    rules: [
+      {
+        title: 'Cách chơi',
+        items: [
+          'X luôn đi trước. Mỗi lượt đánh một quân vào một ô trống bất kỳ.',
+          'Xếp được 5 quân (hoặc nhiều hơn) liên tiếp theo hàng ngang, hàng dọc hoặc đường chéo là thắng.',
+          'Bàn kín mà không ai có 5 quân thì hòa.',
+        ],
+      },
+      {
+        title: 'Luật chặn 2 đầu',
+        items: [
+          'Khi bật: hàng 5 quân bị quân đối phương chặn ở cả hai đầu thì không tính thắng. Mép bàn không tính là bị chặn.',
+          'Khi tắt: cứ 5 quân liên tiếp là thắng.',
+        ],
+      },
+      {
+        title: 'Thời gian và ván mới',
+        items: [
+          'Mỗi người có đồng hồ riêng theo thể thức chủ phòng chọn; hết giờ là thua.',
+          'Có thể xin đi lại, cầu hòa hoặc xin thua như cờ vua.',
+          'Ván sau hai người đổi quân: ai cầm O sẽ cầm X và được đi trước.',
+          'Chủ phòng có thể thêm máy để chơi một mình.',
+        ],
+      },
+    ],
   },
 
   tienlen: {

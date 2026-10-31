@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChessView, TienLenView, TyPhuView } from '@vg/shared';
+import type { CaroView, ChessView, TienLenView, TyPhuView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -28,7 +28,7 @@ describe('RoomManager', () => {
 
   it('refuses unavailable games and blank names', () => {
     const rooms = new RoomManager();
-    expect(rooms.create(A, 'An', 'caro')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    expect(rooms.create(A, 'An', 'cangua')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
     expect(rooms.create(A, '   ', 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
@@ -369,14 +369,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [] });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [] });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
@@ -521,6 +521,27 @@ describe('RoomManager', () => {
       rooms.leave(A);
       expect(closed).toEqual([[C]]);
       expect(rooms.roomOf(C)).toBeUndefined();
+    });
+
+    it('caro: a bot answers every move until the game ends', () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'caro');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.setOptions(A, { timeControl: 'none', hostColor: 'white' });
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      for (let i = 0; i < 300 && room.status === 'playing'; i++) {
+        const view = rooms.view(room, A, allOnline).game as CaroView;
+        if (view.turn === 'x') {
+          const free = Array.from({ length: view.size * view.size }, (_, c) => c).filter((c) => !view.moves.includes(c));
+          rooms.move(A, { type: 'place', cell: free[0] });
+        } else vi.advanceTimersByTime(10);
+      }
+      expect(room.status).toBe('finished');
+      // Playing the first free cell every time, the person loses to the bot.
+      expect((rooms.view(room, A, allOnline).game as CaroView).result?.winner).toBe('bot:1');
     });
 
     it('a room left with only bots closes', () => {

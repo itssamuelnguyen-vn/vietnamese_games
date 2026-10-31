@@ -11,6 +11,7 @@ interface RulesText {
 
 // Games that publish their house rules; others don't show the button.
 function rulesFor(t: Strings, gameType: GameType, houseRules: HouseRuleId[]): RulesText | null {
+  if (gameType === 'caro') return { title: t.caro.rulesTitle, intro: t.caro.rulesIntro, sections: t.caro.rules };
   if (gameType === 'typhu') return { title: t.typhu.rulesTitle, intro: t.typhu.rulesIntro, sections: t.typhu.rules };
   if (gameType !== 'tienlen') return null;
   // The table's switched-on house rules are listed after the standard ones.

@@ -32,7 +32,7 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
   tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
-  caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: false },
+  caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
   cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: false },
   maubinh: { type: 'maubinh', minPlayers: 2, maxPlayers: 4, available: false },
   samloc: { type: 'samloc', minPlayers: 2, maxPlayers: 5, available: false },
@@ -74,6 +74,10 @@ export const TURN_TIMERS: Record<TurnTimerId, number | null> = { none: null, '15
 export type HouseRuleId = 'no-two-finish' | 'no-stack-chop' | 'four-pairs-anytime' | 'penalties';
 export const HOUSE_RULES: HouseRuleId[] = ['no-two-finish', 'no-stack-chop', 'four-pairs-anytime', 'penalties'];
 
+// Caro board sizes (cells per side).
+export type CaroSizeId = '15' | '19';
+export const CARO_SIZE_IDS: CaroSizeId[] = ['15', '19'];
+
 // Settings the host picks before starting a game.
 export interface RoomOptions {
   timeControl: TimeControlId;
@@ -82,9 +86,12 @@ export interface RoomOptions {
   handicap: HandicapId;
   turnTimer: TurnTimerId;
   houseRules: HouseRuleId[];
+  caroSize: CaroSizeId;
+  // Caro's "blocked at both ends" rule: a five stopped by the opponent at both ends doesn't win.
+  caroBlock: boolean;
 }
 
-export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [] };
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true };
 
 export interface PlayerInfo {
   id: string;
