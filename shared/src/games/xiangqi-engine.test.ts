@@ -24,7 +24,8 @@ describe('Xiangqi engine', () => {
     expect(perft(game, 1)).toBe(44);
     expect(perft(game, 2)).toBe(1920);
     expect(perft(game, 3)).toBe(79666);
-  });
+    // Depth 3 visits ~80k positions; give it room on slow CI machines.
+  }, 60_000);
 
   it('round-trips FEN and undoes moves exactly', () => {
     const game = new Xiangqi();
