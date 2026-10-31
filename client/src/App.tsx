@@ -61,7 +61,10 @@ export function App() {
               <span className="topbar-divider" />
               {t.games[room.gameType]}
               {(room.gameType === 'chess' || room.gameType === 'xiangqi') && (
-                <span className="chip static">{t.timeControls[room.options.timeControl]}</span>
+                <span className="chip static">
+                  {t.timeControls[room.options.timeControl]}
+                  {room.gameType === 'xiangqi' && room.options.handicap !== 'none' && ` · ${t.xiangqi.handicaps[room.options.handicap]}`}
+                </span>
               )}
             </span>
           )}

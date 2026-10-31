@@ -1,4 +1,4 @@
-import type { ChessEndReason, ErrorCode, GameType, HostColor, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { ChessEndReason, ErrorCode, GameType, HandicapId, HostColor, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -262,6 +262,11 @@ export const vi = {
     pieceLetters: { k: 'Tướng', a: 'Sĩ', b: 'Tượng', n: 'Mã', r: 'Xe', c: 'Pháo', p: 'Tốt' } satisfies Record<XPieceType, string>,
     pieceStyle: { han: 'Chữ Hán', letters: 'Chữ Việt' },
     pieceStyleTitle: 'Đổi chữ trên quân cờ',
+    handicapLabel: 'Chủ phòng chấp quân',
+    handicaps: { none: 'Không chấp', chariot: 'Chấp Xe', horse: 'Chấp Mã', cannon: 'Chấp Pháo', 'two-horses': 'Chấp 2 Mã' } satisfies Record<
+      HandicapId,
+      string
+    >,
     describe: {
       move: (who: string, notation: string) => `${who} vừa đi ${notation}`,
       capture: (who: string, notation: string, captured: string) => `${who} vừa đi ${notation}, ăn ${captured}`,

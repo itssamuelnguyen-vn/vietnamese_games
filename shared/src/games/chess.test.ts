@@ -21,7 +21,7 @@ function play(state: ChessState, moves: [string, string, string][]): ChessState 
 describe('chessGame', () => {
   it('assigns both players a colour', () => {
     for (let i = 0; i < 20; i++) {
-      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random' }, ctx, null);
+      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random', handicap: 'none' }, ctx, null);
       expect([s.white, s.black].sort()).toEqual([A, B]);
     }
   });
@@ -149,9 +149,9 @@ describe('chessGame', () => {
     const opened = () => mv(mv(timed(), A, 'e2', 'e4', 1_000), B, 'e7', 'e5', 50_000);
 
     it('sets up clocks from the chosen time control', () => {
-      const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'random' }, ctx, null);
+      const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'random', handicap: 'none' }, ctx, null);
       expect(s.clock).toEqual({ incrementMs: 2_000, remaining: { w: 180_000, b: 180_000 }, turnStartedAt: null });
-      expect(chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random' }, ctx, null).clock).toBeNull();
+      expect(chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random', handicap: 'none' }, ctx, null).clock).toBeNull();
     });
 
     it('only starts once both sides have moved', () => {
@@ -208,7 +208,7 @@ describe('chessGame', () => {
   });
 
   describe('first-move abort', () => {
-    const timedSetup = () => chessGame.setup([A, B], { timeControl: '5+0', hostColor: 'white' }, { now: 0 }, null);
+    const timedSetup = () => chessGame.setup([A, B], { timeControl: '5+0', hostColor: 'white', handicap: 'none' }, { now: 0 }, null);
 
     it('aborts a timed game when white never moves', () => {
       const s = timedSetup();
@@ -228,7 +228,7 @@ describe('chessGame', () => {
     });
 
     it('never aborts untimed games', () => {
-      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white' }, { now: 0 }, null);
+      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none' }, { now: 0 }, null);
       expect(chessGame.deadline!(s)).toBeNull();
     });
   });
@@ -276,17 +276,17 @@ describe('chessGame', () => {
 
   describe('colours', () => {
     it('honours the host’s chosen side', () => {
-      const white = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white' }, ctx, null);
+      const white = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none' }, ctx, null);
       expect([white.white, white.black]).toEqual([A, B]);
-      const black = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'black' }, ctx, null);
+      const black = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'black', handicap: 'none' }, ctx, null);
       expect([black.white, black.black]).toEqual([B, A]);
     });
 
     it('swaps sides for a rematch between the same players', () => {
-      const first = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white' }, ctx, null);
-      const rematch = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white' }, ctx, first);
+      const first = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none' }, ctx, null);
+      const rematch = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none' }, ctx, first);
       expect([rematch.white, rematch.black]).toEqual([B, A]);
-      const newOpponent = chessGame.setup([A, 'player-c'], { timeControl: 'none', hostColor: 'white' }, ctx, first);
+      const newOpponent = chessGame.setup([A, 'player-c'], { timeControl: 'none', hostColor: 'white', handicap: 'none' }, ctx, first);
       expect(newOpponent.white).toBe(A);
     });
   });

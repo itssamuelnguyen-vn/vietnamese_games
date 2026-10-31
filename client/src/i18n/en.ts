@@ -255,6 +255,8 @@ export const en: Strings = {
     pieceLetters: { k: 'K', a: 'A', b: 'E', n: 'H', r: 'R', c: 'C', p: 'P' },
     pieceStyle: { han: 'Chinese characters', letters: 'Letters' },
     pieceStyleTitle: 'Switch piece labels',
+    handicapLabel: 'Host gives odds',
+    handicaps: { none: 'No odds', chariot: 'Chariot odds', horse: 'Horse odds', cannon: 'Cannon odds', 'two-horses': 'Two-horse odds' },
     describe: {
       move: (who: string, notation: string) => `${who} played ${notation}`,
       capture: (who: string, notation: string, captured: string) => `${who} played ${notation}, taking the ${captured}`,

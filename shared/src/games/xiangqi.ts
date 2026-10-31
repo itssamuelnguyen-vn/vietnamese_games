@@ -1,4 +1,4 @@
-import { TIME_CONTROLS, type GameDefinition } from '../types';
+import { TIME_CONTROLS, type GameDefinition, type HandicapId } from '../types';
 import {
   CLOCK_START_PLY,
   chooseSides,
@@ -9,7 +9,7 @@ import {
   type ClockView,
   type MatchClock,
 } from './match';
-import { Xiangqi, type XSide } from './xiangqi-engine';
+import { START_FEN, Xiangqi, type XSide } from './xiangqi-engine';
 
 export type XiangqiEndReason =
   | 'checkmate'
@@ -59,6 +59,8 @@ export interface XiangqiView {
   red: string;
   black: string;
   fen: string;
+  // Position the game started from (differs from the standard one in handicap games).
+  startFen: string;
   turn: XSide;
   moves: string[];
   lastMove: { from: string; to: string } | null;
@@ -70,6 +72,22 @@ export interface XiangqiView {
   canRequestTakeback: boolean;
   clock: ClockView<XSide> | null;
   firstMoveMs: number | null;
+}
+
+// Pieces removed from the giving side's left wing (from that player's own point of view).
+const HANDICAP_SQUARES: Record<Exclude<HandicapId, 'none'>, Record<XSide, string[]>> = {
+  chariot: { r: ['a0'], b: ['i9'] },
+  horse: { r: ['b0'], b: ['h9'] },
+  cannon: { r: ['b2'], b: ['h7'] },
+  'two-horses': { r: ['b0', 'h0'], b: ['b9', 'h9'] },
+};
+
+// Starting position with `side` giving `handicap` odds.
+export function handicapFen(side: XSide, handicap: HandicapId): string {
+  if (handicap === 'none') return START_FEN;
+  const game = new Xiangqi(START_FEN);
+  for (const square of HANDICAP_SQUARES[handicap][side]) game.remove(square);
+  return game.fen();
 }
 
 // Asian rules: 60 moves each without a capture is a draw.
@@ -177,12 +195,16 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
 
   setup(playerIds, options, { now }, previous) {
     const [red, black] = chooseSides(playerIds, options.hostColor, previous && [previous.red, previous.black]);
+    // The host gives the odds, whichever side they end up on.
+    const handicap = options.handicap ?? 'none';
+    const startFen = handicap === 'none' ? undefined : handicapFen(red === playerIds[0] ? 'r' : 'b', handicap);
     const tc = TIME_CONTROLS[options.timeControl];
     const clock = tc && { incrementMs: tc.incrementMs, remaining: { r: tc.initialMs, b: tc.initialMs }, turnStartedAt: null };
     return {
       red,
       black,
       moves: [],
+      startFen,
       result: null,
       drawOffer: null,
       drawOfferedAt: {},
@@ -305,6 +327,7 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
       red: state.red,
       black: state.black,
       fen: game.fen(),
+      startFen: state.startFen ?? START_FEN,
       turn: game.turn(),
       moves: state.moves,
       lastMove: last ? { from: last.from, to: last.to } : null,

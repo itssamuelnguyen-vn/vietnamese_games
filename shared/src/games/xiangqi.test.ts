@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NO_CAPTURE_PLIES, detectResult, xiangqiGame, type XiangqiMove, type XiangqiState } from './xiangqi';
+import { NO_CAPTURE_PLIES, detectResult, handicapFen, xiangqiGame, type XiangqiMove, type XiangqiState } from './xiangqi';
 import { Xiangqi } from './xiangqi-engine';
 
 const R = 'red-player';
@@ -109,14 +109,14 @@ describe('xiangqiGame', () => {
   });
 
   it('honours the host side and swaps on rematch', () => {
-    const first = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white' }, ctx, null);
+    const first = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'none' }, ctx, null);
     expect([first.red, first.black]).toEqual([R, B]);
-    const rematch = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white' }, ctx, first);
+    const rematch = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'none' }, ctx, first);
     expect([rematch.red, rematch.black]).toEqual([B, R]);
   });
 
   it('runs clocks and flags like chess, drawing if the opponent cannot attack', () => {
-    const timed = xiangqiGame.setup([R, B], { timeControl: '5+0', hostColor: 'white' }, { now: 0 }, null);
+    const timed = xiangqiGame.setup([R, B], { timeControl: '5+0', hostColor: 'white', handicap: 'none' }, { now: 0 }, null);
     expect(xiangqiGame.deadline!(timed)).toBe(30_000);
     expect(xiangqiGame.timeout!(timed, { now: 30_000 }).result).toEqual({ winner: null, reason: 'aborted' });
 
@@ -134,5 +134,28 @@ describe('xiangqiGame', () => {
     // Black has only its general left: red flagging is a draw.
     const lone = { ...fresh('3k5/9/9/9/9/9/9/9/9/R3K4 w'), clock: { incrementMs: 0, remaining: { r: 1_000, b: 1_000 }, turnStartedAt: 0 } };
     expect(xiangqiGame.timeout!(lone, { now: 1_000 }).result).toEqual({ winner: null, reason: 'timeout' });
+  });
+
+  describe('handicap games', () => {
+    it('removes pieces from the giving side’s left wing', () => {
+      expect(new Xiangqi(handicapFen('r', 'chariot')).get('a0')).toBeNull();
+      expect(new Xiangqi(handicapFen('r', 'chariot')).get('i0')?.type).toBe('r');
+      expect(new Xiangqi(handicapFen('b', 'horse')).get('h9')).toBeNull();
+      expect(new Xiangqi(handicapFen('r', 'cannon')).get('b2')).toBeNull();
+      const twoHorses = new Xiangqi(handicapFen('b', 'two-horses'));
+      expect([twoHorses.get('b9'), twoHorses.get('h9')]).toEqual([null, null]);
+      expect(handicapFen('r', 'none')).toBe(new Xiangqi().fen());
+    });
+
+    it('the host gives the odds on whichever side they play', () => {
+      const asRed = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'chariot' }, ctx, null);
+      expect(xiangqiGame.playerView(asRed, R, ctx).startFen).toBe(handicapFen('r', 'chariot'));
+      const asBlack = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'black', handicap: 'chariot' }, ctx, null);
+      expect(asBlack.black).toBe(R);
+      expect(new Xiangqi(xiangqiGame.playerView(asBlack, R, ctx).fen).get('i9')).toBeNull();
+      // Play continues from the handicap position.
+      const r = xiangqiGame.applyMove(asRed, R, { type: 'move', from: 'i0', to: 'i1' }, ctx);
+      expect(r.ok).toBe(true);
+    });
   });
 });

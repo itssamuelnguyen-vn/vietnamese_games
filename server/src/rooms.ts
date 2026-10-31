@@ -1,6 +1,7 @@
 import {
   DEFAULT_ROOM_OPTIONS,
   GAME_CATALOG,
+  HANDICAPS,
   MAX_CHAT_LENGTH,
   TIME_CONTROLS,
   chessGame,
@@ -193,12 +194,16 @@ export class RoomManager {
     if (room.hostId !== playerId) return { ok: false, error: 'NOT_HOST' };
     if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
     if (typeof options !== 'object' || options === null) return { ok: false, error: 'INVALID_OPTIONS' };
-    const { timeControl = room.options.timeControl, hostColor = room.options.hostColor } = options as Partial<RoomOptions>;
+    const {
+      timeControl = room.options.timeControl,
+      hostColor = room.options.hostColor,
+      handicap = room.options.handicap,
+    } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
     }
-    if (!HOST_COLORS.includes(hostColor)) return { ok: false, error: 'INVALID_OPTIONS' };
-    room.options = { ...room.options, timeControl, hostColor };
+    if (!HOST_COLORS.includes(hostColor) || !HANDICAPS.includes(handicap)) return { ok: false, error: 'INVALID_OPTIONS' };
+    room.options = { ...room.options, timeControl, hostColor, handicap };
     room.lastActivity = Date.now();
     return { ok: true, room };
   }

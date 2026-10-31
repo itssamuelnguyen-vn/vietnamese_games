@@ -46,8 +46,8 @@ export function notate(before: Xiangqi, move: XMove, style: NotationStyle): stri
 }
 
 // Replays a game, returning the notation of each move and every position along the way.
-export function replayXiangqi(moves: string[], style: NotationStyle) {
-  const game = new Xiangqi();
+export function replayXiangqi(moves: string[], style: NotationStyle, startFen?: string) {
+  const game = new Xiangqi(startFen);
   const fens = [game.fen()];
   const labels: string[] = [];
   const details: XMove[] = [];

@@ -73,6 +73,12 @@ export class Xiangqi {
     this.side = turn === 'b' ? 'b' : 'r';
   }
 
+  // Takes a piece off the board (used to set up handicap games).
+  remove(square: string): void {
+    const p = parseSquare(square);
+    if (p) this.grid[p[1]][p[0]] = null;
+  }
+
   turn(): XSide {
     return this.side;
   }

@@ -46,8 +46,8 @@ function piecesOf(game: Xiangqi): Omit<BoardPiece, 'id'>[] {
 }
 
 // Pieces at every ply with ids that follow each piece through the game, so moves animate.
-function trackPieces(moves: string[]): BoardPiece[][] {
-  const game = new Xiangqi(START_FEN);
+function trackPieces(moves: string[], startFen: string): BoardPiece[][] {
+  const game = new Xiangqi(startFen);
   const ids = new Map<string, string>();
   piecesOf(game).forEach((p, i) => ids.set(p.square, `p${i}`));
   const snapshot = () => piecesOf(game).map((p) => ({ ...p, id: ids.get(p.square)! }));
@@ -92,9 +92,9 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
   const [pending, setPending] = useState<{ move: string; ply: number } | null>(null);
   const optimistic = pending && pending.ply === view.moves.length ? pending.move : null;
 
-  const { fens, labels, moves } = useMemo(() => replayXiangqi(view.moves, t.xiangqi.notation), [view.fen, t]);
+  const { fens, labels, moves } = useMemo(() => replayXiangqi(view.moves, t.xiangqi.notation, view.startFen), [view.fen, view.startFen, t]);
   const shownMoves = useMemo(() => (optimistic ? [...view.moves, optimistic] : view.moves), [view.fen, optimistic]);
-  const tracked = useMemo(() => trackPieces(shownMoves), [shownMoves]);
+  const tracked = useMemo(() => trackPieces(shownMoves, view.startFen), [shownMoves, view.startFen]);
   const live = useMemo(() => new Xiangqi(view.fen), [view.fen]);
   const opening = useMemo(() => findXiangqiOpening(view.moves), [view.fen]);
   const liveTargets = useMemo(
@@ -191,6 +191,8 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
       ['Black', names.b ?? t.xiangqi.black],
       ['Result', result],
       ['Format', 'ICCS'],
+      // Handicap games start from a custom position.
+      ...(view.startFen === START_FEN ? [] : ([['FEN', `${view.startFen} - - 0 1`]] as [string, string][])),
     ];
     const iccs = view.moves.map((m) => `${m.slice(0, 2)}-${m.slice(2)}`.toUpperCase());
     const turns: string[] = [];
