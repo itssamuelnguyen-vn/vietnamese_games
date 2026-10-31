@@ -8,6 +8,7 @@ import { Avatar } from '../components/Avatar';
 import { toast } from '../components/Toaster';
 import { startGame } from '../components/roomActions';
 import { ChatCard, PlayersCard, RoomCodeCard } from '../components/RoomPanels';
+import { findOpening } from './chessOpenings';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -130,6 +131,7 @@ export function ChessGame({ room, view, onLeave }: Props) {
   }, [view.result]);
 
   const plies = view.history.length;
+  const opening = useMemo(() => findOpening(view.history), [view.fen]);
   const { fens, moves } = useMemo(() => replay(view.history), [view.fen]);
   const ply = reviewPly ?? plies;
   const reviewing = reviewPly !== null && reviewPly < plies;
@@ -355,7 +357,11 @@ export function ChessGame({ room, view, onLeave }: Props) {
         <section className="card panel moves-panel">
           <header className="panel-head">
             <h2>{t.chess.moves}</h2>
-            {reviewing && <span className="tag tag-gold">{t.chess.reviewing}</span>}
+            {reviewing ? (
+              <span className="tag tag-gold">{t.chess.reviewing}</span>
+            ) : (
+              opening && <span className="muted small opening">{t.chess.openings[opening]}</span>
+            )}
           </header>
           {plies === 0 ? (
             <p className="muted small">{t.chess.noMoves}</p>

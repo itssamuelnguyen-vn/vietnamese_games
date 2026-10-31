@@ -1337,6 +1337,10 @@ main {
   padding-bottom: 12px;
 }
 
+.opening {
+  text-align: right;
+}
+
 .move-list {
   list-style: none;
   margin: 0 -8px;
