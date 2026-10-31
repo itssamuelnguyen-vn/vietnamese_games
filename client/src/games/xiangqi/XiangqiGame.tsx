@@ -3,6 +3,7 @@ import { START_FEN, Xiangqi, squareName, type RoomView, type XMove, type XPieceT
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
 import { toast } from '../../components/Toaster';
+import { CopyIcon, DownloadIcon } from '../../components/icons';
 import { DuelScreen, type BoardRenderProps } from '../duel/DuelScreen';
 import { replayXiangqi } from './notation';
 import { findXiangqiOpening } from './openings';
@@ -151,6 +152,44 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
   const onSquareClick = useCallback((square: string) => handlers.current.click(square), []);
   const onDrop = useCallback((from: string, to: string) => handlers.current.drop(from, to), []);
 
+  // Full FEN (UCCI style) for the current position.
+  const fullFen = `${view.fen} - - 0 ${Math.floor(view.moves.length / 2) + 1}`;
+
+  async function copyFen() {
+    try {
+      await navigator.clipboard.writeText(fullFen);
+      toast(t.chess.fenCopied);
+    } catch {
+      prompt(t.chess.copyFen, fullFen);
+    }
+  }
+
+  // PGN with ICCS moves ("H2-E2"), which most xiangqi programs can import.
+  function downloadRecord() {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const d = new Date();
+    const result = !view.result ? '*' : !view.result.winner ? '1/2-1/2' : view.result.winner === view.red ? '1-0' : '0-1';
+    const headers: [string, string][] = [
+      ['Game', 'Chinese Chess'],
+      ['Event', t.appName],
+      ['Site', location.origin],
+      ['Date', `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`],
+      ['Red', names.r ?? t.xiangqi.red],
+      ['Black', names.b ?? t.xiangqi.black],
+      ['Result', result],
+      ['Format', 'ICCS'],
+    ];
+    const iccs = view.moves.map((m) => `${m.slice(0, 2)}-${m.slice(2)}`.toUpperCase());
+    const turns: string[] = [];
+    for (let i = 0; i < iccs.length; i += 2) turns.push(`${i / 2 + 1}. ${iccs[i]}${iccs[i + 1] ? ` ${iccs[i + 1]}` : ''}`);
+    const text = `${headers.map(([k, v]) => `[${k} "${v.replace(/"/g, "'")}"]`).join('\n')}\n\n${[...turns, result].join(' ')}\n`;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([text], { type: 'application/x-chess-pgn' }));
+    link.download = `xiangqi-${room.code}.pgn`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   const last = moves.at(-1);
   const lastMoveText = last ? describe(t, last.side === mySide ? t.room.you : (names[last.side] ?? t.chess.opponent), labels.at(-1)!, last) : null;
 
@@ -195,7 +234,21 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
       extraStatus={premove ? [t.chess.premove(premove.from, premove.to)] : []}
       soundForPly={(ply) => (moves[ply]?.check ? 'check' : moves[ply]?.captured ? 'capture' : 'move')}
       renderBoard={renderBoard}
-      movesTools={opening && <span className="muted small opening">{t.xiangqi.openings[opening]}</span>}
+      movesTools={
+        <>
+          {opening && <span className="muted small opening">{t.xiangqi.openings[opening]}</span>}
+          {view.moves.length > 0 && (
+            <>
+              <button className="tool-btn" onClick={copyFen} aria-label={t.chess.copyFen} title={t.chess.copyFen}>
+                <CopyIcon />
+              </button>
+              <button className="tool-btn" onClick={downloadRecord} aria-label={t.chess.downloadPgn} title={t.chess.downloadPgn}>
+                <DownloadIcon />
+              </button>
+            </>
+          )}
+        </>
+      }
       playerExtra={(side, ply) => {
         const own = side as XSide;
         const enemy: XSide = own === 'r' ? 'b' : 'r';
