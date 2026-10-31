@@ -1,5 +1,16 @@
 import { TIME_CONTROLS, type GameDefinition } from '../types';
-import { CLOCK_START_PLY, chooseSides, clockView, firstMoveDeadline, remainingAt, stopClock, type ClockView, type MatchClock } from './match';
+import {
+  CLOCK_START_PLY,
+  chooseSides,
+  clockView,
+  duelPoints,
+  firstMoveDeadline,
+  refundIncrements,
+  remainingAt,
+  stopClock,
+  type ClockView,
+  type MatchClock,
+} from './match';
 
 // Caro (gomoku): two players take turns placing X and O on a grid; five or more in a row wins.
 // Under the Vietnamese "blocked at both ends" rule, a line whose two ends are both stopped by the
@@ -148,15 +159,18 @@ function takeBack(state: CaroState, requester: CaroSide, now: number): CaroState
       remaining: remainingAt(clock, turnOf(state.moves), now),
       turnStartedAt: moves.length >= CLOCK_START_PLY ? now : null,
     };
+    clock = refundIncrements(clock, moves.length, Array.from({ length: undo }, (_, i) => turnOf(state.moves.slice(0, moves.length + i))));
   }
   return { ...state, moves, clock, drawOffer: null, takebackRequest: null, firstMoveDeadline: firstMoveDeadline(clock, moves.length, now) };
 }
 
 // ---- Bot ----
 
-// Value of a run of `count` stones with `open` free ends, for attacking or defending.
-function runScore(count: number, open: number, blockRule: boolean): number {
-  if (count >= 5) return blockRule && open === 0 ? 0 : 1_000_000;
+// Value of a run of `count` stones with `open` free ends, for attacking or defending. `stopped` counts
+// ends blocked by the opponent: only a five stopped at both ends fails under the blocked-ends rule
+// (the board edge doesn't block).
+function runScore(count: number, open: number, stopped: number, blockRule: boolean): number {
+  if (count >= 5) return blockRule && stopped === 2 ? 0 : 1_000_000;
   if (open === 0) return 0;
   const table: Record<number, [number, number]> = { 4: [10_000, 100_000], 3: [500, 5_000], 2: [50, 200], 1: [5, 10] };
   return table[count][open - 1];
@@ -171,6 +185,7 @@ function cellScore(board: (CaroSide | null)[], size: number, cell: number, side:
   for (const [dr, dc] of DIRECTIONS) {
     let count = 1;
     let open = 0;
+    let stopped = 0;
     for (const sign of [1, -1]) {
       let r = r0 + dr * sign;
       let c = c0 + dc * sign;
@@ -179,9 +194,11 @@ function cellScore(board: (CaroSide | null)[], size: number, cell: number, side:
         r += dr * sign;
         c += dc * sign;
       }
-      if (at(r, c) === null) open++;
+      const end = at(r, c);
+      if (end === null) open++;
+      else if (end !== 'edge') stopped++;
     }
-    total += runScore(count, open, blockRule);
+    total += runScore(count, open, stopped, blockRule);
   }
   return total;
 }
@@ -279,6 +296,10 @@ export const caroGame: GameDefinition<CaroState, CaroMove, CaroView> = {
 
       case 'place': {
         if (turnOf(state.moves) !== side) return { ok: false, error: 'NOT_YOUR_TURN' };
+        // Too late for a first move: the game is aborted, even if the timer hasn't fired yet.
+        if (state.firstMoveDeadline !== null && now >= state.firstMoveDeadline) {
+          return { ok: true, state: finish(state, { winner: null, reason: 'aborted', line: null }, now) };
+        }
         const { cell } = move;
         if (!Number.isInteger(cell) || cell < 0 || cell >= state.size * state.size || state.moves.includes(cell)) {
           return { ok: false, error: 'INVALID_MOVE' };
@@ -291,7 +312,9 @@ export const caroGame: GameDefinition<CaroState, CaroMove, CaroView> = {
         }
         const moves = [...state.moves, cell];
         if (clock) clock = { ...clock, turnStartedAt: moves.length >= CLOCK_START_PLY ? now : null };
-        const next: CaroState = { ...state, moves, drawOffer: null, takebackRequest: null, clock, firstMoveDeadline: firstMoveDeadline(clock, moves.length, now) };
+        // A player's own draw offer stands until the opponent replies.
+        const drawOffer = state.drawOffer === playerId ? playerId : null;
+        const next: CaroState = { ...state, moves, drawOffer, takebackRequest: null, clock, firstMoveDeadline: firstMoveDeadline(clock, moves.length, now) };
         const line = winningLine(caroBoard(moves, state.size), state.size, cell, state.blockRule);
         if (line) return { ok: true, state: finish(next, { winner: playerId, reason: 'five', line }, now) };
         if (moves.length === state.size * state.size) return { ok: true, state: finish(next, { winner: null, reason: 'full', line: null }, now) };
@@ -352,10 +375,7 @@ export const caroGame: GameDefinition<CaroState, CaroMove, CaroView> = {
   },
 
   points(state) {
-    if (!state.result) return null;
-    const { winner } = state.result;
-    const score = (id: string) => (winner === null ? 0 : winner === id ? 1 : -1);
-    return { [state.x]: { points: score(state.x), place: winner === state.o ? 2 : 1 }, [state.o]: { points: score(state.o), place: winner === state.x ? 2 : 1 } };
+    return state.result ? duelPoints([state.x, state.o], state.result.winner) : null;
   },
 
   // Bots answer draw offers and takeback requests, then play their move.

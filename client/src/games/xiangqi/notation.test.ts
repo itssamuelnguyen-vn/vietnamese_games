@@ -29,4 +29,16 @@ describe('xiangqi notation', () => {
     expect(notate(before, before.moves('a2').find((m) => m.to === 'a5')!, WXF)).toBe('+R+3');
     expect(notate(before, before.moves('a1').find((m) => m.to === 'b1')!, WXF)).toBe('-R=8');
   });
+
+  it('numbers three or more soldiers on one file from the front', () => {
+    const before = new Xiangqi('3k5/9/2P6/2P6/2P6/9/9/9/9/4K4 w');
+    expect(notate(before, before.moves('c6').find((m) => m.to === 'd6')!, WXF)).toBe('2P=6');
+    expect(notate(before, before.moves('c7').find((m) => m.to === 'c8')!, WXF)).toBe('1P+1');
+  });
+
+  it('keeps the file number when soldiers are stacked on more than one file', () => {
+    const before = new Xiangqi('3k5/9/2P1P4/2P1P4/9/9/9/9/9/4K4 w');
+    expect(notate(before, before.moves('c6').find((m) => m.to === 'd6')!, WXF)).toBe('-P7=6');
+    expect(notate(before, before.moves('e6').find((m) => m.to === 'd6')!, WXF)).toBe('-P5=6');
+  });
 });

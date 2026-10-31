@@ -504,7 +504,7 @@ function moveBy(s: TyPhuState, id: string, steps: number, random: () => number):
 const isAmount = (n: unknown, max = MAX_TRADE_CASH): n is number => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= max;
 
 function validOffer(s: TyPhuState, o: Omit<TradeOffer, 'id' | 'expiresAt'>): boolean {
-  if (!s.players[o.to] || s.players[o.to].out || o.to === o.from) return false;
+  if (!Object.hasOwn(s.players, o.to) || s.players[o.to].out || o.to === o.from) return false;
   if (!isAmount(o.giveCash) || !isAmount(o.getCash)) return false;
   if (!Array.isArray(o.give) || !Array.isArray(o.get) || new Set(o.give).size !== o.give.length || new Set(o.get).size !== o.get.length) return false;
   const owns = (ids: string[], owner: string) => ids.every((bid) => s.businesses.some((b) => b.id === bid && b.owner === owner));
@@ -514,7 +514,10 @@ function validOffer(s: TyPhuState, o: Omit<TradeOffer, 'id' | 'expiresAt'>): boo
 
 function applyTrade(s: TyPhuState, o: TradeOffer): TyPhuState | null {
   if (!validOffer(s, o)) return null;
-  if (s.players[o.from].cash < o.giveCash || s.players[o.to].cash < o.getCash) return null;
+  // Only money beyond what a player owes can change hands, so borrowed cash can't be passed to a
+  // friend before going bankrupt or leaving.
+  const spare = (id: string) => Math.max(0, s.players[id].cash - s.players[id].debt);
+  if (spare(o.from) < o.giveCash || spare(o.to) < o.getCash) return null;
   let next = credit(credit(s, o.from, o.getCash - o.giveCash), o.to, o.giveCash - o.getCash);
   next = {
     ...next,
@@ -617,7 +620,8 @@ function botValue(s: TyPhuState, id: string, bizIds: string[], gaining: boolean)
 }
 
 function botAnswer(s: TyPhuState, id: string, o: TradeOffer): TyPhuMove {
-  if (s.players[id].cash < o.getCash || s.players[o.from].cash < o.giveCash) return { type: 'decline', id: o.id };
+  const spare = (pid: string) => Math.max(0, s.players[pid].cash - s.players[pid].debt);
+  if (spare(id) < o.getCash || spare(o.from) < o.giveCash) return { type: 'decline', id: o.id };
   const gain = o.giveCash + botValue(s, id, o.give, true);
   const loss = o.getCash + botValue(s, id, o.get, false);
   return gain >= loss * 1.05 ? { type: 'accept', id: o.id } : { type: 'decline', id: o.id };
@@ -635,7 +639,7 @@ function botProposal(s: TyPhuState, id: string): TyPhuMove | null {
     );
     if (!target) continue;
     const price = round10(target.invested * 1.4);
-    if (p.cash - price < 300) continue;
+    if (p.cash - p.debt - price < 300) continue;
     return { type: 'offer', to: target.owner, giveCash: price, getCash: 0, give: [], get: [target.id] };
   }
   return null;
@@ -747,7 +751,8 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
       case 'accept':
       case 'decline':
       case 'cancel': {
-        const offer = state.offers.find((o) => o.id === move.id);
+        // An offer past its time is gone, even if the server hasn't swept it yet.
+        const offer = state.offers.find((o) => o.id === move.id && o.expiresAt > now);
         if (!offer || (move.type === 'cancel' ? offer.from : offer.to) !== playerId) return fail;
         if (move.type !== 'accept') return { ok: true, state: { ...state, offers: state.offers.filter((o) => o !== offer) } };
         const traded = applyTrade(state, offer);

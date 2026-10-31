@@ -10,6 +10,7 @@ import { RulesButton } from '../../components/RulesDialog';
 import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { loadSetting, saveSetting } from '../../settings';
 import { playSound } from '../../sound';
+import { freshEntries } from '../freshLog';
 
 interface Props {
   room: RoomView;
@@ -215,7 +216,8 @@ export function TienLenGame({ room, view, onLeave }: Props) {
   const offline = view.result
     ? []
     : view.seats
-        .filter((s) => s.id !== me && !s.out && (s.cards > 0 || s.place === null))
+        // Only players still in the hand matter; those who finished, froze or got stuck are done.
+        .filter((s) => s.id !== me && !s.out && !s.frozen && !s.stuck && s.place === null)
         .map((s) => player(s.id))
         .filter((p) => p && !p.connected && p.offlineMs !== null)
         .map((p) => ({ name: p!.name, ms: p!.offlineMs! + (performance.now() - receivedAt) }));
@@ -254,7 +256,8 @@ export function TienLenGame({ room, view, onLeave }: Props) {
     hintIndex.current = 0;
   }, [trickKey, handKey]);
   function hint() {
-    const plays = hintPlays(view.hand, trickCombo, view.mustPlay);
+    // Leave out plays the table's house rules forbid (going out on a 2, chopping a chop).
+    const plays = hintPlays(view.hand, trickCombo, view.mustPlay).filter((cards) => !playProblem(ruleState, view.hand, cards));
     if (plays.length === 0) {
       toast(t.tienlen.noHint);
       return;
@@ -310,10 +313,11 @@ export function TienLenGame({ room, view, onLeave }: Props) {
   }
 
   // Sounds: plays and chops, the start of our turn, and the end of the game.
-  const seenLog = useRef(view.log.length);
+  // Logs keep only recent entries, so new ones are found by content, not by length.
+  const seenLog = useRef(view.log);
   useEffect(() => {
-    const fresh = view.log.slice(seenLog.current);
-    seenLog.current = view.log.length;
+    const fresh = freshEntries(seenLog.current, view.log);
+    seenLog.current = view.log;
     const lastPlay = fresh.filter((e) => e.kind === 'play').at(-1);
     if (lastPlay && lastPlay.kind === 'play') playSound(lastPlay.chop ? 'check' : 'move');
   }, [view.log]);

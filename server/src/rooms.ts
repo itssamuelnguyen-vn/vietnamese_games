@@ -378,6 +378,15 @@ export class RoomManager {
     if (absent.length === 0) return { ok: false, error: 'CLAIM_TOO_EARLY' };
     const game = GAMES[room.gameType]!;
     for (const p of absent) room.state = game.forfeit(room.state, p.id, this.ctx(), 'abandoned');
+    // The absent players lose their seats, so they can't hold up rematches or keep others waiting.
+    room.players = room.players.filter((p) => !absent.includes(p));
+    room.departed = [...room.departed, ...absent];
+    room.rematchVotes = [];
+    for (const p of absent) {
+      this.playerRoom.delete(p.id);
+      this.chatTimes.delete(p.id);
+    }
+    if (absent.some((p) => p.id === room.hostId)) room.hostId = playerId;
     if (game.isOver(room.state)) room.status = 'finished';
     this.settle(room);
     room.lastActivity = Date.now();
@@ -441,7 +450,10 @@ export class RoomManager {
       if (now - room.lastActivity < idleMs) continue;
       const members = [...room.players, ...room.spectators].filter((p) => !p.bot);
       if (members.some((p) => isConnected(p.id))) continue;
-      for (const p of members) this.playerRoom.delete(p.id);
+      for (const p of members) {
+        this.playerRoom.delete(p.id);
+        this.chatTimes.delete(p.id);
+      }
       this.deleteRoom(room);
     }
   }
@@ -450,6 +462,8 @@ export class RoomManager {
   private settle(room: Room): void {
     if (room.status !== 'finished' || room.tallied) return;
     room.tallied = true;
+    // Spectators who arrived mid-game take the free seats, oldest first.
+    this.fillSeats(room);
     const scores = GAMES[room.gameType]!.points?.(room.state);
     if (!scores) return;
     for (const [id, { points, place }] of Object.entries(scores)) {
@@ -468,14 +482,15 @@ export class RoomManager {
   }
 
   // Schedules the next clock check for a room, replacing any earlier one.
-  private armTimer(room: Room): void {
+  // `minDelay` keeps a deadline that didn't move the game on from being re-checked in a tight loop.
+  private armTimer(room: Room, minDelay = 0): void {
     clearTimeout(this.timers.get(room.code));
     this.timers.delete(room.code);
     const game = GAMES[room.gameType]!;
     if (room.status !== 'playing' || !game.deadline) return;
     const deadline = game.deadline(room.state);
     if (deadline === null) return;
-    const timer = setTimeout(() => this.checkClock(room), Math.max(0, deadline - this.clock()));
+    const timer = setTimeout(() => this.checkClock(room), Math.max(minDelay, deadline - this.clock()));
     timer.unref?.();
     this.timers.set(room.code, timer);
   }
@@ -495,7 +510,20 @@ export class RoomManager {
       this.scheduleBots(room);
     }
     // Timers can fire a little early; this re-checks at the real deadline, or arms the next turn's.
-    this.armTimer(room);
+    // If the deadline has passed and nothing changed, back off rather than spin.
+    const stalled = room.state === before && (game.deadline?.(room.state) ?? Infinity) <= this.clock();
+    this.armTimer(room, stalled ? 1000 : 0);
+  }
+
+  // A host who has been offline for a while hands the room to someone who is here, so games
+  // can still be started.
+  handOffHost(playerId: string, isConnected: (id: string) => boolean): Room | undefined {
+    const room = this.roomOf(playerId);
+    if (!room || room.hostId !== playerId || isConnected(playerId)) return undefined;
+    const next = room.players.find((p) => !p.bot && isConnected(p.id));
+    if (!next) return undefined;
+    room.hostId = next.id;
+    return room;
   }
 
   // After every change, the first bot with something to do acts after a short pause. A pending

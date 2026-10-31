@@ -116,6 +116,9 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
 
   const isLegal = (from: string, to: string) => live.moves(from).some((m) => m.to === to);
 
+  // A move that arrived after the flag fell ends the game without changing the position.
+  useEffect(() => setPending(null), [!!view.result]);
+
   useEffect(() => {
     setSelected(null);
     setPending(null);

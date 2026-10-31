@@ -135,6 +135,47 @@ describe('chessGame', () => {
     });
   });
 
+  describe('fixes from review', () => {
+    const act = (state: ChessState, player: string, move: Parameters<typeof chessGame.applyMove>[2]) => {
+      const r = chessGame.applyMove(state, player, move, ctx);
+      if (!r.ok) throw new Error(r.error);
+      return r.state;
+    };
+
+    it('a draw offer stands when the player who made it moves', () => {
+      let s = act(fresh(), A, { type: 'offer-draw' });
+      s = act(s, A, { type: 'move', from: 'e2', to: 'e4' });
+      expect(s.drawOffer).toBe(A);
+      // The opponent moving on declines it.
+      expect(act(s, B, { type: 'move', from: 'e7', to: 'e5' }).drawOffer).toBeNull();
+    });
+
+    it('a first move that arrives after the deadline aborts the game', () => {
+      const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] }, { now: 0 }, null);
+      const r = chessGame.applyMove(s, A, { type: 'move', from: 'e2', to: 'e4' }, { now: 30_000 });
+      expect(r.ok && r.state.result).toEqual({ winner: null, reason: 'aborted' });
+    });
+
+    it('a takeback also takes back the increment earned by the undone move', () => {
+      const go = (s: ChessState, p: string, from: string, to: string, now: number) => {
+        const r = chessGame.applyMove(s, p, { type: 'move', from, to }, { now });
+        if (!r.ok) throw new Error(r.error);
+        return r.state;
+      };
+      let s: ChessState = { ...fresh(), clock: { incrementMs: 2_000, remaining: { w: 60_000, b: 60_000 }, turnStartedAt: null } };
+      s = go(go(s, A, 'e2', 'e4', 0), B, 'e7', 'e5', 0);
+      s = go(s, A, 'g1', 'f3', 0);
+      expect(s.clock?.remaining.w).toBe(62_000);
+      s = act(s, A, { type: 'request-takeback' });
+      s = act(s, B, { type: 'accept-takeback' });
+      expect(s.clock?.remaining.w).toBe(60_000);
+    });
+
+    it('wins and losses count on the room scoreboard', () => {
+      expect(chessGame.points!(act(fresh(), A, { type: 'resign' }))).toEqual({ [A]: { points: -1, place: 2 }, [B]: { points: 1, place: 1 } });
+    });
+  });
+
   describe('clocks', () => {
     const timed = (): ChessState => ({
       ...fresh(),
@@ -145,8 +186,8 @@ describe('chessGame', () => {
       if (!r.ok) throw new Error(r.error);
       return r.state;
     };
-    // After 1. e4 e5 at t=50s: both clocks full, white's clock running.
-    const opened = () => mv(mv(timed(), A, 'e2', 'e4', 1_000), B, 'e7', 'e5', 50_000);
+    // After 1. e4 (t=21s) e5 (t=50s, inside black's 30s first-move window): both clocks full, white's running.
+    const opened = () => mv(mv(timed(), A, 'e2', 'e4', 21_000), B, 'e7', 'e5', 50_000);
 
     it('sets up clocks from the chosen time control', () => {
       const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] }, ctx, null);

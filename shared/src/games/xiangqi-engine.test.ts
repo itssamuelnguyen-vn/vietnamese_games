@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Xiangqi } from './xiangqi-engine';
+import { Xiangqi, parseSquare } from './xiangqi-engine';
 
 function perft(game: Xiangqi, depth: number): number {
   if (depth === 0) return 1;
@@ -96,5 +96,11 @@ describe('Xiangqi engine', () => {
     const game = new Xiangqi('3aka3/9/9/9/9/9/9/9/9/3AKAB2 w');
     expect(game.hasAttackers('r')).toBe(false);
     expect(game.hasAttackers('b')).toBe(false);
+  });
+
+  it('only accepts real squares', () => {
+    expect(parseSquare('a0')).toEqual([0, 0]);
+    expect(parseSquare('a ')).toBeNull();
+    expect(parseSquare('j1')).toBeNull();
   });
 });

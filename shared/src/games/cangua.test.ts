@@ -119,6 +119,12 @@ describe('co ca ngua', () => {
     expect(s.result).toEqual({ winner: 'b', ranking: ['b', 'a'] });
   });
 
+  it('rolling gives a fresh turn timer for choosing the horse', () => {
+    const s = { ...table([3, STABLE, STABLE, STABLE], all(STABLE)), turnLimitMs: 15_000, turnDeadline: 15_000 };
+    const r = caNguaGame.applyMove(s, 'a', { type: 'roll' }, { now: 14_000, random: die(2) });
+    expect(r.ok && r.state.turnDeadline).toBe(29_000);
+  });
+
   it('bots prefer kicking an opponent', () => {
     const bProgress = (squareOf(0, 10) - squareOf(2, 0) + 52) % 52;
     const s = act(table([7, 20, STABLE, STABLE], [bProgress, STABLE, STABLE, STABLE]), 'a', { type: 'roll' }, die(3));

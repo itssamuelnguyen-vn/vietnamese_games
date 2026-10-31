@@ -266,11 +266,13 @@ export function leftoverPenalties(hand: Card[]): { kind: PenaltyKind; points: nu
 function scoreGame(s: TienLenState, ranking: string[]): Record<string, TienLenScore> {
   const table = PLACE_POINTS[ranking.length] ?? ranking.map(() => 0);
   const penalties = s.rules.includes('penalties');
+  // Leftover cards are judged on the last player still at the table (those who left have none).
+  const lastIn = [...ranking].reverse().find((id) => !s.out.includes(id));
   return Object.fromEntries(
     ranking.map((id, i) => {
       const extra: { kind: PenaltyKind; points: number }[] = [];
       if (penalties && s.frozen.includes(id)) extra.push({ kind: 'frozen', points: FROZEN_POINTS });
-      if (penalties && (i === ranking.length - 1 || s.stuck.includes(id))) extra.push(...leftoverPenalties(s.hands[id] ?? []));
+      if (penalties && (id === lastIn || s.stuck.includes(id))) extra.push(...leftoverPenalties(s.hands[id] ?? []));
       const points = table[i] + extra.reduce((sum, p) => sum + p.points, 0);
       return [id, { place: i + 1, points, penalties: extra }];
     }),
@@ -356,7 +358,8 @@ function play(s: TienLenState, player: string, cards: Card[], now: number, auto:
   if (playProblem(s, hand, cards)) return null;
   const combo = classify(cards)!;
 
-  const chop = !!s.trick && isChop(combo, s.trick.combo);
+  // Only beating a 2, or beating a chop, counts as chopping; a bigger bomb on a led bomb doesn't.
+  const chop = !!s.trick && isChop(combo, s.trick.combo) && (s.trick.chop || isTwos(s.trick.combo, 1) || isTwos(s.trick.combo, 2));
   const rest = hand.filter((c) => !cards.includes(c));
   let next: TienLenState = {
     ...s,
@@ -423,7 +426,11 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
       const kind = instantWin(hands[id]);
       if (kind) {
         const ranking = [id, ...order.filter((p) => p !== id)];
-        return { ...base, mustPlay: null, result: { ranking, instant: { player: id, kind }, scores: scoreGame(base, ranking) } };
+        // Everyone else loses equally, whatever their seat.
+        const scores = Object.fromEntries(
+          ranking.map((p, i) => [p, { place: i === 0 ? 1 : 2, points: i === 0 ? ranking.length - 1 : -1, penalties: [] }]),
+        );
+        return { ...base, mustPlay: null, result: { ranking, instant: { player: id, kind }, scores } };
       }
     }
     return startTurn(base, leader, now);
@@ -455,8 +462,12 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
 
   forfeit(state, playerId, { now }) {
     if (state.result || !state.seats.includes(playerId) || state.out.includes(playerId)) return state;
+    // Players who already finished, froze or got stuck keep their place if they leave.
+    if (state.finished.includes(playerId) || state.frozen.includes(playerId) || state.stuck.includes(playerId)) return state;
     let next: TienLenState = {
       ...state,
+      // If the leaver held the card the first play must include, the next leader plays freely.
+      mustPlay: state.mustPlay !== null && state.hands[playerId].includes(state.mustPlay) ? null : state.mustPlay,
       out: [...state.out, playerId],
       hands: { ...state.hands, [playerId]: [] },
       passed: state.passed.filter((id) => id !== playerId),
@@ -480,7 +491,8 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
       return advance(passed, player, now);
     }
     const card = state.mustPlay ?? Math.min(...state.hands[player]);
-    return play(state, player, [card], now, true) ?? state;
+    // Should the required card be unplayable, still lead something so the game can't stall.
+    return play(state, player, [card], now, true) ?? play({ ...state, mustPlay: null }, player, [Math.min(...state.hands[player])], now, true) ?? state;
   },
 
   isOver(state) {

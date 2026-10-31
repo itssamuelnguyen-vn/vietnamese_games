@@ -267,6 +267,51 @@ describe('tienlenGame', () => {
     if (!s.result) expect(s).toMatchObject({ turn: 'b', mustPlay: null });
   });
 
+  describe('fixes from review', () => {
+    it('if the holder of the required first card leaves, the next leader may play anything', () => {
+      const s = table({ a: '3s 9h', b: '4h Th', c: '5h Jh' }, { mustPlay: card('3s') });
+      const left = tienlenGame.forfeit(s, 'a', ctx, 'left');
+      expect(left.mustPlay).toBeNull();
+      expect(left.turn).toBe('b');
+      expect(act(left, 'b', 'Th').trick?.by).toBe('b');
+    });
+
+    it('a player who already finished keeps their place when they leave', () => {
+      const s = act(table({ a: '3s', b: '4h 9h', c: '5h Th' }), 'a', '3s');
+      expect(s.finished).toEqual(['a']);
+      expect(tienlenGame.forfeit(s, 'a', ctx, 'left')).toBe(s);
+    });
+
+    it('a bigger bomb on a led bomb is not a chop', () => {
+      const s = act(table({ a: '3s 3c 4s 4c 5s 5c 9h', b: '6s 6c 7s 7c 8s 8c Th', c: 'Jh Qh' }), 'a', '3s 3c 4s 4c 5s 5c');
+      const beaten = act(s, 'b', '6s 6c 7s 7c 8s 8c');
+      expect(beaten.trick?.chop).toBe(false);
+    });
+
+    it('leftover penalties fall on the last player still at the table, not on someone who left', () => {
+      const s = table({ a: '3s', b: '4h 9h', c: '5h 2h' }, { rules: ['penalties'], played: ['a', 'b', 'c'] });
+      const left = tienlenGame.forfeit(s, 'b', ctx, 'left');
+      const done = act(left, 'a', '3s');
+      expect(done.result?.ranking).toEqual(['a', 'c', 'b']);
+      expect(done.result?.scores.c.penalties.map((p) => p.kind)).toEqual(['red-two']);
+    });
+
+    it('everyone but the instant winner loses the same', () => {
+      // Four 2s win on the deal.
+      for (let seed = 1; seed < 400; seed++) {
+        let x = seed;
+        const random = () => ((x = (x * 16807) % 2147483647) / 2147483647);
+        const s = tienlenGame.setup(['a', 'b', 'c'], options, { now: 0, random }, null);
+        if (!s.result?.instant) continue;
+        const losers = s.result.ranking.slice(1).map((id) => s.result!.scores[id]);
+        expect(losers.every((l) => l.points === -1 && l.place === 2)).toBe(true);
+        expect(s.result.scores[s.result.ranking[0]].points).toBe(2);
+        return;
+      }
+      throw new Error('no instant win in the seeds tried');
+    });
+  });
+
   describe('house rules', () => {
     it('no-two-finish: you cannot go out on a 2', () => {
       const s = table({ a: '2h', b: '4h 9h' }, { rules: ['no-two-finish'] });

@@ -280,6 +280,20 @@ describe('co ti phu', () => {
   });
 
   describe('trades', () => {
+    it('a player in debt can only hand over cash beyond what they owe', () => {
+      const s0 = game(['a', 'b']);
+      const s = { ...s0, players: { ...s0.players, a: { ...s0.players.a, cash: 1000, debt: 800 } } };
+      const big = act(s, 'a', { type: 'offer', to: 'b', giveCash: 500, getCash: 0, give: [], get: [] });
+      expect(() => act(big, 'b', { type: 'accept', id: big.offers[0].id })).toThrow('INVALID_MOVE');
+      const small = act(s, 'a', { type: 'offer', to: 'b', giveCash: 200, getCash: 0, give: [], get: [] });
+      expect(act(small, 'b', { type: 'accept', id: small.offers[0].id }).players.b.cash).toBe(START_CASH + 200);
+    });
+
+    it('an offer can no longer be accepted once its time is up', () => {
+      const s = act(game(['a', 'b']), 'a', { type: 'offer', to: 'b', giveCash: 50, getCash: 0, give: [], get: [] });
+      expect(() => act(s, 'b', { type: 'accept', id: s.offers[0].id }, undefined, 30_000)).toThrow('INVALID_MOVE');
+    });
+
     const businesses = [biz('a', 'hanoi', 'food'), biz('b', 'hue', 'inn')];
 
     it('swap businesses and cash when accepted', () => {

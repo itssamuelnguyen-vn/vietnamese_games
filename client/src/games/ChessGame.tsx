@@ -15,7 +15,6 @@ interface Props {
   onLeave: () => void;
 }
 
-const START_COUNT: Record<Exclude<PieceSymbol, 'k'>, number> = { p: 8, n: 2, b: 2, r: 2, q: 1 };
 const PIECE_VALUE: Record<Exclude<PieceSymbol, 'k'>, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
 const CAPTURE_ORDER = ['q', 'r', 'b', 'n', 'p'] as const;
 
@@ -25,14 +24,15 @@ type SquarePair = { from: Square; to: Square };
 const other = (c: ChessColor): ChessColor => (c === 'w' ? 'b' : 'w');
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// Pieces each side has taken, derived from what is missing on the board.
-function capturedPieces(chess: Chess) {
+// Pieces each side has taken (from the moves, so a promoted pawn doesn't count as captured), and
+// the material lead from what's on the board.
+function capturedPieces(chess: Chess, played: Move[]) {
   const onBoard = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
   for (const row of chess.board()) {
     for (const sq of row) if (sq && sq.type !== 'k') onBoard[sq.color][sq.type]++;
   }
   const takenFrom = (color: ChessColor) =>
-    CAPTURE_ORDER.flatMap((type) => Array(Math.max(0, START_COUNT[type] - onBoard[color][type])).fill(type) as PieceSymbol[]);
+    CAPTURE_ORDER.flatMap((type) => played.filter((m) => m.color !== color && m.captured === type).map(() => type));
   const material = (color: ChessColor) =>
     CAPTURE_ORDER.reduce((sum, type) => sum + onBoard[color][type] * PIECE_VALUE[type], 0);
   const diff = material('w') - material('b');
@@ -87,10 +87,11 @@ export function ChessGame({ room, view, onLeave }: Props) {
   // A pawn move waiting for the player to pick the promotion piece.
   const [promotion, setPromotion] = useState<SquarePair | null>(null);
 
+  // Also on a result: a move that arrived after the flag fell ends the game without changing the position.
   useEffect(() => {
     setOptimisticFen(null);
     setSelected(null);
-  }, [view.fen]);
+  }, [view.fen, !!view.result]);
 
   const { fens, moves } = useMemo(() => replay(view.history), [view.fen]);
   const live = useMemo(() => new Chess(view.fen), [view.fen]);
@@ -133,7 +134,8 @@ export function ChessGame({ room, view, onLeave }: Props) {
   function downloadPgn() {
     const chess = new Chess();
     for (const san of view.history) chess.move(san);
-    const result = !view.result ? '*' : !view.result.winner ? '1/2-1/2' : view.result.winner === view.white ? '1-0' : '0-1';
+    const result =
+      !view.result || view.result.reason === 'aborted' ? '*' : !view.result.winner ? '1/2-1/2' : view.result.winner === view.white ? '1-0' : '0-1';
     const d = new Date();
     chess.setHeader('Event', t.appName);
     chess.setHeader('Site', location.origin);
@@ -271,7 +273,7 @@ export function ChessGame({ room, view, onLeave }: Props) {
 
   function playerExtra(side: string, ply: number) {
     const color = side as ChessColor;
-    const cap = capturedPieces(new Chess(fens[Math.min(ply, fens.length - 1)]))[color];
+    const cap = capturedPieces(new Chess(fens[Math.min(ply, fens.length - 1)]), moves.slice(0, ply))[color];
     return (
       <>
         <span className="color-piece">{defaultPieces[`${color}P`]?.({ svgStyle: { width: 16, height: 16 } })}</span>

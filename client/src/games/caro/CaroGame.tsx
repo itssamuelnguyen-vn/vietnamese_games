@@ -67,7 +67,8 @@ export function CaroGame({ room, view, onLeave }: Props) {
   const [pending, setPending] = useState<{ cell: number; ply: number } | null>(null);
   const optimistic = pending && pending.ply === view.moves.length ? pending.cell : null;
   const shownMoves = useMemo(() => (optimistic !== null ? [...view.moves, optimistic] : view.moves), [view.moves, optimistic]);
-  useEffect(() => setPending(null), [view.moves.length]);
+  // Also on a result: a move sent after the flag fell ends the game without being placed.
+  useEffect(() => setPending(null), [view.moves.length, !!view.result]);
 
   async function send(move: CaroMove) {
     const r = await api.move(move);

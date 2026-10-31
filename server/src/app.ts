@@ -3,7 +3,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import express from 'express';
 import { Server } from 'socket.io';
-import type { ClientToServerEvents, ServerToClientEvents, SocketAuth } from '@vg/shared';
+import { ABANDON_CLAIM_MS, type ClientToServerEvents, type ServerToClientEvents, type SocketAuth } from '@vg/shared';
 import { RoomManager, type Room } from './rooms';
 
 const ROOM_IDLE_MS = 10 * 60 * 1000;
@@ -87,7 +87,10 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     socket.join(channel(playerId));
     connections.set(playerId, (connections.get(playerId) ?? 0) + 1);
     offlineAt.delete(playerId);
-    broadcast(rooms.roomOf(playerId));
+    const room = rooms.roomOf(playerId);
+    // After a restart or a sweep the room may be gone; tell the client so it doesn't stay on it.
+    if (room) broadcast(room);
+    else socket.emit('room:closed');
 
     socket.on('room:create', (p, ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
@@ -182,6 +185,8 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       if (!isConnected(playerId)) {
         connections.delete(playerId);
         offlineAt.set(playerId, Date.now());
+        // If they don't come back, someone else becomes host.
+        setTimeout(() => broadcast(rooms.handOffHost(playerId, isConnected)), ABANDON_CLAIM_MS).unref();
       }
       broadcast(rooms.roomOf(playerId));
     });
@@ -190,7 +195,8 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   const sweeper = setInterval(() => {
     rooms.sweep(isConnected, ROOM_IDLE_MS);
     const cutoff = Date.now() - ROOM_IDLE_MS;
-    for (const [id, at] of offlineAt) if (at < cutoff) offlineAt.delete(id);
+    // Players still seated in a room keep their offline time, so others can claim the win later.
+    for (const [id, at] of offlineAt) if (at < cutoff && !rooms.roomOf(id)) offlineAt.delete(id);
   }, SWEEP_INTERVAL_MS);
   sweeper.unref();
 

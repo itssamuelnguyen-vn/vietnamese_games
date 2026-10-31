@@ -188,6 +188,26 @@ describe('RoomManager', () => {
       const r = rooms.claimWin(A, offline(0));
       expect(r.ok && r.room.status).toBe('finished');
       expect((rooms.view(created.room, A, allOnline).game as ChessView).result).toEqual({ winner: A, reason: 'abandoned' });
+      // The absent player loses their seat, so a newcomer can sit down for the next game.
+      expect(created.room.players.map((p) => p.id)).toEqual([A]);
+      expect(created.room.departed.map((p) => p.id)).toContain(B);
+      rooms.join(C, 'Chi', created.room.code);
+      expect(created.room.players.map((p) => p.id)).toEqual([A, C]);
+    });
+
+    it('spectators who arrived mid-game take free seats when it ends', () => {
+      const rooms = new RoomManager();
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error();
+      rooms.join(B, 'Bob', created.room.code);
+      rooms.start(A);
+      rooms.join(C, 'Chi', created.room.code);
+      expect(created.room.spectators.map((p) => p.id)).toEqual([C]);
+      rooms.move(A, { type: 'pass' });
+      // Ending the game any way (here B leaves) seats the waiting spectator.
+      rooms.leave(B);
+      expect(created.room.status).toBe('finished');
+      expect(created.room.players.map((p) => p.id)).toEqual([A, C]);
     });
 
     it('spectators cannot claim, and nobody can claim outside a game', () => {

@@ -8,8 +8,7 @@ import {
   remainingAt,
   stopClock as stopMatchClock,
   type ClockView,
-  type MatchClock,
-} from './match';
+  type MatchClock, duelPoints, refundIncrements } from './match';
 
 export type ChessColor = 'w' | 'b';
 
@@ -163,6 +162,7 @@ function takeBack(state: ChessState, requesterColor: ChessColor, now: number): C
     // Charge the side that was thinking up to now, then restart for the new side to move.
     const remaining = remainingAt(clock, load(state).turn(), now);
     clock = { ...clock, remaining, turnStartedAt: ply >= CLOCK_START_PLY ? now : null };
+    clock = refundIncrements(clock, ply, Array.from({ length: undo }, (_, i): ChessColor => ((ply + i) % 2 === 0 ? 'w' : 'b')));
   }
   return {
     ...state,
@@ -258,6 +258,10 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
       case 'move': {
         const chess = load(state);
         if (chess.turn() !== color) return { ok: false, error: 'NOT_YOUR_TURN' };
+        // Too late for a first move: the game is aborted, even if the timer hasn't fired yet.
+        if (state.firstMoveDeadline !== null && now >= state.firstMoveDeadline) {
+          return { ok: true, state: finish(state, { winner: null, reason: 'aborted' }, now) };
+        }
 
         // A move that arrives after the flag fell loses on time instead of being played.
         let clock = state.clock;
@@ -274,11 +278,12 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
         }
         if (clock) clock = { ...clock, turnStartedAt: chess.history().length >= CLOCK_START_PLY ? now : null };
 
-        // Moving on is an implicit answer to any pending offer or request.
+        // Moving on is an implicit answer to the opponent's offer or request; a player's own draw
+        // offer stands until the opponent replies.
         const next = {
           ...state,
           pgn: chess.pgn(),
-          drawOffer: null,
+          drawOffer: state.drawOffer === playerId ? playerId : null,
           takebackRequest: null,
           clock,
           firstMoveDeadline: firstMoveDeadline(clock, chess.history().length, now),
@@ -318,6 +323,10 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
 
   isOver(state) {
     return state.result !== null;
+  },
+
+  points(state) {
+    return state.result ? duelPoints([state.white, state.black], state.result.winner) : null;
   },
 
   playerView(state, playerId, { now }) {

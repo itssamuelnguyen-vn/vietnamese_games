@@ -196,7 +196,8 @@ function roll(s: CaNguaState, player: string, now: number, random: () => number,
     next = withLog(next, { kind: 'stuck', player });
     return afterMove(next, now);
   }
-  return { ...next, phase: 'move' };
+  // Choosing the horse gets a fresh turn timer.
+  return { ...next, phase: 'move', turnDeadline: s.turnLimitMs ? now + s.turnLimitMs : null };
 }
 
 // ---- Bot ----

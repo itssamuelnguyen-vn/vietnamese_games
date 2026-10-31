@@ -8,6 +8,8 @@ import {
   stopClock,
   type ClockView,
   type MatchClock,
+  duelPoints,
+  refundIncrements,
 } from './match';
 import { START_FEN, Xiangqi, type XSide } from './xiangqi-engine';
 
@@ -150,8 +152,10 @@ export function detectResult(state: XiangqiState): XiangqiResult | null {
   if (seen.length >= REPETITIONS) {
     const start = seen.at(-2)!;
     const cycle = checks.slice(start);
-    // Move k (0-based) was made by red when k is even, since red moves first.
-    const bySide = (side: XSide) => cycle.filter((_, i) => ((start + i) % 2 === 0 ? 'r' : 'b') === side);
+    // Who made move k (0-based) depends on who moved first (usually red, but not from every start position).
+    const firstMover = new Xiangqi(state.startFen).turn();
+    const moverOf = (k: number): XSide => ((k % 2 === 0) === (firstMover === 'r') ? 'r' : 'b');
+    const bySide = (side: XSide) => cycle.filter((_, i) => moverOf(start + i) === side);
     const perpetual = (side: XSide) => {
       const own = bySide(side);
       return own.length > 0 && own.every(Boolean);
@@ -186,6 +190,9 @@ function takeBack(state: XiangqiState, requester: XSide, now: number): XiangqiSt
   if (clock) {
     // Charge the side that was thinking up to now, then restart for the new side to move.
     clock = { ...clock, remaining: remainingAt(clock, game.turn(), now), turnStartedAt: ply >= CLOCK_START_PLY ? now : null };
+    const first = new Xiangqi(state.startFen).turn();
+    const moverAt = (k: number): XSide => ((k % 2 === 0) === (first === 'r') ? 'r' : 'b');
+    clock = refundIncrements(clock, ply, Array.from({ length: undo }, (_, i) => moverAt(ply + i)));
   }
   return { ...state, moves, clock, drawOffer: null, takebackRequest: null, firstMoveDeadline: firstMoveDeadline(clock, ply, now) };
 }
@@ -260,6 +267,10 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
       case 'move': {
         const game = load(state);
         if (game.turn() !== side) return { ok: false, error: 'NOT_YOUR_TURN' };
+        // Too late for a first move: the game is aborted, even if the timer hasn't fired yet.
+        if (state.firstMoveDeadline !== null && now >= state.firstMoveDeadline) {
+          return { ok: true, state: finish(state, { winner: null, reason: 'aborted' }, now) };
+        }
 
         let clock = state.clock;
         if (clock && clock.turnStartedAt !== null) {
@@ -278,7 +289,8 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
         const next: XiangqiState = {
           ...state,
           moves,
-          drawOffer: null,
+          // A player's own draw offer stands until the opponent replies.
+          drawOffer: state.drawOffer === playerId ? playerId : null,
           takebackRequest: null,
           clock,
           firstMoveDeadline: firstMoveDeadline(clock, moves.length, now),
@@ -318,6 +330,10 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
 
   isOver(state) {
     return state.result !== null;
+  },
+
+  points(state) {
+    return state.result ? duelPoints([state.red, state.black], state.result.winner) : null;
   },
 
   playerView(state, playerId, { now }) {
