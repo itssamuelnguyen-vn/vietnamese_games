@@ -10,9 +10,11 @@ const GLYPHS: Record<XSide, Record<XPieceType, string>> = {
 };
 
 const STEP = 10;
-const MARGIN = 6;
-const WIDTH = MARGIN * 2 + STEP * 8;
-const HEIGHT = MARGIN * 2 + STEP * 9;
+// Horizontal and vertical margins; the vertical one leaves room for the file numbers.
+const MX = 6;
+const MY = 11;
+const WIDTH = MX * 2 + STEP * 8;
+const HEIGHT = MY * 2 + STEP * 9;
 // Pointer travel (in board units) before a press counts as a drag rather than a tap.
 const DRAG_THRESHOLD = 1.5;
 // How long a captured piece lingers while fading out.
@@ -76,7 +78,7 @@ function XiangqiBoardImpl({ pieces, bottom, selected, targets, lastMove, premove
     const [file, rank] = parseSquare(square)!;
     const col = bottom === 'r' ? file : 8 - file;
     const row = bottom === 'r' ? 9 - rank : rank;
-    return { x: MARGIN + col * STEP, y: MARGIN + row * STEP };
+    return { x: MX + col * STEP, y: MY + row * STEP };
   };
   const squareAt = (col: number, row: number) => (bottom === 'r' ? squareName(col, 9 - row) : squareName(8 - col, row));
 
@@ -88,8 +90,8 @@ function XiangqiBoardImpl({ pieces, bottom, selected, targets, lastMove, premove
     return { x: p.x, y: p.y };
   };
   const nearestSquare = ({ x, y }: { x: number; y: number }) => {
-    const col = Math.round((x - MARGIN) / STEP);
-    const row = Math.round((y - MARGIN) / STEP);
+    const col = Math.round((x - MX) / STEP);
+    const row = Math.round((y - MY) / STEP);
     return col >= 0 && col <= 8 && row >= 0 && row <= 9 ? squareAt(col, row) : null;
   };
 
@@ -128,17 +130,17 @@ function XiangqiBoardImpl({ pieces, bottom, selected, targets, lastMove, premove
   }
 
   const lines: string[] = [];
-  for (let row = 0; row <= 9; row++) lines.push(`M${MARGIN} ${MARGIN + row * STEP}H${MARGIN + 8 * STEP}`);
+  for (let row = 0; row <= 9; row++) lines.push(`M${MX} ${MY + row * STEP}H${MX + 8 * STEP}`);
   for (let col = 0; col <= 8; col++) {
-    const x = MARGIN + col * STEP;
-    if (col === 0 || col === 8) lines.push(`M${x} ${MARGIN}V${MARGIN + 9 * STEP}`);
+    const x = MX + col * STEP;
+    if (col === 0 || col === 8) lines.push(`M${x} ${MY}V${MY + 9 * STEP}`);
     else {
       // Inner files stop at the river.
-      lines.push(`M${x} ${MARGIN}V${MARGIN + 4 * STEP}`, `M${x} ${MARGIN + 5 * STEP}V${MARGIN + 9 * STEP}`);
+      lines.push(`M${x} ${MY}V${MY + 4 * STEP}`, `M${x} ${MY + 5 * STEP}V${MY + 9 * STEP}`);
     }
   }
   for (const top of [0, 7]) {
-    const [x1, x2, y1, y2] = [MARGIN + 3 * STEP, MARGIN + 5 * STEP, MARGIN + top * STEP, MARGIN + (top + 2) * STEP];
+    const [x1, x2, y1, y2] = [MX + 3 * STEP, MX + 5 * STEP, MY + top * STEP, MY + (top + 2) * STEP];
     lines.push(`M${x1} ${y1}L${x2} ${y2}`, `M${x2} ${y1}L${x1} ${y2}`);
   }
 
@@ -189,13 +191,25 @@ function XiangqiBoardImpl({ pieces, bottom, selected, targets, lastMove, premove
     >
       <rect className="xq-wood" x="0" y="0" width={WIDTH} height={HEIGHT} rx="2" />
       <path className="xq-lines" d={lines.join('')} />
-      <rect className="xq-border" x={MARGIN} y={MARGIN} width={8 * STEP} height={9 * STEP} />
-      <text className="xq-river" x={MARGIN + 2 * STEP} y={MARGIN + 4.5 * STEP}>
+      <rect className="xq-border" x={MX} y={MY} width={8 * STEP} height={9 * STEP} />
+      <text className="xq-river" x={MX + 2 * STEP} y={MY + 4.5 * STEP}>
         {t.xiangqi.riverLeft}
       </text>
-      <text className="xq-river" x={MARGIN + 6 * STEP} y={MARGIN + 4.5 * STEP}>
+      <text className="xq-river" x={MX + 6 * STEP} y={MY + 4.5 * STEP}>
         {t.xiangqi.riverRight}
       </text>
+      {/* File numbers: each side counts 1-9 from its own right, so the bottom row reads 9..1
+          and the top row 1..9 whichever way the board is turned. */}
+      {Array.from({ length: 9 }, (_, col) => (
+        <g key={col} className="xq-file">
+          <text x={MX + col * STEP} y={2.8}>
+            {col + 1}
+          </text>
+          <text x={MX + col * STEP} y={HEIGHT - 2.8}>
+            {9 - col}
+          </text>
+        </g>
+      ))}
 
       {lastMove && [marker(lastMove.slice(0, 2), 'xq-last'), marker(lastMove.slice(2), 'xq-last')]}
       {premove && [marker(premove.slice(0, 2), 'xq-premove'), marker(premove.slice(2), 'xq-premove')]}
@@ -228,8 +242,8 @@ function XiangqiBoardImpl({ pieces, bottom, selected, targets, lastMove, premove
             key={square}
             className={`xq-hit ${cursor}`}
             data-square={square}
-            x={MARGIN + col * STEP - STEP / 2}
-            y={MARGIN + row * STEP - STEP / 2}
+            x={MX + col * STEP - STEP / 2}
+            y={MY + row * STEP - STEP / 2}
             width={STEP}
             height={STEP}
           />

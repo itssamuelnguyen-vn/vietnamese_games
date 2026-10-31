@@ -1645,6 +1645,15 @@ main {
   dominant-baseline: central;
 }
 
+.xq-file text {
+  fill: #6b3f22;
+  opacity: 0.75;
+  font-size: 2.8px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
 .xq-last {
   fill: rgba(224, 172, 69, 0.55);
 }
@@ -1784,7 +1793,7 @@ main {
 @media (min-width: 861px) {
   /* The xiangqi board is taller than it is wide; size it so it fits the viewport height. */
   .game-center:has(.xq-board) {
-    width: min(100%, max(320px, calc((100vh - 230px) * 0.88)));
+    width: min(100%, max(320px, calc((100vh - 230px) * 0.8)));
   }
 }
 
