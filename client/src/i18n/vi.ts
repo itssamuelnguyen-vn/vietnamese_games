@@ -35,12 +35,32 @@ export const vi = {
     xiangqi: 'Cờ tướng',
     tienlen: 'Tiến lên miền Nam',
     typhu: 'Cờ tỉ phú',
+    caro: 'Cờ caro',
+    cangua: 'Cờ cá ngựa',
+    maubinh: 'Mậu binh',
+    samloc: 'Sâm lốc',
+    colors: 'Bài Đổi Màu',
+    noitu: 'Nối từ tiếng Việt',
+    wordchain: 'Nối từ tiếng Anh',
+    masoi: 'Ma sói',
+    baucua: 'Bầu cua',
+    xidach: 'Xì dách',
   } satisfies Record<GameType, string>,
   gameBlurbs: {
     chess: 'Đấu trí kinh điển trên 64 ô cờ.',
     xiangqi: 'Xe, pháo, mã đối đầu hai bên bờ sông.',
     tienlen: '13 lá bài, ai đánh hết trước thì thắng.',
     typhu: 'Gieo xúc xắc, mua đất, xây nhà, thu tiền.',
+    caro: 'Ai xếp được 5 quân liên tiếp trước thì thắng.',
+    cangua: 'Gieo xúc xắc, đua ngựa về chuồng, đá ngựa đối thủ.',
+    maubinh: 'Xếp 13 lá thành 3 chi, so từng chi với cả bàn.',
+    samloc: '10 lá bài, chặn sâm hay bị bắt sâm?',
+    colors: 'Đánh theo màu hoặc số, dùng lá chức năng để lật kèo.',
+    noitu: 'Nối tiếp từ ghép tiếng Việt, ai bí là thua.',
+    wordchain: 'Từ mới phải bắt đầu bằng chữ cái cuối của từ trước.',
+    masoi: 'Dân làng tìm sói, sói săn dân làng mỗi đêm.',
+    baucua: 'Đặt cược bầu, cua, tôm, cá, gà, nai rồi lắc.',
+    xidach: 'Rút bài cho gần 21 điểm nhất mà không quắc.',
   } satisfies Record<GameType, string>,
   timeControls: {
     none: 'Không giới hạn',
@@ -315,6 +335,7 @@ export const vi = {
       round: (who: string) => `Vòng mới, ${who} đi trước`,
       left: (who: string) => `${who} đã rời bàn`,
       frozen: (who: string) => `${who} bị cóng!`,
+      stuck: (who: string) => `${who} chỉ còn heo, bị xử thua (thối heo)!`,
     },
     // Pieces of a log row: the player's name and the cards are rendered separately.
     logParts: {
@@ -326,6 +347,7 @@ export const vi = {
       finished: (place: string) => `về ${place}!`,
       left: 'đã rời bàn',
       frozen: 'bị cóng!',
+      stuck: 'chỉ còn heo, bị xử thua (thối heo)!',
       newRound: (who: string) => `Vòng mới · ${who} đi trước`,
     },
     offline: (names: string) => `${names} đã mất kết nối`,
@@ -340,7 +362,8 @@ export const vi = {
       penalties: 'Tính điểm: thối heo, thối hàng, cóng',
     } satisfies Record<HouseRuleId, string>,
     houseRuleDetails: {
-      'no-two-finish': 'Không được về bằng heo: lượt đánh hết bài cuối cùng không được có heo.',
+      'no-two-finish':
+        'Không được về bằng heo: lượt đánh hết bài cuối cùng không được có heo. Tới lượt đi đầu mà chỉ còn một con heo thì bị xử thua (thối heo), xếp dưới những người còn đang chơi.',
       'no-stack-chop': 'Không chặt chồng: bộ vừa dùng để chặt thì không ai chặt lại được nữa.',
       'four-pairs-anytime': '4 đôi thông chặt được heo hoặc hàng bất cứ lúc nào, kể cả khi chưa tới lượt hay đã bỏ lượt.',
       penalties:
@@ -352,6 +375,7 @@ export const vi = {
     twoFinish: 'Bàn này không cho về bằng heo',
     chopNow: 'Bạn có thể chặt ngay bằng 4 đôi thông!',
     frozenTag: 'Cóng',
+    stuckTag: 'Thối heo',
     penalties: {
       frozen: 'Cóng',
       'black-two': 'Thối heo đen',

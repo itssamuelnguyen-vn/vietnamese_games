@@ -24,6 +24,7 @@ function table(hands: Record<string, string>, extra: Partial<TienLenState> = {})
     finished: [],
     out: [],
     frozen: [],
+    stuck: [],
     played: [],
     mustPlay: null,
     result: null,
@@ -271,6 +272,33 @@ describe('tienlenGame', () => {
       const s = table({ a: '2h', b: '4h 9h' }, { rules: ['no-two-finish'] });
       expect(tienlenGame.applyMove(s, 'a', { type: 'play', cards: cards('2h') }, ctx).ok).toBe(false);
       expect(act(table({ a: '2h', b: '4h 9h' }), 'a', '2h').result?.ranking).toEqual(['a', 'b']);
+    });
+
+    it('no-two-finish: a player left to lead with a lone 2 loses instead of stalling the game', () => {
+      const rules = { rules: ['no-two-finish' as const] };
+      // a leads 3s, everyone passes, and a must lead again holding only 2h.
+      const s = act(act(act(table({ a: '3s 2h', b: '5s 6s', c: '7s 8s' }, rules), 'a', '3s'), 'b', 'pass'), 'c', 'pass');
+      expect(s.stuck).toEqual(['a']);
+      expect(s.turn).toBe('b');
+      expect(s.trick).toBeNull();
+      expect(s.log.map((e) => e.kind).slice(-3)).toEqual(['round', 'stuck', 'round']);
+      expect(tienlenGame.applyMove(s, 'a', { type: 'play', cards: cards('2h') }, ctx).ok).toBe(false);
+      const done = act(act(act(s, 'b', '5s'), 'c', 'pass'), 'b', '6s');
+      expect(done.result?.ranking).toEqual(['b', 'c', 'a']);
+      expect(tienlenGame.playerView(done, 'b', ctx).seats.find((x) => x.id === 'a')?.stuck).toBe(true);
+
+      // With two players the game simply ends.
+      const duel = act(act(table({ a: '3s 2h', b: '5s 6s' }, rules), 'a', '3s'), 'b', 'pass');
+      expect(duel.result?.ranking).toEqual(['b', 'a']);
+    });
+
+    it('no-two-finish with scoring: a stuck player pays for the 2 even when not last', () => {
+      const rules = { rules: ['no-two-finish' as const, 'penalties' as const], played: ['b', 'c'] };
+      const s = act(act(act(table({ a: '3s 2h', b: '5s 6s', c: '7s 8s 9s' }, rules), 'a', '3s'), 'b', 'pass'), 'c', 'pass');
+      const done = act(act(act(s, 'b', '5s'), 'c', 'pass'), 'b', '6s');
+      expect(done.result?.ranking).toEqual(['b', 'c', 'a']);
+      expect(done.result?.scores.a.penalties.map((p) => p.kind)).toEqual(['red-two']);
+      expect(done.result?.scores.a.points).toBe(-4);
     });
 
     it('no-stack-chop: a chop cannot itself be chopped', () => {
