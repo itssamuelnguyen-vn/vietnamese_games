@@ -9,7 +9,7 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 | Game | Status |
 |---|---|
 | Chess | Playable: clocks, draw offers, takebacks, premoves, promotion picker, move review, opening names, PGN/FEN export, sounds |
-| Xiangqi | Planned |
+| Xiangqi | Playable: own rules engine (perft-verified), Asian rules (no legal moves loses, perpetual check loses, repetition and 60-move draws), Vietnamese and WXF notation, same clocks/draws/takebacks as chess |
 | Tiến lên miền Nam | Planned |
 | Property-trading game | Planned (original design, not a Monopoly clone) |
 
@@ -21,6 +21,10 @@ Requires [Node.js](https://nodejs.org) 22+ (24 LTS recommended).
 npm install
 npm run dev
 ```
+
+On WSL with the project on a Windows drive (`/mnt/c`, `/mnt/d`, ...), file change events don't
+reach Linux, so hot reload and server restarts silently stop working. Run
+`CHOKIDAR_USEPOLLING=true npm run dev` there instead.
 
 Open http://localhost:5173. To try multiplayer, open a second private/incognito window
 (each browser profile or private window is a separate player).
@@ -94,6 +98,10 @@ button. Colours are CSS custom properties on `:root`, overridden under
 2. Export it from `shared/src/index.ts`.
 3. Register it in `GAMES` in `server/src/rooms.ts`.
 4. Build its board component in `client/src/games/` and render it from `RoomScreen.tsx`.
+   Two-player board games can reuse `games/duel/DuelScreen.tsx` (clocks, status card, move
+   review, draw/takeback/resign/rematch, chat, sounds) and only supply the board and notation;
+   see `ChessGame.tsx` and `xiangqi/XiangqiGame.tsx`. Shared rule helpers (clocks, side choice,
+   first-move deadline) live in `shared/src/games/match.ts`.
 5. Add its strings to `client/src/i18n/vi.ts` and `client/src/i18n/en.ts`.
 6. Set `available: true` for it in `GAME_CATALOG` (`shared/src/types.ts`).
 

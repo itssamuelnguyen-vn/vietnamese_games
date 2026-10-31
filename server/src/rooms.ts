@@ -4,6 +4,7 @@ import {
   MAX_CHAT_LENGTH,
   TIME_CONTROLS,
   chessGame,
+  xiangqiGame,
   type ChatMessage,
   ABANDON_CLAIM_MS,
   type ErrorCode,
@@ -19,6 +20,7 @@ import {
 // To add a game: write its GameDefinition in shared/src/games and register it here.
 const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   chess: chessGame,
+  xiangqi: xiangqiGame,
 };
 
 interface Player {

@@ -11,7 +11,7 @@ function roomWithTwo() {
   const rooms = new RoomManager();
   const created = rooms.create(A, 'An', 'chess');
   if (!created.ok) throw new Error(created.error);
-  rooms.join(B, 'Bình', created.room.code);
+  rooms.join(B, 'Bob', created.room.code);
   return { rooms, code: created.room.code };
 }
 
@@ -28,7 +28,7 @@ describe('RoomManager', () => {
 
   it('refuses unavailable games and blank names', () => {
     const rooms = new RoomManager();
-    expect(rooms.create(A, 'An', 'xiangqi')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    expect(rooms.create(A, 'An', 'tienlen')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
     expect(rooms.create(A, '   ', 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
@@ -36,7 +36,7 @@ describe('RoomManager', () => {
   it('refuses new rooms once the server is full', () => {
     const rooms = new RoomManager({ maxRooms: 2 });
     expect(rooms.create(A, 'An', 'chess').ok).toBe(true);
-    expect(rooms.create(B, 'Bình', 'chess').ok).toBe(true);
+    expect(rooms.create(B, 'Bob', 'chess').ok).toBe(true);
     expect(rooms.create(C, 'Chi', 'chess')).toEqual({ ok: false, error: 'SERVER_FULL' });
   });
 
@@ -49,8 +49,8 @@ describe('RoomManager', () => {
     const rooms = new RoomManager();
     const created = rooms.create(A, 'An', 'chess');
     if (!created.ok) throw new Error();
-    expect(rooms.join(B, 'Bình', 'ZZZZ')).toEqual({ ok: false, error: 'ROOM_NOT_FOUND' });
-    expect(rooms.join(B, 'Bình', ` ${created.room.code.toLowerCase()} `).ok).toBe(true);
+    expect(rooms.join(B, 'Bob', 'ZZZZ')).toEqual({ ok: false, error: 'ROOM_NOT_FOUND' });
+    expect(rooms.join(B, 'Bob', ` ${created.room.code.toLowerCase()} `).ok).toBe(true);
   });
 
   it('seats newcomers as spectators once the seats are taken', () => {
@@ -64,7 +64,7 @@ describe('RoomManager', () => {
   it('lets an existing member rejoin and newcomers watch while playing', () => {
     const { rooms, code } = roomWithTwo();
     rooms.start(A);
-    expect(rooms.join(B, 'Bình', code).ok).toBe(true);
+    expect(rooms.join(B, 'Bob', code).ok).toBe(true);
     const r = rooms.join(C, 'Chi', code);
     expect(r.ok && r.room.spectators.map((p) => p.id)).toEqual([C]);
     expect(rooms.move(C, { type: 'move', from: 'e2', to: 'e4' })).toEqual({ ok: false, error: 'NOT_A_PLAYER' });
@@ -100,7 +100,7 @@ describe('RoomManager', () => {
     const created = rooms.create(A, 'An', 'chess');
     if (!created.ok) throw new Error();
     expect(rooms.start(A)).toEqual({ ok: false, error: 'NOT_ENOUGH_PLAYERS' });
-    rooms.join(B, 'Bình', created.room.code);
+    rooms.join(B, 'Bob', created.room.code);
     expect(rooms.start(B)).toEqual({ ok: false, error: 'NOT_HOST' });
     expect(rooms.start(A).ok).toBe(true);
     expect(rooms.start(A)).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
@@ -160,12 +160,12 @@ describe('RoomManager', () => {
     const created = rooms.create(A, 'An', 'chess');
     if (!created.ok) throw new Error();
     expect(rooms.leave(A)).toBeUndefined();
-    expect(rooms.join(B, 'Bình', created.room.code)).toEqual({ ok: false, error: 'ROOM_NOT_FOUND' });
+    expect(rooms.join(B, 'Bob', created.room.code)).toEqual({ ok: false, error: 'ROOM_NOT_FOUND' });
   });
 
   it('creating a new room leaves the previous one', () => {
     const { rooms, code } = roomWithTwo();
-    const r = rooms.create(B, 'Bình', 'chess');
+    const r = rooms.create(B, 'Bob', 'chess');
     expect(r.ok && r.left?.code).toBe(code);
     expect(rooms.roomOf(A)?.players.map((p) => p.id)).toEqual([A]);
   });
@@ -176,7 +176,7 @@ describe('RoomManager', () => {
       const rooms = new RoomManager({ clock: () => now });
       const created = rooms.create(A, 'An', 'chess');
       if (!created.ok) throw new Error();
-      rooms.join(B, 'Bình', created.room.code);
+      rooms.join(B, 'Bob', created.room.code);
       rooms.start(A);
       const offline = (since: number | null) => (id: string) => (id === B ? since : null);
 
@@ -216,11 +216,11 @@ describe('RoomManager', () => {
     it('stores trimmed messages from players and spectators', () => {
       const { rooms, code } = roomWithTwo();
       rooms.join(C, 'Chi', code);
-      expect(rooms.chat(A, '  xin chào  ').ok).toBe(true);
+      expect(rooms.chat(A, '  hello there  ').ok).toBe(true);
       expect(rooms.chat(C, 'hi from the stands').ok).toBe(true);
       const chat = rooms.view(rooms.roomOf(A)!, B, allOnline).chat;
       expect(chat.map((m) => [m.name, m.text])).toEqual([
-        ['An', 'xin chào'],
+        ['An', 'hello there'],
         ['Chi', 'hi from the stands'],
       ]);
       expect(chat[0].id).not.toBe(chat[1].id);
@@ -290,7 +290,7 @@ describe('RoomManager', () => {
       const rooms = new RoomManager({ onAutoUpdate: (room) => updates.push(room.status) });
       const created = rooms.create(A, 'An', 'chess');
       if (!created.ok) throw new Error();
-      rooms.join(B, 'Bình', created.room.code);
+      rooms.join(B, 'Bob', created.room.code);
       rooms.setOptions(A, { timeControl: '3+2' });
       const started = rooms.start(A);
       if (!started.ok) throw new Error();
@@ -312,7 +312,7 @@ describe('RoomManager', () => {
       const rooms = new RoomManager({ onAutoUpdate: (room) => updates.push(room.code) });
       const created = rooms.create(A, 'An', 'chess');
       if (!created.ok) throw new Error();
-      rooms.join(B, 'Bình', created.room.code);
+      rooms.join(B, 'Bob', created.room.code);
       rooms.setOptions(A, { timeControl: '3+2' });
       rooms.start(A);
       const view = rooms.view(created.room, A, allOnline).game as ChessView;

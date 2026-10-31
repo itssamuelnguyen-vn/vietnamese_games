@@ -1,5 +1,15 @@
 import { Chess } from 'chess.js';
 import { TIME_CONTROLS, type GameDefinition } from '../types';
+import {
+  CLOCK_START_PLY,
+  chooseSides,
+  clockView,
+  firstMoveDeadline,
+  remainingAt,
+  stopClock as stopMatchClock,
+  type ClockView,
+  type MatchClock,
+} from './match';
 
 export type ChessColor = 'w' | 'b';
 
@@ -20,12 +30,7 @@ export interface ChessResult {
   reason: ChessEndReason;
 }
 
-export interface ChessClock {
-  incrementMs: number;
-  remaining: Record<ChessColor, number>;
-  // When the side to move started thinking; null while the clock is stopped.
-  turnStartedAt: number | null;
-}
+export type ChessClock = MatchClock<ChessColor>;
 
 export interface ChessState {
   white: string;
@@ -70,7 +75,7 @@ export interface ChessView {
   // Time left (as of the view) to make the first move before the game is aborted.
   firstMoveMs: number | null;
   // Remaining times as of when the view was built; `running` is the side whose clock is ticking.
-  clock: { remaining: Record<ChessColor, number>; running: ChessColor | null; incrementMs: number } | null;
+  clock: ClockView<ChessColor> | null;
 }
 
 function load(state: ChessState): Chess {
@@ -105,24 +110,8 @@ function canRequestTakeback(state: ChessState, playerId: string, ply: number): b
   return ply >= (color === 'w' ? 1 : 2);
 }
 
-// Clocks only start once both sides have made their first move.
-const CLOCK_START_PLY = 2;
-const FIRST_MOVE_MS = 30_000;
-
-function firstMoveDeadline(clock: ChessClock | null, ply: number, now: number): number | null {
-  return clock && ply < CLOCK_START_PLY ? now + FIRST_MOVE_MS : null;
-}
-
-// Time left for each side at `now`, charging the side to move for its current think.
-function remainingAt(clock: ChessClock, turn: ChessColor, now: number): Record<ChessColor, number> {
-  if (clock.turnStartedAt === null) return clock.remaining;
-  const left = Math.max(0, clock.remaining[turn] - (now - clock.turnStartedAt));
-  return { ...clock.remaining, [turn]: left };
-}
-
 function stopClock(state: ChessState, now: number): ChessClock | null {
-  if (!state.clock) return null;
-  return { ...state.clock, remaining: remainingAt(state.clock, load(state).turn(), now), turnStartedAt: null };
+  return state.clock && stopMatchClock(state.clock, load(state).turn(), now);
 }
 
 const squareShade = (square: string) => (square.charCodeAt(0) + Number(square[1])) % 2;
@@ -163,16 +152,6 @@ function finish(state: ChessState, result: ChessResult, now: number): ChessState
   return { ...state, clock: stopClock(state, now), drawOffer: null, takebackRequest: null, firstMoveDeadline: null, result };
 }
 
-function chooseColors([host, guest]: string[], hostColor: string, previous: ChessState | null): [string, string] {
-  // Rematch between the same two players: swap sides.
-  if (previous && [previous.white, previous.black].every((id) => id === host || id === guest)) {
-    return [previous.black, previous.white];
-  }
-  if (hostColor === 'white') return [host, guest];
-  if (hostColor === 'black') return [guest, host];
-  return Math.random() < 0.5 ? [host, guest] : [guest, host];
-}
-
 // Undo the requester's last move (and the opponent's reply, if they already made one).
 function takeBack(state: ChessState, requesterColor: ChessColor, now: number): ChessState {
   const chess = load(state);
@@ -211,7 +190,7 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
   type: 'chess',
 
   setup(playerIds, options, { now }, previous) {
-    const [white, black] = chooseColors(playerIds, options.hostColor, previous);
+    const [white, black] = chooseSides(playerIds, options.hostColor, previous && [previous.white, previous.black]);
     const tc = TIME_CONTROLS[options.timeControl];
     const clock = tc && { incrementMs: tc.incrementMs, remaining: { w: tc.initialMs, b: tc.initialMs }, turnStartedAt: null };
     return {
@@ -360,11 +339,7 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
       takebackRequest: state.takebackRequest,
       canRequestTakeback: canRequestTakeback(state, playerId, verbose.length),
       firstMoveMs: state.firstMoveDeadline === null || state.result ? null : Math.max(0, state.firstMoveDeadline - now),
-      clock: clock && {
-        remaining: remainingAt(clock, chess.turn(), now),
-        running: clock.turnStartedAt === null ? null : chess.turn(),
-        incrementMs: clock.incrementMs,
-      },
+      clock: clockView(clock, chess.turn(), now),
     };
   },
 };

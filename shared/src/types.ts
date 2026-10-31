@@ -13,7 +13,7 @@ export interface GameInfo {
 // Display names live in the client locale files.
 export const GAME_CATALOG: Record<GameType, GameInfo> = {
   chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true },
-  xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: false },
+  xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
   tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: false },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: false },
 };

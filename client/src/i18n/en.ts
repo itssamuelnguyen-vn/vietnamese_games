@@ -219,6 +219,47 @@ export const en: Strings = {
     confirmResign: 'Are you sure you want to resign?',
   },
 
+  xiangqi: {
+    red: 'Red',
+    black: 'Black',
+    redToMove: 'Red to move',
+    blackToMove: 'Black to move',
+    gameStarted: 'The game has started. Red moves first.',
+    noMoves: 'Red moves first. Good luck!',
+    hostColors: { random: 'Random', white: 'Red', black: 'Black' },
+    riverLeft: '楚 河',
+    riverRight: '漢 界',
+    pieces: { k: 'General', a: 'Advisor', b: 'Elephant', n: 'Horse', r: 'Chariot', c: 'Cannon', p: 'Soldier' },
+    // WXF notation: "C2=5", "H8+7", "R1-2"; +/- before the letter marks front/rear.
+    notation: {
+      pieces: { k: 'K', a: 'A', b: 'E', n: 'H', r: 'R', c: 'C', p: 'P' },
+      advance: '+',
+      retreat: '-',
+      traverse: '=',
+      front: '+',
+      rear: '-',
+      markFirst: true,
+    },
+    describe: {
+      move: (who: string, notation: string) => `${who} played ${notation}`,
+      capture: (who: string, notation: string, captured: string) => `${who} played ${notation}, taking the ${captured}`,
+      check: ', check!',
+    },
+    endReasons: {
+      checkmate: 'Checkmate',
+      stalemate: 'No legal moves',
+      'perpetual-check': 'Perpetual check',
+      repetition: 'Repetition',
+      'no-capture': '60 moves without a capture',
+      insufficient: 'No attacking pieces left',
+      resign: 'Opponent resigned',
+      agreement: 'Draw agreed',
+      timeout: 'Time out',
+      aborted: 'Aborted: no first move',
+      abandoned: 'Opponent left the game',
+    },
+  },
+
   errors: {
     GAME_UNAVAILABLE: 'This game isn’t available yet',
     NAME_REQUIRED: 'Please enter your name first',

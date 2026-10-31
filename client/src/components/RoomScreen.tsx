@@ -1,7 +1,8 @@
-import { GAME_CATALOG, type ChessView, type RoomView } from '@vg/shared';
+import { GAME_CATALOG, type ChessView, type RoomView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
+import { XiangqiGame } from '../games/xiangqi/XiangqiGame';
 import { Avatar } from './Avatar';
 import { ChatCard, ChessOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
 import { startGame } from './roomActions';
@@ -23,6 +24,7 @@ export function RoomScreen({ room }: Props) {
   if (room.game === null) return <WaitingRoom room={room} onLeave={leave} />;
 
   if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
+  if (room.gameType === 'xiangqi') return <XiangqiGame room={room} view={room.game as XiangqiView} onLeave={leave} />;
   return null;
 }
 
@@ -116,7 +118,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
             {t.room.spectators} · {room.spectators.length ? room.spectators.map((p) => p.name).join(', ') : t.room.noSpectators}
           </p>
 
-          {room.gameType === 'chess' && <ChessOptionsPicker room={room} />}
+          {(room.gameType === 'chess' || room.gameType === 'xiangqi') && <ChessOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>

@@ -957,6 +957,7 @@ main {
 .panel {
   padding: 20px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-content: start;
 }
@@ -1194,7 +1195,11 @@ main {
 .game-left,
 .game-right {
   display: grid;
+  /* A single track exactly as wide as the column, so long content (opening names,
+     chat) shrinks or wraps instead of widening it. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+  min-width: 0;
 }
 
 .game-center {
@@ -1434,6 +1439,8 @@ main {
 
 .panel-tools {
   display: inline-flex;
+  flex: 1;
+  justify-content: flex-end;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -1593,6 +1600,140 @@ main {
 
 .confetti span:nth-child(3n) { background: var(--gold); }
 .confetti span:nth-child(3n + 1) { background: #2e9a68; }
+
+/* Xiangqi board (SVG, units are board points: 10 per intersection) */
+
+.xq-board {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.xq-wood {
+  fill: #e8c48b;
+}
+
+.xq-lines {
+  fill: none;
+  stroke: #6b3f22;
+  stroke-width: 0.35;
+}
+
+.xq-border {
+  fill: none;
+  stroke: #6b3f22;
+  stroke-width: 0.8;
+}
+
+.xq-river {
+  fill: #6b3f22;
+  opacity: 0.55;
+  font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  font-size: 4.4px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.xq-last {
+  fill: rgba(224, 172, 69, 0.55);
+}
+
+.xq-piece {
+  transition: transform 0.22s ease;
+}
+
+.xq-disc {
+  fill: #f7e9cc;
+  stroke: #8a5a2b;
+  stroke-width: 0.45;
+  filter: drop-shadow(0 0.6px 0.6px rgba(0, 0, 0, 0.45));
+}
+
+.xq-ring {
+  fill: none;
+  stroke-width: 0.3;
+}
+
+.xq-glyph {
+  font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  font-size: 4.7px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.xq-piece.red .xq-ring {
+  stroke: #b3261e;
+}
+
+.xq-piece.red .xq-glyph {
+  fill: #b3261e;
+}
+
+.xq-piece.black .xq-ring {
+  stroke: #1f1a17;
+}
+
+.xq-piece.black .xq-glyph {
+  fill: #1f1a17;
+}
+
+.xq-piece.selected .xq-disc {
+  stroke: #e0ac45;
+  stroke-width: 1;
+}
+
+.xq-piece.in-check .xq-disc {
+  stroke: #dc2626;
+  stroke-width: 1;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.xq-target {
+  fill: rgba(60, 30, 10, 0.4);
+  pointer-events: none;
+}
+
+.xq-target.capture {
+  fill: none;
+  stroke: rgba(60, 30, 10, 0.45);
+  stroke-width: 0.8;
+}
+
+.xq-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.xq-side-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.xq-side-dot.red {
+  background: #b3261e;
+}
+
+.xq-side-dot.black {
+  background: #1f1a17;
+}
+
+.board-frame:has(.xq-board) {
+  padding: 6px;
+}
+
+@media (min-width: 861px) {
+  /* The xiangqi board is taller than it is wide; size it so it fits the viewport height. */
+  .game-center:has(.xq-board) {
+    width: min(100%, max(320px, calc((100vh - 230px) * 0.88)));
+  }
+}
 
 /* Toasts */
 

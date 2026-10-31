@@ -127,7 +127,7 @@ export function ChessOptionsPicker({ room }: { room: RoomView }) {
         label={t.room.hostColor}
         options={['random', 'white', 'black'] as HostColor[]}
         value={room.options.hostColor}
-        labelOf={(c) => t.room.hostColors[c]}
+        labelOf={(c) => (room.gameType === 'xiangqi' ? t.xiangqi.hostColors[c] : t.room.hostColors[c])}
         disabled={locked}
         onPick={(hostColor) => set({ hostColor })}
       />
