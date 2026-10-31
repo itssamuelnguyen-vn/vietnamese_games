@@ -7,6 +7,9 @@ import type { ClientToServerEvents, ServerToClientEvents, SocketAuth } from '@vg
 import { RoomManager, type Room } from './rooms';
 
 const ROOM_IDLE_MS = 10 * 60 * 1000;
+// Flood control per connection: at most RATE_MAX events in any RATE_WINDOW_MS.
+const RATE_MAX = 60;
+const RATE_WINDOW_MS = 10_000;
 const SWEEP_INTERVAL_MS = 60 * 1000;
 
 export interface GameServerOptions {
@@ -63,6 +66,18 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
 
   io.on('connection', (socket) => {
     const playerId: string = socket.data.playerId;
+    let recent: number[] = [];
+    socket.use((packet, next) => {
+      const now = Date.now();
+      recent = recent.filter((t) => now - t < RATE_WINDOW_MS);
+      if (recent.length >= RATE_MAX) {
+        const ack = packet.at(-1);
+        if (typeof ack === 'function') ack({ ok: false, error: 'RATE_LIMITED' });
+        return;
+      }
+      recent.push(now);
+      next();
+    });
     socket.join(channel(playerId));
     connections.set(playerId, (connections.get(playerId) ?? 0) + 1);
     broadcast(rooms.roomOf(playerId));

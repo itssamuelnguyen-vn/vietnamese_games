@@ -210,6 +210,8 @@ export const en: Strings = {
     INVALID_OPTIONS: 'Invalid settings',
     MESSAGE_INVALID: 'Message is empty',
     MESSAGE_TOO_FAST: 'You’re sending messages too fast',
+    RATE_LIMITED: 'Slow down a little and try again in a few seconds',
+    SERVER_FULL: 'The server is full right now, please try again later',
     DISCONNECTED: 'Lost connection to the server',
   },
 };

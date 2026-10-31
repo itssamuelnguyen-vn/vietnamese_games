@@ -42,6 +42,8 @@ export interface RoomManagerOptions {
   clock?: () => number;
   // Called when the server changes a room on its own (e.g. a clock runs out).
   onAutoUpdate?: (room: Room) => void;
+  // Upper bound on open rooms, so room spam can't exhaust memory.
+  maxRooms?: number;
 }
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -64,10 +66,12 @@ export class RoomManager {
   private nextMessageId = 1;
   private readonly clock: () => number;
   private readonly onAutoUpdate: (room: Room) => void;
+  private readonly maxRooms: number;
 
-  constructor({ clock = Date.now, onAutoUpdate = () => {} }: RoomManagerOptions = {}) {
+  constructor({ clock = Date.now, onAutoUpdate = () => {}, maxRooms = 1000 }: RoomManagerOptions = {}) {
     this.clock = clock;
     this.onAutoUpdate = onAutoUpdate;
+    this.maxRooms = maxRooms;
   }
 
   private ctx() {
@@ -86,6 +90,7 @@ export class RoomManager {
     }
     const cleanName = sanitizeName(name);
     if (!cleanName) return { ok: false, error: 'NAME_REQUIRED' };
+    if (this.rooms.size >= this.maxRooms) return { ok: false, error: 'SERVER_FULL' };
 
     const left = this.leave(playerId);
     const room: Room = {

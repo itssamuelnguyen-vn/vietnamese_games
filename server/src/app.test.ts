@@ -160,6 +160,15 @@ describe('game server', () => {
     }
   });
 
+  it('rate-limits a flooding connection', async () => {
+    const spammer = await client('spammer-token-1');
+    const replies = await Promise.all(
+      Array.from({ length: 70 }, () => call(spammer, 'room:join', { code: 'ZZZZ', name: 'x' })),
+    );
+    expect(replies.filter((r) => r.error === 'RATE_LIMITED').length).toBe(10);
+    expect(replies.filter((r) => r.error === 'ROOM_NOT_FOUND').length).toBe(60);
+  });
+
   it('survives events sent without an ack callback or with junk payloads', async () => {
     const a = await client('eeeeeeeeeeee');
     a.socket.emit('room:create', null as never, undefined as never);

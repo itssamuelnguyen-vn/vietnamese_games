@@ -212,6 +212,8 @@ export const vi = {
     INVALID_OPTIONS: 'Thiết lập không hợp lệ',
     MESSAGE_INVALID: 'Tin nhắn trống',
     MESSAGE_TOO_FAST: 'Bạn nhắn nhanh quá, chờ chút nhé',
+    RATE_LIMITED: 'Bạn thao tác nhanh quá, chờ vài giây nhé',
+    SERVER_FULL: 'Server đang quá tải, thử lại sau nhé',
     DISCONNECTED: 'Mất kết nối tới server',
   } satisfies Record<ErrorCode, string>,
 };

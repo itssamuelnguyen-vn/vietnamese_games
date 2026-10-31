@@ -33,6 +33,13 @@ describe('RoomManager', () => {
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
 
+  it('refuses new rooms once the server is full', () => {
+    const rooms = new RoomManager({ maxRooms: 2 });
+    expect(rooms.create(A, 'An', 'chess').ok).toBe(true);
+    expect(rooms.create(B, 'Bình', 'chess').ok).toBe(true);
+    expect(rooms.create(C, 'Chi', 'chess')).toEqual({ ok: false, error: 'SERVER_FULL' });
+  });
+
   it('truncates long names', () => {
     const r = new RoomManager().create(A, 'x'.repeat(50), 'chess');
     expect(r.ok && r.room.players[0].name).toHaveLength(20);

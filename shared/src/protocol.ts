@@ -18,6 +18,8 @@ export type ErrorCode =
   | 'INVALID_OPTIONS'
   | 'MESSAGE_INVALID'
   | 'MESSAGE_TOO_FAST'
+  | 'RATE_LIMITED'
+  | 'SERVER_FULL'
   | 'DISCONNECTED';
 
 export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
