@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { xiangqiGame, type XiangqiMove, type XiangqiState } from './xiangqi';
+import { NO_CAPTURE_PLIES, detectResult, xiangqiGame, type XiangqiMove, type XiangqiState } from './xiangqi';
+import { Xiangqi } from './xiangqi-engine';
 
 const R = 'red-player';
 const B = 'black-player';
@@ -61,6 +62,29 @@ describe('xiangqiGame', () => {
   it('plain repetition without perpetual check is a draw', () => {
     const s = play(fresh('4k4/9/9/9/R8/9/9/9/9/5K3 w'), ['a5a6', 'e9d9', 'a6a5', 'd9e9', 'a5a6', 'e9d9', 'a6a5', 'd9e9']);
     expect(s.result).toEqual({ winner: null, reason: 'repetition' });
+  });
+
+  it('is a draw after 60 moves each without a capture', () => {
+    // Build a quiet game: every move avoids captures, checks and earlier positions,
+    // so neither repetition nor any other rule can end it first.
+    const game = new Xiangqi();
+    const seen = new Set([game.positionKey()]);
+    const moves: string[] = [];
+    while (moves.length < NO_CAPTURE_PLIES) {
+      const next = game.moves().find((m) => {
+        if (m.captured || m.check) return false;
+        game.move(m);
+        const fresh = !seen.has(game.positionKey());
+        game.undo();
+        return fresh;
+      });
+      if (!next) throw new Error(`stuck after ${moves.length} plies`);
+      game.move(next);
+      seen.add(game.positionKey());
+      moves.push(next.from + next.to);
+    }
+    expect(detectResult({ ...fresh(), moves: moves.slice(0, -1) })).toBeNull();
+    expect(detectResult({ ...fresh(), moves })).toEqual({ winner: null, reason: 'no-capture' });
   });
 
   it('is a draw when neither side can attack any more', () => {
