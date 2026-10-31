@@ -5,6 +5,7 @@ import {
   TIME_CONTROLS,
   chessGame,
   type ChatMessage,
+  ABANDON_CLAIM_MS,
   type ErrorCode,
   type HostColor,
   type GameDefinition,
@@ -34,6 +35,7 @@ export interface Room {
   status: RoomStatus;
   options: RoomOptions;
   state: unknown;
+  rematchVotes: string[];
   chat: ChatMessage[];
   lastActivity: number;
 }
@@ -104,6 +106,7 @@ export class RoomManager {
       status: 'waiting',
       options: { ...DEFAULT_ROOM_OPTIONS },
       state: null,
+      rematchVotes: [],
       chat: [],
       lastActivity: Date.now(),
     };
@@ -145,11 +148,12 @@ export class RoomManager {
     }
 
     if (room.status === 'playing') {
-      room.state = GAMES[room.gameType]!.forfeit(room.state, playerId, this.ctx());
+      room.state = GAMES[room.gameType]!.forfeit(room.state, playerId, this.ctx(), 'left');
       room.status = 'finished';
       this.armTimer(room);
     }
     room.players = room.players.filter((p) => p.id !== playerId);
+    room.rematchVotes = [];
     room.lastActivity = Date.now();
     this.fillSeats(room);
 
@@ -175,6 +179,7 @@ export class RoomManager {
     const ids = [room.hostId, ...room.players.map((p) => p.id).filter((id) => id !== room.hostId)];
     room.state = GAMES[room.gameType]!.setup(ids, room.options, this.ctx(), room.state);
     room.status = 'playing';
+    room.rematchVotes = [];
     room.lastActivity = Date.now();
     this.armTimer(room);
     return { ok: true, room };
@@ -218,6 +223,38 @@ export class RoomManager {
     return { ok: true, room };
   }
 
+  // Any seated player can ask for another game; it starts once every seat has asked.
+  requestRematch(playerId: string): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (!room.players.some((p) => p.id === playerId)) return { ok: false, error: 'NOT_A_PLAYER' };
+    if (room.status !== 'finished') return { ok: false, error: 'GAME_IN_PROGRESS' };
+    if (!room.rematchVotes.includes(playerId)) room.rematchVotes = [...room.rematchVotes, playerId];
+    if (room.players.every((p) => room.rematchVotes.includes(p.id))) return this.start(room.hostId);
+    return { ok: true, room };
+  }
+
+  // A seated player may claim the win once every opponent has been offline long enough.
+  claimWin(playerId: string, offlineSince: (id: string) => number | null): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (!room.players.some((p) => p.id === playerId)) return { ok: false, error: 'NOT_A_PLAYER' };
+    if (room.status !== 'playing') return { ok: false, error: 'GAME_NOT_STARTED' };
+    const now = this.clock();
+    const absent = room.players.filter((p) => p.id !== playerId);
+    const allGone = absent.every((p) => {
+      const since = offlineSince(p.id);
+      return since !== null && now - since >= ABANDON_CLAIM_MS;
+    });
+    if (!allGone) return { ok: false, error: 'CLAIM_TOO_EARLY' };
+    const game = GAMES[room.gameType]!;
+    for (const p of absent) room.state = game.forfeit(room.state, p.id, this.ctx(), 'abandoned');
+    room.status = 'finished';
+    room.lastActivity = Date.now();
+    this.armTimer(room);
+    return { ok: true, room };
+  }
+
   chat(playerId: string, text: unknown): Result<{ room: Room }> {
     const room = this.roomOf(playerId);
     if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
@@ -237,7 +274,17 @@ export class RoomManager {
     return { ok: true, room };
   }
 
-  view(room: Room, playerId: string, isConnected: (id: string) => boolean): RoomView {
+  view(
+    room: Room,
+    playerId: string,
+    isConnected: (id: string) => boolean,
+    offlineSince: (id: string) => number | null = () => null,
+  ): RoomView {
+    const now = this.clock();
+    const info = (p: Player) => {
+      const since = isConnected(p.id) ? null : offlineSince(p.id);
+      return { ...p, connected: isConnected(p.id), offlineMs: since === null ? null : Math.max(0, now - since) };
+    };
     return {
       you: playerId,
       code: room.code,
@@ -245,8 +292,9 @@ export class RoomManager {
       hostId: room.hostId,
       status: room.status,
       options: room.options,
-      players: room.players.map((p) => ({ ...p, connected: isConnected(p.id) })),
-      spectators: room.spectators.map((p) => ({ ...p, connected: isConnected(p.id) })),
+      players: room.players.map(info),
+      spectators: room.spectators.map(info),
+      rematchVotes: room.rematchVotes,
       chat: room.chat,
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
     };

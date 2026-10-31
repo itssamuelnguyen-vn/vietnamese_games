@@ -49,7 +49,14 @@ export interface PlayerInfo {
   id: string;
   name: string;
   connected: boolean;
+  // How long this player has been disconnected, as of when the view was built.
+  offlineMs: number | null;
 }
+
+// An opponent offline this long can be beaten by claiming the win.
+export const ABANDON_CLAIM_MS = 60_000;
+
+export type ForfeitReason = 'left' | 'abandoned';
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished';
 
@@ -75,6 +82,8 @@ export interface RoomView {
   spectators: PlayerInfo[];
   status: RoomStatus;
   options: RoomOptions;
+  // Seated players who asked for another game.
+  rematchVotes: string[];
   chat: ChatMessage[];
   game: unknown;
 }
@@ -93,8 +102,8 @@ export interface GameDefinition<S, M, V> {
   // playerIds[0] is the host; `previous` is the room's last game, if any (for rematches).
   setup(playerIds: string[], options: RoomOptions, ctx: GameContext, previous: S | null): S;
   applyMove(state: S, playerId: string, move: M, ctx: GameContext): MoveResult<S>;
-  // Called when a player deliberately leaves mid-game.
-  forfeit(state: S, playerId: string, ctx: GameContext): S;
+  // A player left mid-game, or was offline long enough for the others to claim the win.
+  forfeit(state: S, playerId: string, ctx: GameContext, reason: ForfeitReason): S;
   isOver(state: S): boolean;
   // Spectators get a view too; their playerId is simply not one of the players.
   playerView(state: S, playerId: string, ctx: GameContext): V;

@@ -12,7 +12,8 @@ export type ChessEndReason =
   | 'resign'
   | 'agreement'
   | 'timeout'
-  | 'aborted';
+  | 'aborted'
+  | 'abandoned';
 
 export interface ChessResult {
   winner: string | null; // null = draw
@@ -312,11 +313,11 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
     }
   },
 
-  forfeit(state, playerId, { now }) {
+  forfeit(state, playerId, { now }, reason) {
     if (state.result) return state;
     const color = colorOf(state, playerId);
     if (!color) return state;
-    return finish(state, { winner: opponentOf(state, color), reason: 'resign' }, now);
+    return finish(state, { winner: opponentOf(state, color), reason: reason === 'abandoned' ? 'abandoned' : 'resign' }, now);
   },
 
   deadline(state) {

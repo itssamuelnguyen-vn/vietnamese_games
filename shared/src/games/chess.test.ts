@@ -88,9 +88,10 @@ describe('chessGame', () => {
   });
 
   it('forfeit ends the game for the leaving player only once', () => {
-    const s = chessGame.forfeit(fresh(), B, ctx);
+    const s = chessGame.forfeit(fresh(), B, ctx, 'left');
     expect(s.result).toEqual({ winner: A, reason: 'resign' });
-    expect(chessGame.forfeit(s, A, ctx)).toBe(s);
+    expect(chessGame.forfeit(s, A, ctx, 'left')).toBe(s);
+    expect(chessGame.forfeit(fresh(), B, ctx, 'abandoned').result).toEqual({ winner: A, reason: 'abandoned' });
   });
 
   describe('draw offers', () => {

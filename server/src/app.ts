@@ -41,12 +41,15 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   // A player may have several tabs open, so count connections per playerId.
   const connections = new Map<string, number>();
   const isConnected = (id: string) => (connections.get(id) ?? 0) > 0;
+  // When each player's last connection dropped, for abandonment claims.
+  const offlineAt = new Map<string, number>();
+  const offlineSince = (id: string) => (isConnected(id) ? null : (offlineAt.get(id) ?? null));
   const channel = (playerId: string) => `player:${playerId}`;
 
   function broadcast(room: Room | undefined) {
     if (!room) return;
     for (const p of [...room.players, ...room.spectators]) {
-      io.to(channel(p.id)).emit('room:state', rooms.view(room, p.id, isConnected));
+      io.to(channel(p.id)).emit('room:state', rooms.view(room, p.id, isConnected, offlineSince));
     }
   }
 
@@ -80,6 +83,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     });
     socket.join(channel(playerId));
     connections.set(playerId, (connections.get(playerId) ?? 0) + 1);
+    offlineAt.delete(playerId);
     broadcast(rooms.roomOf(playerId));
 
     socket.on('room:create', (p, ack) => {
@@ -130,6 +134,22 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       broadcast(r.room);
     });
 
+    socket.on('room:rematch', (ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.requestRematch(playerId);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
+    socket.on('game:claim-win', (ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.claimWin(playerId, offlineSince);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
     socket.on('chat:send', (text, ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
       const r = rooms.chat(playerId, text);
@@ -140,12 +160,19 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
 
     socket.on('disconnect', () => {
       connections.set(playerId, (connections.get(playerId) ?? 1) - 1);
-      if (!isConnected(playerId)) connections.delete(playerId);
+      if (!isConnected(playerId)) {
+        connections.delete(playerId);
+        offlineAt.set(playerId, Date.now());
+      }
       broadcast(rooms.roomOf(playerId));
     });
   });
 
-  const sweeper = setInterval(() => rooms.sweep(isConnected, ROOM_IDLE_MS), SWEEP_INTERVAL_MS);
+  const sweeper = setInterval(() => {
+    rooms.sweep(isConnected, ROOM_IDLE_MS);
+    const cutoff = Date.now() - ROOM_IDLE_MS;
+    for (const [id, at] of offlineAt) if (at < cutoff) offlineAt.delete(id);
+  }, SWEEP_INTERVAL_MS);
   sweeper.unref();
 
   return {

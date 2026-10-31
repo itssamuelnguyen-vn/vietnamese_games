@@ -107,6 +107,7 @@ export const en: Strings = {
       agreement: 'Draw agreed',
       timeout: 'Time out',
       aborted: 'Aborted: no first move',
+      abandoned: 'Opponent left the game',
     },
     white: 'White',
     black: 'Black',
@@ -213,6 +214,7 @@ export const en: Strings = {
     MESSAGE_TOO_FAST: 'You’re sending messages too fast',
     RATE_LIMITED: 'Slow down a little and try again in a few seconds',
     SERVER_FULL: 'The server is full right now, please try again later',
+    CLAIM_TOO_EARLY: 'It’s too early to claim the win',
     DISCONNECTED: 'Lost connection to the server',
   },
 };

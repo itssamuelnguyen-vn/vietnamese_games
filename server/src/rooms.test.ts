@@ -170,6 +170,48 @@ describe('RoomManager', () => {
     expect(rooms.roomOf(A)?.players.map((p) => p.id)).toEqual([A]);
   });
 
+  describe('abandonment and rematches', () => {
+    it('lets a player claim the win once the opponent has been offline for a minute', () => {
+      let now = 0;
+      const rooms = new RoomManager({ clock: () => now });
+      const created = rooms.create(A, 'An', 'chess');
+      if (!created.ok) throw new Error();
+      rooms.join(B, 'Bình', created.room.code);
+      rooms.start(A);
+      const offline = (since: number | null) => (id: string) => (id === B ? since : null);
+
+      expect(rooms.claimWin(A, offline(null))).toEqual({ ok: false, error: 'CLAIM_TOO_EARLY' });
+      now = 59_999;
+      expect(rooms.claimWin(A, offline(0))).toEqual({ ok: false, error: 'CLAIM_TOO_EARLY' });
+      expect(rooms.view(created.room, A, (id) => id !== B, offline(0)).players.find((p) => p.id === B)?.offlineMs).toBe(59_999);
+      now = 60_000;
+      const r = rooms.claimWin(A, offline(0));
+      expect(r.ok && r.room.status).toBe('finished');
+      expect((rooms.view(created.room, A, allOnline).game as ChessView).result).toEqual({ winner: A, reason: 'abandoned' });
+    });
+
+    it('spectators cannot claim, and nobody can claim outside a game', () => {
+      const { rooms, code } = roomWithTwo();
+      rooms.join(C, 'Chi', code);
+      expect(rooms.claimWin(A, () => 0)).toEqual({ ok: false, error: 'GAME_NOT_STARTED' });
+      rooms.start(A);
+      expect(rooms.claimWin(C, () => 0)).toEqual({ ok: false, error: 'NOT_A_PLAYER' });
+    });
+
+    it('starts a rematch once every seated player asks for one', () => {
+      const { rooms } = roomWithTwo();
+      expect(rooms.requestRematch(B)).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
+      rooms.start(A);
+      rooms.move(A, { type: 'resign' });
+      const first = rooms.requestRematch(B);
+      expect(first.ok && first.room.rematchVotes).toEqual([B]);
+      expect(first.ok && first.room.status).toBe('finished');
+      const second = rooms.requestRematch(A);
+      expect(second.ok && second.room.status).toBe('playing');
+      expect(second.ok && second.room.rematchVotes).toEqual([]);
+    });
+  });
+
   describe('chat', () => {
     it('stores trimmed messages from players and spectators', () => {
       const { rooms, code } = roomWithTwo();

@@ -20,6 +20,7 @@ export type ErrorCode =
   | 'MESSAGE_TOO_FAST'
   | 'RATE_LIMITED'
   | 'SERVER_FULL'
+  | 'CLAIM_TOO_EARLY'
   | 'DISCONNECTED';
 
 export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -32,6 +33,8 @@ export interface ClientToServerEvents {
   'room:options': (options: Partial<RoomOptions>, ack: (r: Ack) => void) => void;
   'game:move': (move: unknown, ack: (r: Ack) => void) => void;
   'chat:send': (text: string, ack: (r: Ack) => void) => void;
+  'room:rematch': (ack: (r: Ack) => void) => void;
+  'game:claim-win': (ack: (r: Ack) => void) => void;
 }
 
 export interface ServerToClientEvents {

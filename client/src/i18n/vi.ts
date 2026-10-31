@@ -109,6 +109,7 @@ export const vi = {
       agreement: 'Hai bên đồng ý hòa',
       timeout: 'Hết giờ',
       aborted: 'Ván bị hủy vì không đi nước đầu',
+      abandoned: 'Đối thủ đã bỏ đi',
     } satisfies Record<ChessEndReason, string>,
     white: 'Quân trắng',
     black: 'Quân đen',
@@ -215,6 +216,7 @@ export const vi = {
     MESSAGE_TOO_FAST: 'Bạn nhắn nhanh quá, chờ chút nhé',
     RATE_LIMITED: 'Bạn thao tác nhanh quá, chờ vài giây nhé',
     SERVER_FULL: 'Server đang quá tải, thử lại sau nhé',
+    CLAIM_TOO_EARLY: 'Chưa đủ thời gian để nhận thắng',
     DISCONNECTED: 'Mất kết nối tới server',
   } satisfies Record<ErrorCode, string>,
 };
