@@ -8,6 +8,17 @@ import { toast } from './Toaster';
 import { ChevronRightIcon, CopyIcon, CrownIcon, QrIcon, SendIcon } from './icons';
 import { loadSetting, saveSetting } from '../settings';
 
+// The host fills or frees seats with bots between games.
+export async function addBot(t: Strings) {
+  const r = await api.addBot();
+  if (!r.ok) toast(t.errors[r.error]);
+}
+
+export async function removeBot(t: Strings, id: string) {
+  const r = await api.removeBot(id);
+  if (!r.ok) toast(t.errors[r.error]);
+}
+
 export function inviteLink(code: string) {
   return `${location.origin}/?room=${code}`;
 }
@@ -98,9 +109,19 @@ export function PlayersCard({ room, subtitle, colorOf }: PlayersCardProps) {
                 {p.bot && <span className="tag">🤖 {t.room.botTag}</span>}
               </span>
             </div>
+            {p.bot && room.hostId === room.you && room.status !== 'playing' && (
+              <button className="seat-remove" onClick={() => removeBot(t, p.id)} aria-label={t.room.removeBot} title={t.room.removeBot}>
+                ×
+              </button>
+            )}
           </li>
         ))}
       </ul>
+      {info.bots && room.hostId === room.you && room.status !== 'playing' && room.players.length < info.maxPlayers && (
+        <button className="btn btn-secondary btn-sm" onClick={() => addBot(t)}>
+          🤖 {t.room.addBot}
+        </button>
+      )}
       <p className="spectator-line muted small">
         {t.room.spectators} · {room.spectators.length ? room.spectators.map((s) => s.name).join(', ') : t.room.noSpectators}
       </p>
@@ -163,14 +184,7 @@ export function TienLenOptionsPicker({ room }: { room: RoomView }) {
 
   return (
     <>
-      <ChipGroup
-        label={t.tienlen.turnTimer}
-        options={Object.keys(TURN_TIMERS) as TurnTimerId[]}
-        value={room.options.turnTimer}
-        labelOf={(id) => t.tienlen.turnTimers[id]}
-        disabled={locked}
-        onPick={(turnTimer) => set({ turnTimer })}
-      />
+      <TurnTimerPicker room={room} locked={locked} />
       <div className="time-picker">
         <span className="field-label">{t.tienlen.houseRulesLabel}</span>
         <div className="chip-group" role="group" aria-label={t.tienlen.houseRulesLabel}>
@@ -266,16 +280,16 @@ export function ChatCard({ room, recipient }: { room: RoomView; recipient?: stri
 export function ScoreboardPanel({ room }: { room: RoomView }) {
   const { t } = useI18n();
   const me = room.you;
-  const [open, setOpen] = useState(() => loadSetting('vg:tlScores') !== 'closed');
+  const [open, setOpen] = useState(() => loadSetting('vg:scores') !== 'closed');
   function toggle() {
-    saveSetting('vg:tlScores', open ? 'closed' : 'open');
+    saveSetting('vg:scores', open ? 'closed' : 'open');
     setOpen(!open);
   }
   if (room.tally.length === 0) return null;
   return (
     <section className={`card panel tl-score-panel ${open ? 'open' : 'closed'}`}>
-      <button className="panel-toggle" aria-expanded={open} onClick={toggle} title={open ? t.tienlen.hideScoreboard : t.tienlen.showScoreboard}>
-        <h2>{t.tienlen.scoreboard}</h2>
+      <button className="panel-toggle" aria-expanded={open} onClick={toggle} title={open ? t.room.hideScoreboard : t.room.showScoreboard}>
+        <h2>{t.room.scoreboard}</h2>
         <ChevronRightIcon className="panel-chevron" />
       </button>
       {open && (
@@ -284,9 +298,9 @@ export function ScoreboardPanel({ room }: { room: RoomView }) {
             <tr>
               <th />
               <th />
-              <th>{t.tienlen.scoreGames}</th>
-              <th>{t.tienlen.scoreWins}</th>
-              <th>{t.tienlen.scorePoints}</th>
+              <th>{t.room.scoreGames}</th>
+              <th>{t.room.scoreWins}</th>
+              <th>{t.room.scorePoints}</th>
             </tr>
           </thead>
           <tbody>
@@ -309,10 +323,9 @@ export function ScoreboardPanel({ room }: { room: RoomView }) {
   );
 }
 
-// Co ti phu only has a turn timer to choose.
-export function TyPhuOptionsPicker({ room }: { room: RoomView }) {
+// Per-turn time limit for turn-based games without a chess clock.
+function TurnTimerPicker({ room, locked }: { room: RoomView; locked: boolean }) {
   const { t } = useI18n();
-  const locked = room.hostId !== room.you || room.status === 'playing';
   async function set(options: Partial<RoomOptions>) {
     const r = await api.options(options);
     if (!r.ok) toast(t.errors[r.error]);
@@ -327,4 +340,9 @@ export function TyPhuOptionsPicker({ room }: { room: RoomView }) {
       onPick={(turnTimer) => set({ turnTimer })}
     />
   );
+}
+
+// Co ti phu only has a turn timer to choose.
+export function TyPhuOptionsPicker({ room }: { room: RoomView }) {
+  return <TurnTimerPicker room={room} locked={room.hostId !== room.you || room.status === 'playing'} />;
 }

@@ -145,7 +145,8 @@ export type TyPhuLogEntry =
   | { kind: 'pay'; player: string; square: number; total: number; owners: { id: string; amount: number }[] }
   | { kind: 'buy'; player: string; square: number; biz: BizType; price: number }
   | { kind: 'upgrade'; player: string; square: number; biz: BizType; level: number; price: number }
-  | { kind: 'market'; player: string; value: number | null }
+  // Whether a card was drawn; its value stays hidden like the rest of the hand.
+  | { kind: 'market'; player: string; drew: boolean }
   | { kind: 'bank'; player: string; bonus: number | null }
   | { kind: 'fly'; player: string; to: number }
   | { kind: 'festival'; player: string; total: number }
@@ -223,8 +224,8 @@ export interface TyPhuView {
   turn: string | null;
   phase: Phase;
   lastMove: TyPhuState['lastMove'];
-  // Offers the viewer made or received.
-  offers: TradeOffer[];
+  // Offers the viewer made or received, with the time left as of this view.
+  offers: (TradeOffer & { msLeft: number })[];
   log: TyPhuLogEntry[];
   result: TyPhuResult | null;
   turnMs: number | null;
@@ -468,7 +469,7 @@ function land(s: TyPhuState, id: string, now: number, random: () => number): TyP
       const hand = next.players[id].hand;
       const value = hand.length < MAX_HAND ? drawCard(random) : null;
       if (value !== null) next = updatePlayer(next, id, { hand: [...hand, value] });
-      return endTurn(withLog(next, { kind: 'market', player: id, value }), now);
+      return endTurn(withLog(next, { kind: 'market', player: id, drew: value !== null }), now);
     }
     case 'bank': {
       const inDebt = next.players[id].debt > 0;
@@ -576,10 +577,13 @@ function botAct(s: TyPhuState, id: string): TyPhuMove {
   const p = s.players[id];
   const square = BOARD[p.position] as ProvinceSquare;
   const event = eventOf(s);
+  // How much opening this type here would raise the bot's chain bonus for it.
+  const chainGain = (type: BizType) =>
+    chainFactor([...s.businesses, { id: '', square: p.position, owner: id, type, level: 1, invested: 0 }], id, type) - chainFactor(s.businesses, id, type);
   const types = freeTypes(s, p.position)
     .filter((t) => p.cash - bizPrice(square, t, event) >= BOT_RESERVE)
     // Prefer types that extend a chain, then the priciest affordable one.
-    .sort((a, b) => chainFactor(s.businesses, id, b) - chainFactor(s.businesses, id, a) || bizPrice(square, b) - bizPrice(square, a));
+    .sort((a, b) => chainGain(b) - chainGain(a) || bizPrice(square, b) - bizPrice(square, a));
   if (types.length > 0) return { type: 'buy', biz: types[0] };
   const up = upgradable(s, p.position, id)
     .filter((b) => p.cash - upgradePrice(square, b.type, event) >= BOT_RESERVE)
@@ -722,7 +726,8 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
       }
       case 'repay': {
         const amount = Math.min(move.amount, me.debt, me.cash);
-        if (!isAmount(move.amount) || amount <= 0) return fail;
+        // In steps of 50, or whatever clears the debt.
+        if (!isAmount(move.amount) || amount <= 0 || (amount !== me.debt && amount % LOAN_STEP !== 0)) return fail;
         const next = updatePlayer(state, playerId, { cash: me.cash - amount, debt: me.debt - amount });
         return { ok: true, state: withLog(next, { kind: 'repay', player: playerId, amount }) };
       }
@@ -856,7 +861,7 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
       turn: state.turn,
       phase: state.phase,
       lastMove: state.lastMove,
-      offers: state.offers.filter((o) => o.from === playerId || o.to === playerId),
+      offers: state.offers.filter((o) => o.from === playerId || o.to === playerId).map((o) => ({ ...o, msLeft: Math.max(0, o.expiresAt - now) })),
       log: state.log,
       result: state.result,
       turnMs: state.turnDeadline === null ? null : Math.max(0, state.turnDeadline - now),

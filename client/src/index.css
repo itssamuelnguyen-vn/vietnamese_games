@@ -3652,3 +3652,7 @@ main {
 .tp-sell {
   padding: 0.25rem 0.6rem;
 }
+
+.player-list li {
+  position: relative;
+}

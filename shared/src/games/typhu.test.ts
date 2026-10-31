@@ -229,12 +229,17 @@ describe('co ti phu', () => {
     expect(() => act(s, 'b', { type: 'borrow', amount: 30 })).toThrow('INVALID_MOVE');
     s = act(s, 'b', { type: 'repay', amount: 200 });
     expect(s.players.b).toMatchObject({ cash: START_CASH + 300, debt: 300 });
+    // Repayments go in steps of 50 unless they clear the debt.
+    expect(() => act(s, 'b', { type: 'repay', amount: 120 })).toThrow('INVALID_MOVE');
+    const odd = { ...s, players: { ...s.players, b: { ...s.players.b, debt: 330 } } };
+    expect(act(odd, 'b', { type: 'repay', amount: 330 }).players.b.debt).toBe(0);
   });
 
   it('special squares: market draws a card, festival collects, bank pays a bonus', () => {
     const market = act(at(game(), 'a', special('market') - 1), 'a', { type: 'card', index: 0 }, fixed(0.3));
-    // The card played is used up and the market adds one.
+    // The card played is used up and the market adds one, whose value stays private.
     expect(market.players.a.hand).toHaveLength(3);
+    expect(market.log.at(-1)).toEqual({ kind: 'market', player: 'a', drew: true });
 
     const festival = act(at(game(['a', 'b', 'c']), 'a', special('festival') - 1), 'a', { type: 'card', index: 0 }, fixed(0.3));
     expect(festival.players.a.cash).toBe(START_CASH + 60);
@@ -297,6 +302,7 @@ describe('co ti phu', () => {
       expect(act(s, 'b', { type: 'decline', id: s.offers[0].id }).offers).toEqual([]);
       expect(act(s, 'a', { type: 'cancel', id: s.offers[0].id }).offers).toEqual([]);
       expect(typhuGame.deadline!(s)).toBe(30_000);
+      expect(typhuGame.playerView(s, 'b', { now: 10_000 }).offers[0].msLeft).toBe(20_000);
       expect(typhuGame.timeout!(s, { now: 30_000 }).offers).toEqual([]);
     });
   });
@@ -318,6 +324,19 @@ describe('co ti phu', () => {
     expect(rolled.phase).toBe('act');
     const skipped = typhuGame.timeout!({ ...rolled, turnDeadline: 60_000 }, { now: 60_000 });
     expect(skipped.turn).toBe('b');
+  });
+
+  it('bots open the business type that grows a chain', () => {
+    // The bot already runs eateries in all three regions and shops in two; in the south a shop completes a chain.
+    const businesses = [
+      biz('bot', 'hanoi', 'food'),
+      biz('bot', 'hue', 'food'),
+      biz('bot', 'cantho', 'food'),
+      biz('bot', 'bacninh', 'shop'),
+      biz('bot', 'khanhhoa', 'shop'),
+    ];
+    const s = { ...at(game(['bot', 'b'], { businesses }), 'bot', index('dongthap')), phase: 'act' as const };
+    expect(typhuGame.botMove!(s, 'bot', { now: 0 })).toEqual({ type: 'buy', biz: 'shop' });
   });
 
   it('bots play whole games to the end without getting stuck', { timeout: 60_000 }, () => {

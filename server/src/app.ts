@@ -26,7 +26,10 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   const app = express();
   const httpServer = createServer(app);
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer);
-  const rooms = new RoomManager({ onAutoUpdate: (room) => broadcast(room) });
+  const rooms = new RoomManager({
+    onAutoUpdate: (room) => broadcast(room),
+    onClosed: (ids) => ids.forEach((id) => io.to(channel(id)).emit('room:closed')),
+  });
 
   app.get('/healthz', (_req, res) => {
     res.send('ok');

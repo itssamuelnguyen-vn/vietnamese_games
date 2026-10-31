@@ -75,6 +75,8 @@ export interface RoomManagerOptions {
   random?: () => number;
   // Pause before each bot move, so people can follow what bots do.
   botDelayMs?: number;
+  // Called with the people still in a room that just closed, so they can be told.
+  onClosed?: (memberIds: string[]) => void;
 }
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -102,6 +104,7 @@ export class RoomManager {
   private readonly maxRooms: number;
   private readonly random: () => number;
   private readonly botDelayMs: number;
+  private readonly onClosed: (memberIds: string[]) => void;
 
   constructor({
     clock = Date.now,
@@ -109,12 +112,14 @@ export class RoomManager {
     maxRooms = 1000,
     random = secureRandom,
     botDelayMs = 900,
+    onClosed = () => {},
   }: RoomManagerOptions = {}) {
     this.clock = clock;
     this.onAutoUpdate = onAutoUpdate;
     this.maxRooms = maxRooms;
     this.random = random;
     this.botDelayMs = botDelayMs;
+    this.onClosed = onClosed;
   }
 
   private ctx() {
@@ -207,8 +212,10 @@ export class RoomManager {
     // Bots don't keep a room alive.
     const people = room.players.filter((p) => !p.bot);
     if (people.length === 0) {
-      for (const p of room.spectators) this.playerRoom.delete(p.id);
+      const watchers = room.spectators.map((p) => p.id);
+      for (const id of watchers) this.playerRoom.delete(id);
       this.deleteRoom(room);
+      if (watchers.length) this.onClosed(watchers);
       return undefined;
     }
     if (room.hostId === playerId) room.hostId = people[0].id;
@@ -470,12 +477,12 @@ export class RoomManager {
     this.armTimer(room);
   }
 
-  // After every change, the first bot with something to do acts after a short pause.
+  // After every change, the first bot with something to do acts after a short pause. A pending
+  // pause is kept rather than restarted, so a stream of moves from people can't hold bots back;
+  // the bot decides on the state as it is when the pause ends.
   private scheduleBots(room: Room): void {
-    clearTimeout(this.botTimers.get(room.code));
-    this.botTimers.delete(room.code);
     const game = GAMES[room.gameType]!;
-    if (room.status !== 'playing' || !game.botMove || !room.players.some((p) => p.bot)) return;
+    if (this.botTimers.has(room.code) || room.status !== 'playing' || !game.botMove || !room.players.some((p) => p.bot)) return;
     const timer = setTimeout(() => {
       this.botTimers.delete(room.code);
       if (this.rooms.get(room.code) !== room || room.status !== 'playing') return;

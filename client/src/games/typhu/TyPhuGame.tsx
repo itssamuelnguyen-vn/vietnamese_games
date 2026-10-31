@@ -64,6 +64,12 @@ function useTicker(active: boolean, ms = 250) {
   }, [active, ms]);
 }
 
+// Counts down from `ms` (as of `since`); only this small piece re-renders as time passes.
+function Countdown({ ms, since, render }: { ms: number; since: number; render: (left: number) => ReactNode }) {
+  useTicker(true);
+  return <>{render(Math.max(0, ms - (performance.now() - since)))}</>;
+}
+
 // Shows each token walking square by square after a roll or a move card.
 function useShownPositions(view: TyPhuView): Record<string, number> {
   const target = useMemo(() => Object.fromEntries(view.seats.map((s) => [s.id, s.position])), [view.seats]);
@@ -117,7 +123,7 @@ function describe(t: Strings, e: TyPhuLogEntry, name: (id: string) => string): s
     case 'upgrade':
       return L.upgrade(name(e.player), t.typhu.biz[e.biz], place(e.square), e.level);
     case 'market':
-      return L.market(name(e.player), e.value);
+      return L.market(name(e.player), e.drew);
     case 'bank':
       return L.bank(name(e.player), e.bonus === null ? null : m(e.bonus));
     case 'fly':
@@ -173,11 +179,9 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   const [preview, setPreview] = useState<number | null>(null);
   const [tradeOpen, setTradeOpen] = useState(false);
 
+  // Server times are relative to when this view arrived, so client clock skew doesn't matter.
   const receivedAt = useMemo(() => performance.now(), [room]);
-  useTicker(!view.result && (view.turnMs !== null || view.offers.length > 0));
-  const elapsed = () => performance.now() - receivedAt;
-  const turnLeft = view.turnMs === null ? null : Math.max(0, view.turnMs - elapsed());
-  const turnFraction = turnLeft !== null && view.turnLimitMs ? turnLeft / view.turnLimitMs : null;
+  const turnMs = myTurn ? view.turnMs : null;
 
   async function send(move: TyPhuMove) {
     const r = await api.move(move);
@@ -232,6 +236,8 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   const here = mySeat ? mySeat.position : 0;
   const hereSquare = BOARD[here];
   const cash = mySeat?.cash ?? 0;
+  // Repay everything if possible, otherwise as much as cash allows in steps of 50.
+  const repayable = !mySeat ? 0 : cash >= mySeat.debt ? mySeat.debt : Math.floor(cash / LOAN_STEP) * LOAN_STEP;
   const flyTarget = myTurn && view.phase === 'fly' && selected !== null && BOARD[selected].kind !== 'airport' ? selected : null;
   const highlight = preview ?? flyTarget;
 
@@ -443,9 +449,11 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                 <Die value={view.lastMove.dice[1]} />
               </span>
             )}
-            {myTurn && turnLeft !== null && <span className="tl-seconds">{Math.ceil(turnLeft / 1000)}s</span>}
+            {turnMs !== null && <Countdown ms={turnMs} since={receivedAt} render={(left) => <span className="tl-seconds">{Math.ceil(left / 1000)}s</span>} />}
           </div>
-          {myTurn && turnFraction !== null && <div className="tl-bar" style={{ '--left': turnFraction } as CSSProperties} />}
+          {turnMs !== null && view.turnLimitMs && (
+            <Countdown ms={turnMs} since={receivedAt} render={(left) => <div className="tl-bar" style={{ '--left': left / view.turnLimitMs! } as CSSProperties} />} />
+          )}
 
           {myTurn && view.phase === 'move' && (
             <div className="tp-move">
@@ -555,8 +563,8 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                   <button className="btn btn-secondary btn-sm" disabled={mySeat!.credit < 500} onClick={() => send({ type: 'borrow', amount: 500 })}>
                     {T.borrow(money(500))}
                   </button>
-                  <button className="btn btn-secondary btn-sm" disabled={mySeat!.debt === 0 || mySeat!.cash < LOAN_STEP} onClick={() => send({ type: 'repay', amount: Math.min(mySeat!.debt, mySeat!.cash) })}>
-                    {mySeat!.cash >= mySeat!.debt ? T.repayAll : T.repay(money(Math.min(mySeat!.debt, mySeat!.cash)))}
+                  <button className="btn btn-secondary btn-sm" disabled={repayable === 0} onClick={() => send({ type: 'repay', amount: repayable })}>
+                    {repayable === mySeat!.debt ? T.repayAll : T.repay(money(repayable))}
                   </button>
                 </div>
               </div>
@@ -575,7 +583,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
               <h2>{T.offers}</h2>
             </header>
             {view.offers.map((o) => (
-              <OfferCard key={o.id} offer={o} me={me} name={name} bizLabel={bizLabel} view={view} left={Math.max(0, Math.ceil((o.expiresAt - Date.now()) / 1000))} onSend={send} />
+              <OfferCard key={o.id} offer={o} me={me} name={name} bizLabel={bizLabel} view={view} since={receivedAt} onSend={send} />
             ))}
           </section>
         )}
@@ -696,15 +704,15 @@ function OfferCard({
   name,
   bizLabel,
   view,
-  left,
+  since,
   onSend,
 }: {
-  offer: TradeOffer;
+  offer: TradeOffer & { msLeft: number };
   me: string;
   name: (id: string) => string;
   bizLabel: (b: Business) => string;
   view: TyPhuView;
-  left: number;
+  since: number;
   onSend: (move: TyPhuMove) => Promise<boolean>;
 }) {
   const { t } = useI18n();
@@ -718,7 +726,9 @@ function OfferCard({
     <div className={`tp-offer ${mine ? 'mine' : 'incoming'}`}>
       <p className="tp-offer-head">
         <strong>{mine ? T.offerTo(name(offer.to)) : T.offerFrom(name(offer.from))}</strong>
-        <span className="muted small">{T.secondsLeft(left)}</span>
+        <span className="muted small">
+          <Countdown ms={offer.msLeft} since={since} render={(left) => T.secondsLeft(Math.ceil(left / 1000))} />
+        </span>
       </p>
       <div className="tp-offer-cols">
         <div>

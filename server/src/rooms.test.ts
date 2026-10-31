@@ -486,6 +486,43 @@ describe('RoomManager', () => {
       expect(room.status).toBe('playing');
     });
 
+    it('people keep sending moves, yet bots still get to act', () => {
+      vi.useFakeTimers();
+      const { rooms, room } = typhuRoom({ botDelayMs: 900 });
+      rooms.join(B, 'Bob', room.code);
+      rooms.addBot(A);
+      rooms.start(A);
+      const turnOf = () => (rooms.view(room, A, allOnline).game as TyPhuView).turn;
+      // Play the people's turns until it's the bot's.
+      for (let i = 0; i < 20 && turnOf() !== 'bot:1'; i++) {
+        const view = rooms.view(room, A, allOnline).game as TyPhuView;
+        rooms.move(view.turn!, view.phase === 'move' ? { type: 'roll' } : view.phase === 'fly' ? { type: 'stay' } : { type: 'end' });
+      }
+      expect(turnOf()).toBe('bot:1');
+      // Borrowing and repaying every half second must not keep postponing the bot.
+      for (let i = 0; i < 4 && turnOf() === 'bot:1'; i++) {
+        rooms.move(B, { type: 'borrow', amount: 50 });
+        vi.advanceTimersByTime(500);
+        rooms.move(B, { type: 'repay', amount: 50 });
+        vi.advanceTimersByTime(500);
+      }
+      expect((rooms.view(room, A, allOnline).game as TyPhuView).log.some((e) => 'player' in e && e.player === 'bot:1')).toBe(true);
+    });
+
+    it('tells spectators when the last person leaves a room of bots', () => {
+      vi.useFakeTimers();
+      const closed: string[][] = [];
+      const { rooms, room } = typhuRoom({ onClosed: (ids: string[]) => closed.push(ids) });
+      // Two bots, so the game goes on without the host and the spectator doesn't take a seat.
+      rooms.addBot(A);
+      rooms.addBot(A);
+      rooms.start(A);
+      rooms.join(C, 'Chi', room.code);
+      rooms.leave(A);
+      expect(closed).toEqual([[C]]);
+      expect(rooms.roomOf(C)).toBeUndefined();
+    });
+
     it('a room left with only bots closes', () => {
       vi.useFakeTimers();
       const { rooms, room } = typhuRoom();

@@ -7,8 +7,7 @@ import { TienLenGame } from '../games/tienlen/TienLenGame';
 import { TyPhuGame } from '../games/typhu/TyPhuGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { ChatCard, ChessOptionsPicker, TienLenOptionsPicker, TyPhuOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
-import { toast } from './Toaster';
+import { ChatCard, ChessOptionsPicker, TienLenOptionsPicker, TyPhuOptionsPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
 import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -44,15 +43,6 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
   const canShare = typeof navigator.share === 'function';
   const canAddBot = isHost && !!info.bots && room.players.length < info.maxPlayers;
 
-  async function addBot() {
-    const r = await api.addBot();
-    if (!r.ok) toast(t.errors[r.error]);
-  }
-
-  async function removeBot(id: string) {
-    const r = await api.removeBot(id);
-    if (!r.ok) toast(t.errors[r.error]);
-  }
 
   async function share() {
     try {
@@ -119,7 +109,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                       <Ellipsis text={t.room.emptySeat} />
                     </span>
                     {offerBot && (
-                      <button className="btn btn-secondary btn-sm" onClick={addBot}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => addBot(t)}>
                         🤖 {t.room.addBot}
                       </button>
                     )}
@@ -141,7 +131,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                     {!p.connected && <span className="tag tag-muted">{t.room.offline}</span>}
                   </span>
                   {p.bot && isHost && (
-                    <button className="seat-remove" onClick={() => removeBot(p.id)} aria-label={t.room.removeBot} title={t.room.removeBot}>
+                    <button className="seat-remove" onClick={() => removeBot(t, p.id)} aria-label={t.room.removeBot} title={t.room.removeBot}>
                       ×
                     </button>
                   )}
