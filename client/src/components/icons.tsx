@@ -172,6 +172,33 @@ export const ChevronsRightIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const SoundIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 9h4l5-4v14l-5-4H4z" />
+    <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+  </Svg>
+);
+
+export const MuteIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 9h4l5-4v14l-5-4H4z" />
+    <path d="M17 9l5 5M22 9l-5 5" />
+  </Svg>
+);
+
+export const UndoIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+  </Svg>
+);
+
+export const DownloadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 4v12M7 11l5 5 5-5M5 20h14" />
+  </Svg>
+);
+
 // Game illustrations: drawn on a 64x64 grid, used large on lobby cards and small in headers.
 
 function ChessArt() {

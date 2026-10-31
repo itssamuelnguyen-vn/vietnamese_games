@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { GAME_CATALOG, TIME_CONTROLS, type RoomView, type TimeControlId } from '@vg/shared';
+import { GAME_CATALOG, TIME_CONTROLS, type HostColor, type RoomOptions, type RoomView, type TimeControlId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -104,29 +104,54 @@ export function PlayersCard({ room, subtitle }: PlayersCardProps) {
   );
 }
 
-export function TimeControlPicker({ room }: { room: RoomView }) {
+export function ChessOptionsPicker({ room }: { room: RoomView }) {
   const { t } = useI18n();
-  const isHost = room.hostId === room.you;
-  const ids = Object.keys(TIME_CONTROLS) as TimeControlId[];
+  const locked = room.hostId !== room.you || room.status === 'playing';
 
-  async function pick(id: TimeControlId) {
-    const r = await api.options(id);
+  async function set(options: Partial<RoomOptions>) {
+    const r = await api.options(options);
     if (!r.ok) toast(t.errors[r.error]);
   }
 
   return (
+    <>
+      <ChipGroup
+        label={t.room.timeControl}
+        options={Object.keys(TIME_CONTROLS) as TimeControlId[]}
+        value={room.options.timeControl}
+        labelOf={(id) => t.timeControls[id]}
+        disabled={locked}
+        onPick={(timeControl) => set({ timeControl })}
+      />
+      <ChipGroup
+        label={t.room.hostColor}
+        options={['random', 'white', 'black'] as HostColor[]}
+        value={room.options.hostColor}
+        labelOf={(c) => t.room.hostColors[c]}
+        disabled={locked}
+        onPick={(hostColor) => set({ hostColor })}
+      />
+    </>
+  );
+}
+
+interface ChipGroupProps<T extends string> {
+  label: string;
+  options: T[];
+  value: T;
+  labelOf: (option: T) => string;
+  disabled: boolean;
+  onPick: (option: T) => void;
+}
+
+function ChipGroup<T extends string>({ label, options, value, labelOf, disabled, onPick }: ChipGroupProps<T>) {
+  return (
     <div className="time-picker">
-      <span className="field-label">{t.room.timeControl}</span>
-      <div className="chip-group" role="group" aria-label={t.room.timeControl}>
-        {ids.map((id) => (
-          <button
-            key={id}
-            className="chip"
-            aria-pressed={room.options.timeControl === id}
-            disabled={!isHost || room.status === 'playing'}
-            onClick={() => pick(id)}
-          >
-            {t.timeControls[id]}
+      <span className="field-label">{label}</span>
+      <div className="chip-group" role="group" aria-label={label}>
+        {options.map((option) => (
+          <button key={option} className="chip" aria-pressed={value === option} disabled={disabled} onClick={() => onPick(option)}>
+            {labelOf(option)}
           </button>
         ))}
       </div>

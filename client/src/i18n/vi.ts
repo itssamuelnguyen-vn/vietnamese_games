@@ -1,4 +1,4 @@
-import type { ChessEndReason, ErrorCode, GameType, TimeControlId } from '@vg/shared';
+import type { ChessEndReason, ErrorCode, GameType, HostColor, TimeControlId } from '@vg/shared';
 import type { OpeningId } from '../games/chessOpenings';
 
 // Vietnamese UI strings. This is the only place user-facing text should live;
@@ -13,6 +13,8 @@ export const vi = {
     language: 'Ngôn ngữ',
     toDark: 'Chuyển sang nền tối',
     toLight: 'Chuyển sang nền sáng',
+    soundOn: 'Tắt âm thanh',
+    soundOff: 'Bật âm thanh',
   },
 
   games: {
@@ -89,6 +91,11 @@ export const vi = {
     ready: 'Đủ người rồi, bắt đầu thôi!',
     leave: 'Rời phòng',
     timeControl: 'Thời gian mỗi bên',
+    hostColor: 'Quân của chủ phòng (ván đầu)',
+    hostColors: { random: 'Ngẫu nhiên', white: 'Trắng', black: 'Đen' } satisfies Record<HostColor, string>,
+    requestRematch: 'Xin chơi lại',
+    rematchRequested: 'Đã xin chơi lại',
+    rematchFrom: (name: string) => `${name} muốn chơi lại`,
     playersTitle: 'Người chơi',
     spectators: 'Khán giả',
     noSpectators: 'chưa có ai xem',
@@ -169,6 +176,23 @@ export const vi = {
       reti: 'Khai cuộc Réti',
       bird: 'Khai cuộc Bird',
     } satisfies Record<OpeningId, string>,
+    resultAborted: 'Ván đã hủy',
+    promoteTo: 'Phong cấp thành',
+    cancel: 'Hủy',
+    opponentOffline: (name: string) => `${name} đã mất kết nối`,
+    claimIn: (s: number) => `Bạn có thể nhận thắng sau ${s} giây nếu đối thủ không quay lại.`,
+    claimNow: 'Đối thủ đã đi quá lâu, bạn có thể nhận thắng.',
+    claimWin: 'Nhận thắng',
+    firstMoveHint: (s: number) => `Hãy đi nước đầu trong ${s} giây, nếu không ván sẽ bị hủy.`,
+    takeback: 'Xin đi lại',
+    takebackRequested: 'Đã xin đi lại',
+    takebackFrom: (name: string) => `${name} xin đi lại`,
+    takebackHint: 'Đồng ý thì nước vừa rồi sẽ được hoàn lại.',
+    takebackSent: 'Đang chờ đối thủ trả lời lời xin đi lại.',
+    premove: (from: string, to: string) => `Đi trước: ${from} → ${to}. Bấm vào bàn cờ để hủy.`,
+    downloadPgn: 'Tải ván cờ (PGN)',
+    copyFen: 'Chép thế cờ (FEN)',
+    fenCopied: 'Đã chép FEN',
     offerDraw: 'Cầu hòa',
     drawOffered: 'Đã mời hòa',
     drawOfferFrom: (name: string) => `${name} mời hòa`,

@@ -42,10 +42,12 @@ export function Lobby({ initialCode, connected }: Props) {
   const create = (type: GameType) => run(() => api.create(type, trimmedName));
   const join = () => run(() => api.join(code, trimmedName));
 
-  // Opening an invite link with a remembered name joins straight away.
+  // Opening an invite link with a name remembered from an earlier visit joins straight away.
+  // Only the remembered name counts: a name typed before the socket connects shouldn't auto-join.
+  const rememberedName = useRef(trimmedName);
   const autoJoined = useRef(false);
   useEffect(() => {
-    if (!connected || autoJoined.current || !initialCode || !trimmedName) return;
+    if (!connected || autoJoined.current || !initialCode || !rememberedName.current) return;
     autoJoined.current = true;
     // A stale invite (room closed or full) shouldn't leave its code sitting in the join box.
     join().then((ok) => {

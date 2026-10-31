@@ -3,7 +3,7 @@ import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
 import { Avatar } from './Avatar';
-import { ChatCard, TimeControlPicker, copyInvite, inviteLink } from './RoomPanels';
+import { ChatCard, ChessOptionsPicker, copyInvite, inviteLink } from './RoomPanels';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
 
@@ -116,7 +116,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
             {t.room.spectators} · {room.spectators.length ? room.spectators.map((p) => p.name).join(', ') : t.room.noSpectators}
           </p>
 
-          {room.gameType === 'chess' && <TimeControlPicker room={room} />}
+          {room.gameType === 'chess' && <ChessOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>
