@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ABANDON_CLAIM_MS, beats, classify, rankOf, suitOf, type Card, type RoomView, type TienLenLogEntry, type TienLenMove, type TienLenView } from '@vg/shared';
+import { ABANDON_CLAIM_MS, beats, classify, hintPlays, quickPick, rankOf, suitOf, type Card, type RoomView, type TienLenLogEntry, type TienLenMove, type TienLenView } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
@@ -163,6 +163,43 @@ export function TienLenGame({ room, view, onLeave }: Props) {
     else if (!beats(combo, trickCombo)) problem = t.tienlen.cannotBeat;
   }
   const canPlay = myTurn && selected.length > 0 && !problem;
+
+  // "Hint" cycles through legal plays, cheapest first; it restarts when the table changes.
+  const hintIndex = useRef(0);
+  const trickKey = view.trick?.cards.join(',') ?? '';
+  useEffect(() => {
+    hintIndex.current = 0;
+  }, [trickKey, handKey]);
+  function hint() {
+    const plays = hintPlays(view.hand, trickCombo, view.mustPlay);
+    if (plays.length === 0) {
+      toast(t.tienlen.noHint);
+      return;
+    }
+    setSelected(plays[hintIndex.current % plays.length]);
+    hintIndex.current++;
+  }
+
+  // Double-tap a card to select the whole combination around it (tracked by hand, since
+  // mobile browsers don't reliably fire dblclick).
+  const lastTap = useRef<{ card: Card; at: number } | null>(null);
+  function tapCard(card: Card) {
+    const now = performance.now();
+    const double = lastTap.current?.card === card && now - lastTap.current.at < 350;
+    lastTap.current = { card, at: now };
+    if (double) {
+      // Prefer a group that's playable right now; otherwise still grab the natural group and let
+      // the hint line explain why it can't be played yet.
+      const pick =
+        (myTurn && quickPick(view.hand, card, trickCombo, view.mustPlay)) || quickPick(view.hand, card, null, null);
+      if (pick) {
+        setSelected(pick);
+        lastTap.current = null;
+        return;
+      }
+    }
+    setSelected((sel) => (sel.includes(card) ? sel.filter((x) => x !== card) : [...sel, card]));
+  }
 
   async function send(move: TienLenMove) {
     const r = await api.move(move);
@@ -391,7 +428,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                     key={c}
                     card={c}
                     selected={selected.includes(c)}
-                    onClick={() => setSelected((sel) => (sel.includes(c) ? sel.filter((x) => x !== c) : [...sel, c]))}
+                    onClick={() => tapCard(c)}
                   />
                 ))}
               </div>
@@ -402,6 +439,9 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                 </button>
                 <button className="btn btn-ghost" disabled={selected.length === 0} onClick={() => setSelected([])}>
                   {t.tienlen.clear}
+                </button>
+                <button className="btn btn-secondary" disabled={!myTurn} onClick={hint}>
+                  {t.tienlen.hint}
                 </button>
                 <button className="btn btn-secondary" disabled={!myTurn || !view.trick} onClick={() => send({ type: 'pass' })}>
                   {t.tienlen.pass}

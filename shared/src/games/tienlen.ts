@@ -143,6 +143,68 @@ export function instantWin(hand: Card[]): InstantWinKind | null {
   return null;
 }
 
+// Every combination that can be made from a hand. For straights and pair runs, lower ranks use
+// their lowest cards and only the top card varies, since only the top decides what they beat.
+export function combosIn(hand: Card[]): Card[][] {
+  const byRank = new Map<number, Card[]>();
+  for (const c of sortCards(hand)) byRank.set(rankOf(c), [...(byRank.get(rankOf(c)) ?? []), c]);
+  const out: Card[][] = [];
+
+  // Singles, pairs, triples, four of a kind: every subset of one rank.
+  for (const cards of byRank.values()) {
+    for (let mask = 1; mask < 1 << cards.length; mask++) out.push(cards.filter((_, i) => mask & (1 << i)));
+  }
+
+  const ranks = [...byRank.keys()].filter((r) => r !== TWO).sort((a, b) => a - b);
+  for (let i = 0; i < ranks.length; i++) {
+    for (let j = i + 2; j < ranks.length && ranks[j] === ranks[i] + (j - i); j++) {
+      const span = ranks.slice(i, j + 1);
+      const low = span.slice(0, -1).map((r) => byRank.get(r)![0]);
+      for (const top of byRank.get(span.at(-1)!)!) out.push([...low, top]);
+    }
+  }
+
+  const pairRanks = ranks.filter((r) => byRank.get(r)!.length >= 2);
+  for (let i = 0; i < pairRanks.length; i++) {
+    for (let j = i + 2; j < pairRanks.length && pairRanks[j] === pairRanks[i] + (j - i); j++) {
+      const span = pairRanks.slice(i, j + 1);
+      const low = span.slice(0, -1).flatMap((r) => byRank.get(r)!.slice(0, 2));
+      const [first, ...rest] = byRank.get(span.at(-1)!)!;
+      for (const top of rest) out.push([...low, first, top]);
+    }
+  }
+  return out;
+}
+
+// Legal plays in the order a hint should offer them. Beating: the smallest combination of the
+// same kind, bombs last. Leading: get rid of the lowest cards, in the longest combination.
+export function hintPlays(hand: Card[], trick: Combo | null, mustPlay: Card | null): Card[][] {
+  const legal = combosIn(hand)
+    .map((cards) => ({ cards, combo: classify(cards)! }))
+    .filter(({ cards, combo }) => combo && beats(combo, trick) && (mustPlay === null || cards.includes(mustPlay)));
+  const bomb = (c: Combo) => c.type === 'quad' || pairRunOf(c) >= 3;
+  if (trick) {
+    return legal
+      .sort((a, b) => Number(bomb(a.combo) && !bomb(trick)) - Number(bomb(b.combo) && !bomb(trick)) || a.combo.top - b.combo.top)
+      .map((p) => p.cards);
+  }
+  return legal
+    .filter(({ combo }) => !bomb(combo) || mustPlay !== null)
+    .sort((a, b) => Math.min(...a.cards) - Math.min(...b.cards) || b.cards.length - a.cards.length || a.combo.top - b.combo.top)
+    .map((p) => p.cards);
+}
+
+// Double-tap selection: the most natural legal combination containing `card`.
+export function quickPick(hand: Card[], card: Card, trick: Combo | null, mustPlay: Card | null): Card[] | null {
+  const options = hintPlays(hand, trick, mustPlay).filter((cards) => cards.includes(card));
+  if (options.length === 0) return null;
+  if (trick) return options[0];
+  // Leading: all cards of that rank if it has a set, otherwise the longest run through it.
+  const sameRank = options.filter((cards) => cards.every((c) => rankOf(c) === rankOf(card)));
+  const pool = sameRank.some((cards) => cards.length > 1) ? sameRank : options;
+  return pool.reduce((best, cards) => (cards.length > best.length ? cards : best));
+}
+
 function shuffled(random: () => number): Card[] {
   const deck = Array.from({ length: 52 }, (_, i) => i);
   for (let i = deck.length - 1; i > 0; i--) {

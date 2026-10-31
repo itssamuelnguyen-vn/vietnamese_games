@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beats, classify, instantWin, tienlenGame, type Card, type TienLenState } from './tienlen';
+import { beats, classify, combosIn, hintPlays, instantWin, quickPick, tienlenGame, type Card, type TienLenState } from './tienlen';
 
 const RANKS = '3456789TJQKA2';
 const SUITS = 'scdh'; // ♠ ♣ ♦ ♥
@@ -101,6 +101,45 @@ describe('instantWin', () => {
     expect(instantWin(cards('3s 3h 5s 5h 7s 7h 9s 9h Js Jh Ks Kh 2h'))).toBe('six-pairs');
     expect(instantWin(cards('3s 3h 4s 4h 5s 5h 6s 6h 7s 7h Ks Ah 2h'))).toBe('five-pair-run');
     expect(instantWin(cards('3s 4h 6s 8h 9s Ts Jh Qs Kh As 2h 2s 5d'))).toBeNull();
+  });
+});
+
+describe('hints', () => {
+  const labels = (plays: Card[][]) => plays.map((p) => p.map((c) => RANKS[c >> 2] + SUITS[c & 3]).join(' '));
+
+  it('lists sets, straights and pair runs in a hand', () => {
+    const all = labels(combosIn(cards('3s 3h 4s 4h 5c 5d 7h')));
+    expect(all).toContain('3s 3h');
+    expect(all).toContain('3s 4s 5c');
+    expect(all).toContain('3s 4s 5d');
+    expect(all).toContain('3s 3h 4s 4h 5c 5d');
+    expect(all).not.toContain('5c 7h');
+  });
+
+  it('suggests the smallest play that beats the table', () => {
+    const hand = cards('4s 9h 9d Kc 2s');
+    // 9♦ is lower than 9♥ (♦ < ♥), so it's the cheapest card that beats 8♣.
+    expect(labels(hintPlays(hand, combo('8c'), null))[0]).toBe('9d');
+    expect(labels(hintPlays(hand, combo('8c 8d'), null))).toEqual(['9d 9h']);
+    expect(hintPlays(hand, combo('2h'), null)).toEqual([]);
+  });
+
+  it('offers bombs on a 2, but not on ordinary cards', () => {
+    const hand = cards('7s 7c 7d 7h 9s');
+    expect(labels(hintPlays(hand, combo('2h'), null))).toEqual(['7s 7c 7d 7h']);
+    expect(labels(hintPlays(hand, combo('8c'), null))[0]).toBe('9s');
+  });
+
+  it('when leading, offloads the lowest cards in the longest combination, including a required card', () => {
+    expect(labels(hintPlays(cards('3s 4h 5d 9c'), null, null))[0]).toBe('3s 4h 5d');
+    expect(hintPlays(cards('3s 4h 5d 9c'), null, card('3s')).every((p) => p.includes(card('3s')))).toBe(true);
+  });
+
+  it('double-tap picks the whole set, or the longest run through a lone card', () => {
+    const hand = cards('3s 6c 6d 6h 7s 8d 9c');
+    expect(labels([quickPick(hand, card('6d'), null, null)!])).toEqual(['6c 6d 6h']);
+    expect(labels([quickPick(hand, card('8d'), null, null)!])[0].split(' ')).toHaveLength(4);
+    expect(quickPick(hand, card('3s'), combo('9h'), null)).toBeNull();
   });
 });
 
