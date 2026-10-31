@@ -42,6 +42,8 @@ export interface Room {
   hostId: string;
   players: Player[];
   spectators: Player[];
+  // Players who left mid-game; cleared when the next game starts.
+  departed: Player[];
   status: RoomStatus;
   options: RoomOptions;
   state: unknown;
@@ -117,6 +119,7 @@ export class RoomManager {
       hostId: playerId,
       players: [{ id: playerId, name: cleanName }],
       spectators: [],
+      departed: [],
       status: 'waiting',
       options: { ...DEFAULT_ROOM_OPTIONS },
       state: null,
@@ -162,6 +165,8 @@ export class RoomManager {
     }
 
     if (room.status === 'playing') {
+      const leaving = room.players.find((p) => p.id === playerId);
+      if (leaving) room.departed = [...room.departed, leaving];
       const game = GAMES[room.gameType]!;
       room.state = game.forfeit(room.state, playerId, this.ctx(), 'left');
       // Two-player games end; in bigger games the others play on.
@@ -196,6 +201,7 @@ export class RoomManager {
     room.state = GAMES[room.gameType]!.setup(ids, room.options, this.ctx(), room.state);
     room.status = 'playing';
     room.rematchVotes = [];
+    room.departed = [];
     room.lastActivity = Date.now();
     this.armTimer(room);
     return { ok: true, room };
@@ -316,6 +322,7 @@ export class RoomManager {
       options: room.options,
       players: room.players.map(info),
       spectators: room.spectators.map(info),
+      departed: room.departed.map(({ id, name }) => ({ id, name })),
       rematchVotes: room.rematchVotes,
       chat: room.chat,
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),

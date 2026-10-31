@@ -90,6 +90,8 @@ export interface RoomView {
   hostId: string;
   players: PlayerInfo[];
   spectators: PlayerInfo[];
+  // Players who left during the current game, so logs and results can still name them.
+  departed: { id: string; name: string }[];
   status: RoomStatus;
   options: RoomOptions;
   // Seated players who asked for another game.

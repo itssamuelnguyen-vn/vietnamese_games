@@ -126,7 +126,9 @@ export function TienLenGame({ room, view, onLeave }: Props) {
   const seated = view.seats.some((s) => s.id === me);
   const myTurn = view.turn === me && !view.result;
   const isHost = room.hostId === me;
-  const name = (id: string) => (id === me ? t.room.you : (room.players.find((p) => p.id === id)?.name ?? '…'));
+  // Players who left mid-game keep their name in the log and results.
+  const name = (id: string) =>
+    id === me ? t.room.you : ([...room.players, ...room.departed].find((p) => p.id === id)?.name ?? '…');
   const player = (id: string) => room.players.find((p) => p.id === id);
 
   const [selected, setSelected] = useState<Card[]>([]);
@@ -244,8 +246,8 @@ export function TienLenGame({ room, view, onLeave }: Props) {
             const turn = view.turn === seat.id && !view.result;
             return (
               <div key={seat.id} className={`tl-seat pos-${positions[i]} ${turn ? 'turn' : ''}`}>
-                <Avatar id={seat.id} name={p?.name ?? '?'} size={44} online={p?.connected} />
-                <span className="tl-seat-name">{p?.name ?? '…'}</span>
+                <Avatar id={seat.id} name={p?.name ?? name(seat.id)} size={44} online={p?.connected} />
+                <span className="tl-seat-name">{p?.name ?? name(seat.id)}</span>
                 <span className="tl-backs" aria-label={t.tienlen.cardsLeft(seat.cards)}>
                   {seat.cards > 0 && <span className="tl-back" />}
                   <span className="tl-count">{seat.cards}</span>
@@ -306,7 +308,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                     return (
                       <li key={id} className={`medal-${last ? 'last' : place} ${id === me ? 'me' : ''}`}>
                         <span className="tl-medal">{place}</span>
-                        <Avatar id={id} name={player(id)?.name ?? '?'} size={38} />
+                        <Avatar id={id} name={player(id)?.name ?? name(id)} size={38} />
                         <span className="tl-podium-text">
                           <strong>{name(id)}</strong>
                           <span className="muted small">

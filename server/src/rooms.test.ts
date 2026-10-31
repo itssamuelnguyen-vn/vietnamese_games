@@ -243,11 +243,19 @@ describe('RoomManager', () => {
       expect(view(A).result).toBeNull();
     });
 
-    it('keeps playing when one of three players leaves', () => {
+    it('keeps playing when one of three players leaves, and still knows their name', () => {
       const { rooms, room, view } = tableOfThree();
       rooms.leave(C);
       expect(room.status).toBe('playing');
       expect(view(A).seats.find((s) => s.id === C)?.out).toBe(true);
+      expect(rooms.view(room, A, allOnline).departed).toEqual([{ id: C, name: 'Chi' }]);
+      rooms.move(view(A).turn!, { type: 'pass' });
+      // A new game forgets who left the previous one.
+      rooms.leave(B);
+      expect(room.status).toBe('finished');
+      rooms.join(C, 'Chi', room.code);
+      rooms.start(A);
+      expect(rooms.view(room, A, allOnline).departed).toEqual([]);
     });
 
     it('moves the game on by itself when a turn runs out', () => {
