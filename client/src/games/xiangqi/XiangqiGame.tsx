@@ -7,7 +7,8 @@ import { CopyIcon, DownloadIcon } from '../../components/icons';
 import { DuelScreen, type BoardRenderProps } from '../duel/DuelScreen';
 import { replayXiangqi } from './notation';
 import { findXiangqiOpening } from './openings';
-import { GLYPHS, XiangqiBoard, type BoardPiece } from './XiangqiBoard';
+import { GLYPHS, XiangqiBoard, type BoardPiece, type PieceFaces } from './XiangqiBoard';
+import { loadSetting, saveSetting } from '../../settings';
 
 interface Props {
   room: RoomView;
@@ -70,6 +71,18 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
     r: room.players.find((p) => p.id === view.red)?.name,
     b: room.players.find((p) => p.id === view.black)?.name,
   };
+
+  // Chinese characters or plain letters on the pieces, remembered per browser.
+  const [pieceStyle, setPieceStyle] = useState<'han' | 'letters'>(() => (loadSetting('vg:xqPieces') === 'letters' ? 'letters' : 'han'));
+  const faces = useMemo<PieceFaces>(
+    () => (pieceStyle === 'han' ? GLYPHS : { r: t.xiangqi.pieceLetters, b: t.xiangqi.pieceLetters }),
+    [pieceStyle, t],
+  );
+  function togglePieceStyle() {
+    const next = pieceStyle === 'han' ? 'letters' : 'han';
+    saveSetting('vg:xqPieces', next);
+    setPieceStyle(next);
+  }
 
   const [selected, setSelected] = useState<string | null>(null);
   // A move queued while it's the opponent's turn; played as soon as it becomes legal.
@@ -211,6 +224,7 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
         lastMove={lastShown}
         premove={premove ? `${premove.from}${premove.to}` : null}
         checkSquare={checkSquare}
+        faces={faces}
         movable={canTouch && !optimistic ? mySide : null}
         onSquareClick={onSquareClick}
         onDrop={onDrop}
@@ -237,6 +251,14 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
       movesTools={
         <>
           {opening && <span className="muted small opening">{t.xiangqi.openings[opening]}</span>}
+          <button
+            className="tool-btn glyph-toggle"
+            onClick={togglePieceStyle}
+            aria-label={`${t.xiangqi.pieceStyleTitle}: ${t.xiangqi.pieceStyle[pieceStyle === 'han' ? 'letters' : 'han']}`}
+            title={`${t.xiangqi.pieceStyleTitle}: ${t.xiangqi.pieceStyle[pieceStyle === 'han' ? 'letters' : 'han']}`}
+          >
+            {pieceStyle === 'han' ? 'Aa' : '漢'}
+          </button>
           {view.moves.length > 0 && (
             <>
               <button className="tool-btn" onClick={copyFen} aria-label={t.chess.copyFen} title={t.chess.copyFen}>
@@ -259,8 +281,8 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
             <span className="muted small">{lead > 0 ? `+${lead}` : t.chess.balanced}</span>
             <span className="captured">
               {pieces.map((type, i) => (
-                <span key={i} className={`xq-mini ${enemy === 'r' ? 'red' : 'black'}`}>
-                  {GLYPHS[enemy][type]}
+                <span key={i} className={`xq-mini ${enemy === 'r' ? 'red' : 'black'} ${pieceStyle}`} title={t.xiangqi.pieces[type]}>
+                  {pieceStyle === 'han' ? GLYPHS[enemy][type] : t.xiangqi.pieceLetters[type]}
                 </span>
               ))}
             </span>

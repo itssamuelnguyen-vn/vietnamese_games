@@ -252,6 +252,9 @@ export const en: Strings = {
       'elephant-opening': 'Elephant Opening',
       'horse-opening': 'Horse Opening',
     },
+    pieceLetters: { k: 'K', a: 'A', b: 'E', n: 'H', r: 'R', c: 'C', p: 'P' },
+    pieceStyle: { han: 'Chinese characters', letters: 'Letters' },
+    pieceStyleTitle: 'Switch piece labels',
     describe: {
       move: (who: string, notation: string) => `${who} played ${notation}`,
       capture: (who: string, notation: string, captured: string) => `${who} played ${notation}, taking the ${captured}`,

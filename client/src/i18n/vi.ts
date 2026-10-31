@@ -259,6 +259,9 @@ export const vi = {
       'elephant-opening': 'Phi tượng cục',
       'horse-opening': 'Khởi mã cục',
     } satisfies Record<XqOpeningId, string>,
+    pieceLetters: { k: 'Tướng', a: 'Sĩ', b: 'Tượng', n: 'Mã', r: 'Xe', c: 'Pháo', p: 'Tốt' } satisfies Record<XPieceType, string>,
+    pieceStyle: { han: 'Chữ Hán', letters: 'Chữ Việt' },
+    pieceStyleTitle: 'Đổi chữ trên quân cờ',
     describe: {
       move: (who: string, notation: string) => `${who} vừa đi ${notation}`,
       capture: (who: string, notation: string, captured: string) => `${who} vừa đi ${notation}, ăn ${captured}`,

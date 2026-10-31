@@ -3,8 +3,10 @@ import { parseSquare, squareName, type XPieceType, type XSide } from '@vg/shared
 import { useI18n } from '../../i18n';
 import './piece-font.css';
 
+export type PieceFaces = Record<XSide, Record<XPieceType, string>>;
+
 // Traditional piece faces (red uses the common 帥仕相馬車炮兵 set).
-export const GLYPHS: Record<XSide, Record<XPieceType, string>> = {
+export const GLYPHS: PieceFaces = {
   r: { k: '帥', a: '仕', b: '相', n: '馬', r: '車', c: '炮', p: '兵' },
   b: { k: '將', a: '士', b: '象', n: '馬', r: '車', c: '砲', p: '卒' },
 };
@@ -19,6 +21,12 @@ const HEIGHT = MY * 2 + STEP * 9;
 const DRAG_THRESHOLD = 1.5;
 // How long a captured piece lingers while fading out.
 const LEAVE_MS = 260;
+
+// Latin labels (letter mode) use the UI font, sized by length so words fit the disc.
+function labelClass(label: string): string {
+  if (/[\u3000-\u9fff]/.test(label)) return '';
+  return label.length <= 1 ? 'latin len-1' : label.length <= 2 ? 'latin len-2' : 'latin len-3';
+}
 
 export interface BoardPiece {
   // Stable id so a piece slides between squares instead of popping.
@@ -37,6 +45,8 @@ interface Props {
   lastMove: string | null;
   premove: string | null;
   checkSquare: string | null;
+  // Text on each piece; Chinese characters by default.
+  faces: PieceFaces;
   // Side whose pieces the player may pick up, or null when the board is read-only.
   movable: XSide | null;
   onSquareClick: (square: string) => void;
@@ -51,7 +61,7 @@ interface Drag {
   moved: boolean;
 }
 
-function XiangqiBoardImpl({ pieces, bottom, selected, targets, lastMove, premove, checkSquare, movable, onSquareClick, onDrop }: Props) {
+function XiangqiBoardImpl({ pieces, bottom, selected, targets, lastMove, premove, checkSquare, faces, movable, onSquareClick, onDrop }: Props) {
   const { t } = useI18n();
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -166,8 +176,8 @@ function XiangqiBoardImpl({ pieces, bottom, selected, targets, lastMove, premove
         <g className="xq-face">
           <circle className="xq-disc" r="4.4" />
           <circle className="xq-ring" r="3.7" />
-          <text className="xq-glyph" dy="0.35em">
-            {GLYPHS[p.side][p.type]}
+          <text className={`xq-glyph ${labelClass(faces[p.side][p.type])}`} dy="0.35em">
+            {faces[p.side][p.type]}
           </text>
         </g>
       </g>

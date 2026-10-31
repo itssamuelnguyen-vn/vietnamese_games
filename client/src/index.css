@@ -1720,6 +1720,23 @@ main {
   text-anchor: middle;
 }
 
+.xq-glyph.latin {
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  font-weight: 800;
+}
+
+.xq-glyph.len-1 {
+  font-size: 4.2px;
+}
+
+.xq-glyph.len-2 {
+  font-size: 3.1px;
+}
+
+.xq-glyph.len-3 {
+  font-size: 2.3px;
+}
+
 .xq-piece.red .xq-ring {
   stroke: #b3261e;
 }
@@ -1783,6 +1800,22 @@ main {
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
+}
+
+.xq-mini.letters {
+  /* Words don't fit a tiny disc; use a pill that grows with the label. */
+  width: auto;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.glyph-toggle {
+  font-family: 'Noto Serif SC', 'Be Vietnam Pro', serif;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .xq-mini.red {
