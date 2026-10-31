@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { START_FEN, Xiangqi, squareName, type RoomView, type XiangqiMove, type XiangqiView, type XSide } from '@vg/shared';
+import { START_FEN, Xiangqi, squareName, type RoomView, type XMove, type XPieceType, type XiangqiMove, type XiangqiView, type XSide } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
 import { toast } from '../../components/Toaster';
 import { DuelScreen, type BoardRenderProps } from '../duel/DuelScreen';
 import { replayXiangqi } from './notation';
-import { XiangqiBoard, type BoardPiece } from './XiangqiBoard';
+import { GLYPHS, XiangqiBoard, type BoardPiece } from './XiangqiBoard';
 
 interface Props {
   room: RoomView;
@@ -14,6 +14,22 @@ interface Props {
 }
 
 type SquarePair = { from: string; to: string };
+
+// Common material values (chariot 9, cannon 4.5, horse 4, elephant/advisor 2, soldier 1).
+const PIECE_VALUE: Record<XPieceType, number> = { r: 9, c: 4.5, n: 4, b: 2, a: 2, p: 1, k: 0 };
+
+// What each side has captured by `ply`, most valuable first, and its material lead.
+function captures(moves: XMove[], side: XSide, ply: number) {
+  const taken = (s: XSide) =>
+    moves
+      .slice(0, ply)
+      .filter((m) => m.side === s && m.captured)
+      .map((m) => m.captured!)
+      .sort((x, y) => PIECE_VALUE[y] - PIECE_VALUE[x]);
+  const value = (pieces: XPieceType[]) => pieces.reduce((sum, p) => sum + PIECE_VALUE[p], 0);
+  const mine = taken(side);
+  return { pieces: mine, lead: value(mine) - value(taken(side === 'r' ? 'b' : 'r')) };
+}
 const NO_TARGETS: { square: string; capture: boolean }[] = [];
 
 function piecesOf(game: Xiangqi): Omit<BoardPiece, 'id'>[] {
@@ -177,7 +193,24 @@ export function XiangqiGame({ room, view, onLeave }: Props) {
       extraStatus={premove ? [t.chess.premove(premove.from, premove.to)] : []}
       soundForPly={(ply) => (moves[ply]?.check ? 'check' : moves[ply]?.captured ? 'capture' : 'move')}
       renderBoard={renderBoard}
-      playerExtra={(side) => <span className={`xq-side-dot ${side === 'r' ? 'red' : 'black'}`} />}
+      playerExtra={(side, ply) => {
+        const own = side as XSide;
+        const enemy: XSide = own === 'r' ? 'b' : 'r';
+        const { pieces, lead } = captures(moves, own, ply);
+        return (
+          <>
+            <span className={`xq-side-dot ${own === 'r' ? 'red' : 'black'}`} />
+            <span className="muted small">{lead > 0 ? `+${lead}` : t.chess.balanced}</span>
+            <span className="captured">
+              {pieces.map((type, i) => (
+                <span key={i} className={`xq-mini ${enemy === 'r' ? 'red' : 'black'}`}>
+                  {GLYPHS[enemy][type]}
+                </span>
+              ))}
+            </span>
+          </>
+        );
+      }}
       onLeave={onLeave}
       send={(action) => send(action)}
     />

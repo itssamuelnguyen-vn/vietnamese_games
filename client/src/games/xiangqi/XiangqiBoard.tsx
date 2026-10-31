@@ -4,7 +4,7 @@ import { useI18n } from '../../i18n';
 import './piece-font.css';
 
 // Traditional piece faces (red uses the common 帥仕相馬車炮兵 set).
-const GLYPHS: Record<XSide, Record<XPieceType, string>> = {
+export const GLYPHS: Record<XSide, Record<XPieceType, string>> = {
   r: { k: '帥', a: '仕', b: '相', n: '馬', r: '車', c: '炮', p: '兵' },
   b: { k: '將', a: '士', b: '象', n: '馬', r: '車', c: '砲', p: '卒' },
 };
