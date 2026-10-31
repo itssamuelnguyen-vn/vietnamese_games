@@ -1,10 +1,13 @@
 import {
+  DEFAULT_ROOM_OPTIONS,
   GAME_CATALOG,
+  TIME_CONTROLS,
   chessGame,
   type ErrorCode,
   type GameDefinition,
   type GameType,
   type MoveResult,
+  type RoomOptions,
   type RoomStatus,
   type RoomView,
 } from '@vg/shared';
@@ -25,8 +28,16 @@ export interface Room {
   hostId: string;
   players: Player[];
   status: RoomStatus;
+  options: RoomOptions;
   state: unknown;
   lastActivity: number;
+}
+
+export interface RoomManagerOptions {
+  // Injectable so tests can control time.
+  clock?: () => number;
+  // Called when the server changes a room on its own (e.g. a clock runs out).
+  onAutoUpdate?: (room: Room) => void;
 }
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -39,8 +50,14 @@ export class RoomManager {
   private rooms = new Map<string, Room>();
   private playerRoom = new Map<string, string>();
 
-  // `clock` is injectable so tests can control time.
-  constructor(private readonly clock: () => number = Date.now) {}
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly clock: () => number;
+  private readonly onAutoUpdate: (room: Room) => void;
+
+  constructor({ clock = Date.now, onAutoUpdate = () => {} }: RoomManagerOptions = {}) {
+    this.clock = clock;
+    this.onAutoUpdate = onAutoUpdate;
+  }
 
   private ctx() {
     return { now: this.clock() };
@@ -66,6 +83,7 @@ export class RoomManager {
       hostId: playerId,
       players: [{ id: playerId, name: cleanName }],
       status: 'waiting',
+      options: { ...DEFAULT_ROOM_OPTIONS },
       state: null,
       lastActivity: Date.now(),
     };
@@ -104,12 +122,13 @@ export class RoomManager {
     if (room.status === 'playing') {
       room.state = GAMES[room.gameType]!.forfeit(room.state, playerId, this.ctx());
       room.status = 'finished';
+      this.armTimer(room);
     }
     room.players = room.players.filter((p) => p.id !== playerId);
     room.lastActivity = Date.now();
 
     if (room.players.length === 0) {
-      this.rooms.delete(room.code);
+      this.deleteRoom(room);
       return undefined;
     }
     if (room.hostId === playerId) room.hostId = room.players[0].id;
@@ -126,8 +145,23 @@ export class RoomManager {
       return { ok: false, error: 'NOT_ENOUGH_PLAYERS' };
     }
 
-    room.state = GAMES[room.gameType]!.setup(room.players.map((p) => p.id), this.ctx());
+    room.state = GAMES[room.gameType]!.setup(room.players.map((p) => p.id), room.options, this.ctx());
     room.status = 'playing';
+    room.lastActivity = Date.now();
+    this.armTimer(room);
+    return { ok: true, room };
+  }
+
+  setOptions(playerId: string, options: unknown): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (room.hostId !== playerId) return { ok: false, error: 'NOT_HOST' };
+    if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
+    const timeControl = (options as Partial<RoomOptions> | null)?.timeControl;
+    if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
+      return { ok: false, error: 'INVALID_OPTIONS' };
+    }
+    room.options = { ...room.options, timeControl };
     room.lastActivity = Date.now();
     return { ok: true, room };
   }
@@ -150,6 +184,7 @@ export class RoomManager {
     room.state = result.state;
     if (game.isOver(room.state)) room.status = 'finished';
     room.lastActivity = Date.now();
+    this.armTimer(room);
     return { ok: true, room };
   }
 
@@ -159,6 +194,7 @@ export class RoomManager {
       gameType: room.gameType,
       hostId: room.hostId,
       status: room.status,
+      options: room.options,
       players: room.players.map((p) => ({ ...p, connected: isConnected(p.id) })),
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
     };
@@ -171,8 +207,42 @@ export class RoomManager {
       if (now - room.lastActivity < idleMs) continue;
       if (room.players.some((p) => isConnected(p.id))) continue;
       for (const p of room.players) this.playerRoom.delete(p.id);
-      this.rooms.delete(room.code);
+      this.deleteRoom(room);
     }
+  }
+
+  // Schedules the next clock check for a room, replacing any earlier one.
+  private armTimer(room: Room): void {
+    clearTimeout(this.timers.get(room.code));
+    this.timers.delete(room.code);
+    const game = GAMES[room.gameType]!;
+    if (room.status !== 'playing' || !game.deadline) return;
+    const deadline = game.deadline(room.state);
+    if (deadline === null) return;
+    const timer = setTimeout(() => this.checkClock(room), Math.max(0, deadline - this.clock()));
+    timer.unref?.();
+    this.timers.set(room.code, timer);
+  }
+
+  private checkClock(room: Room): void {
+    this.timers.delete(room.code);
+    const game = GAMES[room.gameType]!;
+    if (this.rooms.get(room.code) !== room || room.status !== 'playing' || !game.timeout) return;
+    room.state = game.timeout(room.state, this.ctx());
+    if (game.isOver(room.state)) {
+      room.status = 'finished';
+      room.lastActivity = Date.now();
+      this.onAutoUpdate(room);
+    } else {
+      // Timers can fire a little early; check again at the real deadline.
+      this.armTimer(room);
+    }
+  }
+
+  private deleteRoom(room: Room): void {
+    clearTimeout(this.timers.get(room.code));
+    this.timers.delete(room.code);
+    this.rooms.delete(room.code);
   }
 
   private newCode(): string {

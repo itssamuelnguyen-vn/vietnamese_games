@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChessView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
@@ -131,5 +131,64 @@ describe('RoomManager', () => {
     rooms.sweep(() => false, 0);
     expect(rooms.roomOf(A)).toBeUndefined();
     expect(rooms.roomOf(B)).toBeUndefined();
+  });
+
+  describe('options and clocks', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('lets only the host change options, and only between games', () => {
+      const { rooms } = roomWithTwo();
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0' });
+      expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
+      expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, { timeControl: '3+2' }).ok).toBe(true);
+      rooms.start(A);
+      expect(rooms.setOptions(A, { timeControl: 'none' })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
+    });
+
+    it('ends the game on time even if nobody moves', () => {
+      vi.useFakeTimers();
+      const updates: string[] = [];
+      const rooms = new RoomManager({ onAutoUpdate: (room) => updates.push(room.status) });
+      const created = rooms.create(A, 'An', 'chess');
+      if (!created.ok) throw new Error();
+      rooms.join(B, 'Bình', created.room.code);
+      rooms.setOptions(A, { timeControl: '3+2' });
+      const started = rooms.start(A);
+      if (!started.ok) throw new Error();
+      const view = () => rooms.view(started.room, A, allOnline).game as ChessView;
+      const [white, black] = view().white === A ? [A, B] : [B, A];
+
+      rooms.move(white, { type: 'move', from: 'e2', to: 'e4' });
+      rooms.move(black, { type: 'move', from: 'e7', to: 'e5' });
+      vi.advanceTimersByTime(3 * 60_000 - 1);
+      expect(updates).toEqual([]);
+      vi.advanceTimersByTime(1);
+      expect(updates).toEqual(['finished']);
+      expect(view().result).toEqual({ winner: black, reason: 'timeout' });
+    });
+
+    it('does not fire after the room is gone', () => {
+      vi.useFakeTimers();
+      const updates: string[] = [];
+      const rooms = new RoomManager({ onAutoUpdate: (room) => updates.push(room.code) });
+      const created = rooms.create(A, 'An', 'chess');
+      if (!created.ok) throw new Error();
+      rooms.join(B, 'Bình', created.room.code);
+      rooms.setOptions(A, { timeControl: '3+2' });
+      rooms.start(A);
+      const view = rooms.view(created.room, A, allOnline).game as ChessView;
+      const [white, black] = view.white === A ? [A, B] : [B, A];
+      rooms.move(white, { type: 'move', from: 'e2', to: 'e4' });
+      rooms.move(black, { type: 'move', from: 'e7', to: 'e5' });
+      rooms.leave(A);
+      rooms.leave(B);
+      vi.advanceTimersByTime(10 * 60_000);
+      expect(updates).toEqual([]);
+    });
   });
 });

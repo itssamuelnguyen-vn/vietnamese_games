@@ -22,7 +22,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   const app = express();
   const httpServer = createServer(app);
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer);
-  const rooms = new RoomManager();
+  const rooms = new RoomManager({ onAutoUpdate: (room) => broadcast(room) });
 
   app.get('/healthz', (_req, res) => {
     res.send('ok');
@@ -93,6 +93,14 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     socket.on('room:start', (ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
       const r = rooms.start(playerId);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
+    socket.on('room:options', (options, ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.setOptions(playerId, options);
       if (!r.ok) return reply(r);
       reply({ ok: true });
       broadcast(r.room);

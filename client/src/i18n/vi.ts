@@ -84,6 +84,7 @@ export const vi = {
       'fifty-moves': 'Luật 50 nước',
       resign: 'Đối thủ xin thua',
       agreement: 'Hai bên đồng ý hòa',
+      timeout: 'Hết giờ',
     } satisfies Record<ChessEndReason, string>,
     youResigned: 'Bạn đã xin thua',
     resultWin: 'Bạn thắng!',
@@ -118,6 +119,7 @@ export const vi = {
     NOT_A_PLAYER: 'Bạn không phải người chơi',
     NOT_YOUR_TURN: 'Chưa đến lượt bạn',
     INVALID_MOVE: 'Nước đi không hợp lệ',
+    INVALID_OPTIONS: 'Thiết lập không hợp lệ',
     DISCONNECTED: 'Mất kết nối tới server',
   } satisfies Record<ErrorCode, string>,
 };

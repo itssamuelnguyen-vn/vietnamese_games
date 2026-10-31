@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import type { GameDefinition } from '../types';
+import { TIME_CONTROLS, type GameDefinition } from '../types';
 
 export type ChessColor = 'w' | 'b';
 
@@ -10,11 +10,19 @@ export type ChessEndReason =
   | 'insufficient'
   | 'fifty-moves'
   | 'resign'
-  | 'agreement';
+  | 'agreement'
+  | 'timeout';
 
 export interface ChessResult {
   winner: string | null; // null = draw
   reason: ChessEndReason;
+}
+
+export interface ChessClock {
+  incrementMs: number;
+  remaining: Record<ChessColor, number>;
+  // When the side to move started thinking; null while the clock is stopped.
+  turnStartedAt: number | null;
 }
 
 export interface ChessState {
@@ -26,6 +34,7 @@ export interface ChessState {
   drawOffer: string | null;
   // Ply at which each player last offered a draw, to stop offer spam.
   drawOfferedAt: Record<string, number>;
+  clock: ChessClock | null;
 }
 
 export type ChessMove =
@@ -46,6 +55,8 @@ export interface ChessView {
   result: ChessResult | null;
   drawOffer: string | null;
   canOfferDraw: boolean;
+  // Remaining times as of when the view was built; `running` is the side whose clock is ticking.
+  clock: { remaining: Record<ChessColor, number>; running: ChessColor | null; incrementMs: number } | null;
 }
 
 function load(state: ChessState): Chess {
@@ -73,6 +84,48 @@ function canOfferDraw(state: ChessState, playerId: string, ply: number): boolean
   return !state.result && colorOf(state, playerId) !== null && state.drawOffer === null && state.drawOfferedAt[playerId] !== ply;
 }
 
+// Clocks only start once both sides have made their first move.
+const CLOCK_START_PLY = 2;
+
+// Time left for each side at `now`, charging the side to move for its current think.
+function remainingAt(clock: ChessClock, turn: ChessColor, now: number): Record<ChessColor, number> {
+  if (clock.turnStartedAt === null) return clock.remaining;
+  const left = Math.max(0, clock.remaining[turn] - (now - clock.turnStartedAt));
+  return { ...clock.remaining, [turn]: left };
+}
+
+function stopClock(state: ChessState, now: number): ChessClock | null {
+  if (!state.clock) return null;
+  return { ...state.clock, remaining: remainingAt(state.clock, load(state).turn(), now), turnStartedAt: null };
+}
+
+// A player who runs out of time only loses if the opponent could still deliver mate.
+function canMate(chess: Chess, color: ChessColor): boolean {
+  let minors = 0;
+  for (const row of chess.board()) {
+    for (const sq of row) {
+      if (!sq || sq.color !== color || sq.type === 'k') continue;
+      if (sq.type === 'p' || sq.type === 'r' || sq.type === 'q') return true;
+      minors++;
+    }
+  }
+  return minors >= 2;
+}
+
+function flag(state: ChessState): ChessState {
+  const chess = load(state);
+  const loser = chess.turn();
+  const winnerColor: ChessColor = loser === 'w' ? 'b' : 'w';
+  const clock = state.clock && { ...state.clock, remaining: { ...state.clock.remaining, [loser]: 0 }, turnStartedAt: null };
+  const winner = canMate(chess, winnerColor) ? opponentOf(state, loser) : null;
+  return { ...state, clock, drawOffer: null, result: { winner, reason: 'timeout' } };
+}
+
+// Ends the game with `result`, freezing the clock at the current moment.
+function finish(state: ChessState, result: ChessResult, now: number): ChessState {
+  return { ...state, clock: stopClock(state, now), drawOffer: null, result };
+}
+
 function detectResult(chess: Chess, state: ChessState): ChessResult | null {
   if (chess.isCheckmate()) {
     // The side that just moved wins; chess.turn() is now the mated side.
@@ -88,12 +141,14 @@ function detectResult(chess: Chess, state: ChessState): ChessResult | null {
 export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
   type: 'chess',
 
-  setup([a, b]) {
+  setup([a, b], options) {
     const [white, black] = Math.random() < 0.5 ? [a, b] : [b, a];
-    return { white, black, pgn: '', result: null, drawOffer: null, drawOfferedAt: {} };
+    const tc = TIME_CONTROLS[options.timeControl];
+    const clock = tc && { incrementMs: tc.incrementMs, remaining: { w: tc.initialMs, b: tc.initialMs }, turnStartedAt: null };
+    return { white, black, pgn: '', result: null, drawOffer: null, drawOfferedAt: {}, clock };
   },
 
-  applyMove(state, playerId, move) {
+  applyMove(state, playerId, move, { now }) {
     if (state.result) return { ok: false, error: 'GAME_OVER' };
     const color = colorOf(state, playerId);
     if (!color) return { ok: false, error: 'NOT_A_PLAYER' };
@@ -101,12 +156,12 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
 
     switch (move.type) {
       case 'resign':
-        return { ok: true, state: { ...state, drawOffer: null, result: { winner: opponent, reason: 'resign' } } };
+        return { ok: true, state: finish(state, { winner: opponent, reason: 'resign' }, now) };
 
       case 'offer-draw': {
         // Offering back while the opponent's offer is pending is simply accepting it.
         if (state.drawOffer === opponent) {
-          return { ok: true, state: { ...state, drawOffer: null, result: { winner: null, reason: 'agreement' } } };
+          return { ok: true, state: finish(state, { winner: null, reason: 'agreement' }, now) };
         }
         const ply = plyCount(state);
         if (!canOfferDraw(state, playerId, ply)) return { ok: false, error: 'INVALID_MOVE' };
@@ -118,7 +173,7 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
 
       case 'accept-draw':
         if (state.drawOffer !== opponent) return { ok: false, error: 'INVALID_MOVE' };
-        return { ok: true, state: { ...state, drawOffer: null, result: { winner: null, reason: 'agreement' } } };
+        return { ok: true, state: finish(state, { winner: null, reason: 'agreement' }, now) };
 
       case 'decline-draw':
         if (state.drawOffer !== opponent) return { ok: false, error: 'INVALID_MOVE' };
@@ -127,14 +182,26 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
       case 'move': {
         const chess = load(state);
         if (chess.turn() !== color) return { ok: false, error: 'NOT_YOUR_TURN' };
+
+        // A move that arrives after the flag fell loses on time instead of being played.
+        let clock = state.clock;
+        if (clock && clock.turnStartedAt !== null) {
+          const left = remainingAt(clock, color, now)[color];
+          if (left <= 0) return { ok: true, state: flag(state) };
+          clock = { ...clock, remaining: { ...clock.remaining, [color]: left + clock.incrementMs } };
+        }
+
         try {
           chess.move({ from: move.from, to: move.to, promotion: move.promotion ?? 'q' });
         } catch {
           return { ok: false, error: 'INVALID_MOVE' };
         }
+        if (clock) clock = { ...clock, turnStartedAt: chess.history().length >= CLOCK_START_PLY ? now : null };
+
         // Moving on is an implicit answer to any pending offer.
-        const next = { ...state, pgn: chess.pgn(), drawOffer: null };
-        return { ok: true, state: { ...next, result: detectResult(chess, next) } };
+        const next = { ...state, pgn: chess.pgn(), drawOffer: null, clock };
+        const result = detectResult(chess, next);
+        return { ok: true, state: result ? finish(next, result, now) : next };
       }
 
       default:
@@ -142,19 +209,31 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
     }
   },
 
-  forfeit(state, playerId) {
+  forfeit(state, playerId, { now }) {
     if (state.result) return state;
     const color = colorOf(state, playerId);
     if (!color) return state;
-    return { ...state, drawOffer: null, result: { winner: opponentOf(state, color), reason: 'resign' } };
+    return finish(state, { winner: opponentOf(state, color), reason: 'resign' }, now);
+  },
+
+  deadline(state) {
+    const clock = state.clock;
+    if (state.result || !clock || clock.turnStartedAt === null) return null;
+    return clock.turnStartedAt + clock.remaining[load(state).turn()];
+  },
+
+  timeout(state, { now }) {
+    const deadline = chessGame.deadline!(state);
+    return deadline !== null && now >= deadline ? flag(state) : state;
   },
 
   isOver(state) {
     return state.result !== null;
   },
 
-  playerView(state, playerId) {
+  playerView(state, playerId, { now }) {
     const chess = load(state);
+    const clock = state.clock;
     const verbose = chess.history({ verbose: true });
     const last = verbose.at(-1);
     return {
@@ -168,6 +247,11 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
       result: state.result,
       drawOffer: state.drawOffer,
       canOfferDraw: canOfferDraw(state, playerId, verbose.length),
+      clock: clock && {
+        remaining: remainingAt(clock, chess.turn(), now),
+        running: clock.turnStartedAt === null ? null : chess.turn(),
+        incrementMs: clock.incrementMs,
+      },
     };
   },
 };

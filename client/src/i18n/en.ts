@@ -83,6 +83,7 @@ export const en: Strings = {
       'fifty-moves': 'Fifty-move rule',
       resign: 'Opponent resigned',
       agreement: 'Draw agreed',
+      timeout: 'Time out',
     },
     youResigned: 'You resigned',
     resultWin: 'You win!',
@@ -117,6 +118,7 @@ export const en: Strings = {
     NOT_A_PLAYER: 'You’re not playing in this game',
     NOT_YOUR_TURN: 'It’s not your turn',
     INVALID_MOVE: 'Illegal move',
+    INVALID_OPTIONS: 'Invalid settings',
     DISCONNECTED: 'Lost connection to the server',
   },
 };

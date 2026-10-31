@@ -5,7 +5,7 @@ const A = 'player-a';
 const B = 'player-b';
 
 // Fixed colours keep tests deterministic: A is white, B is black.
-const fresh = (): ChessState => ({ white: A, black: B, pgn: '', result: null, drawOffer: null, drawOfferedAt: {} });
+const fresh = (): ChessState => ({ white: A, black: B, pgn: '', result: null, drawOffer: null, drawOfferedAt: {}, clock: null });
 const ctx = { now: 0 };
 
 function play(state: ChessState, moves: [string, string, string][]): ChessState {
@@ -20,7 +20,7 @@ function play(state: ChessState, moves: [string, string, string][]): ChessState 
 describe('chessGame', () => {
   it('assigns both players a colour', () => {
     for (let i = 0; i < 20; i++) {
-      const s = chessGame.setup([A, B], ctx);
+      const s = chessGame.setup([A, B], { timeControl: 'none' }, ctx);
       expect([s.white, s.black].sort()).toEqual([A, B]);
     }
   });
@@ -130,6 +130,77 @@ describe('chessGame', () => {
       const moved = play(ok(act(declined, B, 'offer-draw')), [[A, 'e2', 'e4']]);
       expect(moved.drawOffer).toBeNull();
       expect(act(moved, A, 'offer-draw').ok).toBe(true);
+    });
+  });
+
+  describe('clocks', () => {
+    const timed = (): ChessState => ({
+      ...fresh(),
+      clock: { incrementMs: 2_000, remaining: { w: 60_000, b: 60_000 }, turnStartedAt: null },
+    });
+    const mv = (state: ChessState, player: string, from: string, to: string, now: number) => {
+      const r = chessGame.applyMove(state, player, { type: 'move', from, to }, { now });
+      if (!r.ok) throw new Error(r.error);
+      return r.state;
+    };
+    // After 1. e4 e5 at t=50s: both clocks full, white's clock running.
+    const opened = () => mv(mv(timed(), A, 'e2', 'e4', 1_000), B, 'e7', 'e5', 50_000);
+
+    it('sets up clocks from the chosen time control', () => {
+      const s = chessGame.setup([A, B], { timeControl: '3+2' }, ctx);
+      expect(s.clock).toEqual({ incrementMs: 2_000, remaining: { w: 180_000, b: 180_000 }, turnStartedAt: null });
+      expect(chessGame.setup([A, B], { timeControl: 'none' }, ctx).clock).toBeNull();
+    });
+
+    it('only starts once both sides have moved', () => {
+      const first = mv(timed(), A, 'e2', 'e4', 1_000);
+      expect(first.clock?.turnStartedAt).toBeNull();
+      expect(chessGame.deadline!(first)).toBeNull();
+      const s = opened();
+      expect(s.clock).toMatchObject({ remaining: { w: 60_000, b: 60_000 }, turnStartedAt: 50_000 });
+      expect(chessGame.deadline!(s)).toBe(110_000);
+    });
+
+    it('charges thinking time, adds the increment and reports live time in the view', () => {
+      const s = mv(opened(), A, 'g1', 'f3', 60_000);
+      expect(s.clock?.remaining.w).toBe(52_000);
+      expect(chessGame.playerView(s, B, { now: 65_000 }).clock).toEqual({
+        remaining: { w: 52_000, b: 55_000 },
+        running: 'b',
+        incrementMs: 2_000,
+      });
+    });
+
+    it('flags the side to move once the deadline passes', () => {
+      const s = opened();
+      expect(chessGame.timeout!(s, { now: 109_999 })).toBe(s);
+      const flagged = chessGame.timeout!(s, { now: 110_000 });
+      expect(flagged.result).toEqual({ winner: B, reason: 'timeout' });
+      expect(flagged.clock).toMatchObject({ remaining: { w: 0 }, turnStartedAt: null });
+    });
+
+    it('a move sent after the flag fell loses on time', () => {
+      const r = chessGame.applyMove(opened(), A, { type: 'move', from: 'g1', to: 'f3' }, { now: 200_000 });
+      expect(r.ok && r.state.result).toEqual({ winner: B, reason: 'timeout' });
+    });
+
+    it('is a draw on time when the opponent cannot mate', () => {
+      const lone: ChessState = {
+        ...fresh(),
+        pgn: '[SetUp "1"]\n[FEN "4k3/8/8/8/8/8/8/r3K3 w - - 0 1"]\n\n*',
+        clock: { incrementMs: 0, remaining: { w: 1_000, b: 1_000 }, turnStartedAt: 0 },
+      };
+      // White (to move) flags, but black has a rook: black wins.
+      expect(chessGame.timeout!(lone, { now: 1_000 }).result).toEqual({ winner: B, reason: 'timeout' });
+      // Same position with black to move: white has a bare king, so it's a draw.
+      const blackToMove = { ...lone, pgn: lone.pgn.replace(' w - -', ' b - -') };
+      expect(chessGame.timeout!(blackToMove, { now: 1_000 }).result).toEqual({ winner: null, reason: 'timeout' });
+    });
+
+    it('freezes the clock when the game ends another way', () => {
+      const r = chessGame.applyMove(opened(), A, { type: 'resign' }, { now: 70_000 });
+      expect(r.ok && r.state.clock).toMatchObject({ remaining: { w: 40_000, b: 60_000 }, turnStartedAt: null });
+      expect(r.ok && chessGame.deadline!(r.state)).toBeNull();
     });
   });
 });

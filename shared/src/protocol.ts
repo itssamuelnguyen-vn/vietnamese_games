@@ -1,4 +1,4 @@
-import type { GameType, RoomView } from './types';
+import type { GameType, RoomOptions, RoomView } from './types';
 
 // Errors travel as codes; each client locale turns them into readable text.
 export type ErrorCode =
@@ -16,6 +16,7 @@ export type ErrorCode =
   | 'NOT_A_PLAYER'
   | 'NOT_YOUR_TURN'
   | 'INVALID_MOVE'
+  | 'INVALID_OPTIONS'
   | 'DISCONNECTED';
 
 export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -25,6 +26,7 @@ export interface ClientToServerEvents {
   'room:join': (p: { code: string; name: string }, ack: (r: Ack<{ code: string }>) => void) => void;
   'room:leave': () => void;
   'room:start': (ack: (r: Ack) => void) => void;
+  'room:options': (options: Partial<RoomOptions>, ack: (r: Ack) => void) => void;
   'game:move': (move: unknown, ack: (r: Ack) => void) => void;
 }
 

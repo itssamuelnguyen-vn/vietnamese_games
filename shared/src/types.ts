@@ -18,6 +18,29 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: false },
 };
 
+export type TimeControlId = 'none' | '3+2' | '5+0' | '10+0' | '15+10';
+
+export interface TimeControl {
+  initialMs: number;
+  incrementMs: number;
+}
+
+// Presets offered in the waiting room; `none` means untimed.
+export const TIME_CONTROLS: Record<TimeControlId, TimeControl | null> = {
+  none: null,
+  '3+2': { initialMs: 3 * 60_000, incrementMs: 2_000 },
+  '5+0': { initialMs: 5 * 60_000, incrementMs: 0 },
+  '10+0': { initialMs: 10 * 60_000, incrementMs: 0 },
+  '15+10': { initialMs: 15 * 60_000, incrementMs: 10_000 },
+};
+
+// Settings the host picks before starting a game.
+export interface RoomOptions {
+  timeControl: TimeControlId;
+}
+
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0' };
+
 export interface PlayerInfo {
   id: string;
   name: string;
@@ -34,6 +57,7 @@ export interface RoomView {
   hostId: string;
   players: PlayerInfo[];
   status: RoomStatus;
+  options: RoomOptions;
   game: unknown;
 }
 
@@ -48,11 +72,15 @@ export interface GameContext {
 // clients only ever receive playerView.
 export interface GameDefinition<S, M, V> {
   type: GameType;
-  setup(playerIds: string[], ctx: GameContext): S;
+  setup(playerIds: string[], options: RoomOptions, ctx: GameContext): S;
   applyMove(state: S, playerId: string, move: M, ctx: GameContext): MoveResult<S>;
   // Called when a player deliberately leaves mid-game.
   forfeit(state: S, playerId: string, ctx: GameContext): S;
   isOver(state: S): boolean;
   // Spectators get a view too; their playerId is simply not one of the players.
   playerView(state: S, playerId: string, ctx: GameContext): V;
+  // Absolute time (ms) at which the side to move runs out of time; null when no clock is running.
+  deadline?(state: S): number | null;
+  // Settles a flag fall once the deadline has passed; returns the state unchanged otherwise.
+  timeout?(state: S, ctx: GameContext): S;
 }
