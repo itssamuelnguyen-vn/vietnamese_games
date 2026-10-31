@@ -41,7 +41,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
 
   function broadcast(room: Room | undefined) {
     if (!room) return;
-    for (const p of room.players) {
+    for (const p of [...room.players, ...room.spectators]) {
       io.to(channel(p.id)).emit('room:state', rooms.view(room, p.id, isConnected));
     }
   }
@@ -109,6 +109,14 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     socket.on('game:move', (move, ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
       const r = rooms.move(playerId, move);
+      if (!r.ok) return reply(r);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
+    socket.on('chat:send', (text, ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.chat(playerId, text);
       if (!r.ok) return reply(r);
       reply({ ok: true });
       broadcast(r.room);

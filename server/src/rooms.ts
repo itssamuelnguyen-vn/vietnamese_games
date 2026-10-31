@@ -1,8 +1,10 @@
 import {
   DEFAULT_ROOM_OPTIONS,
   GAME_CATALOG,
+  MAX_CHAT_LENGTH,
   TIME_CONTROLS,
   chessGame,
+  type ChatMessage,
   type ErrorCode,
   type GameDefinition,
   type GameType,
@@ -27,9 +29,11 @@ export interface Room {
   gameType: GameType;
   hostId: string;
   players: Player[];
+  spectators: Player[];
   status: RoomStatus;
   options: RoomOptions;
   state: unknown;
+  chat: ChatMessage[];
   lastActivity: number;
 }
 
@@ -45,12 +49,19 @@ type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
 // Leaves out look-alike characters (0/O, 1/I/L) so codes are easy to read aloud.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const MAX_NAME_LENGTH = 20;
+const MAX_SPECTATORS = 20;
+const CHAT_HISTORY = 50;
+// Chat flood control: at most CHAT_BURST messages per CHAT_WINDOW_MS per person.
+const CHAT_BURST = 5;
+const CHAT_WINDOW_MS = 10_000;
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private playerRoom = new Map<string, string>();
 
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private chatTimes = new Map<string, number[]>();
+  private nextMessageId = 1;
   private readonly clock: () => number;
   private readonly onAutoUpdate: (room: Room) => void;
 
@@ -82,9 +93,11 @@ export class RoomManager {
       gameType,
       hostId: playerId,
       players: [{ id: playerId, name: cleanName }],
+      spectators: [],
       status: 'waiting',
       options: { ...DEFAULT_ROOM_OPTIONS },
       state: null,
+      chat: [],
       lastActivity: Date.now(),
     };
     this.rooms.set(room.code, room);
@@ -97,17 +110,16 @@ export class RoomManager {
     if (!room) return { ok: false, error: 'ROOM_NOT_FOUND' };
 
     // Already a member (e.g. reopened the tab): let them straight back in.
-    if (room.players.some((p) => p.id === playerId)) return { ok: true, room };
+    if (isMember(room, playerId)) return { ok: true, room };
 
     const cleanName = sanitizeName(name);
     if (!cleanName) return { ok: false, error: 'NAME_REQUIRED' };
-    if (room.status === 'playing') return { ok: false, error: 'ROOM_IN_GAME' };
-    if (room.players.length >= GAME_CATALOG[room.gameType].maxPlayers) {
-      return { ok: false, error: 'ROOM_FULL' };
-    }
+    // Free seat between games: sit down. Otherwise watch.
+    const seatFree = room.status !== 'playing' && room.players.length < GAME_CATALOG[room.gameType].maxPlayers;
+    if (!seatFree && room.spectators.length >= MAX_SPECTATORS) return { ok: false, error: 'ROOM_FULL' };
 
     const left = this.leave(playerId);
-    room.players.push({ id: playerId, name: cleanName });
+    (seatFree ? room.players : room.spectators).push({ id: playerId, name: cleanName });
     room.lastActivity = Date.now();
     this.playerRoom.set(playerId, room.code);
     return { ok: true, room, left };
@@ -118,6 +130,12 @@ export class RoomManager {
     const room = this.roomOf(playerId);
     if (!room) return undefined;
     this.playerRoom.delete(playerId);
+    this.chatTimes.delete(playerId);
+
+    if (room.spectators.some((p) => p.id === playerId)) {
+      room.spectators = room.spectators.filter((p) => p.id !== playerId);
+      return room;
+    }
 
     if (room.status === 'playing') {
       room.state = GAMES[room.gameType]!.forfeit(room.state, playerId, this.ctx());
@@ -126,6 +144,7 @@ export class RoomManager {
     }
     room.players = room.players.filter((p) => p.id !== playerId);
     room.lastActivity = Date.now();
+    this.fillSeats(room);
 
     if (room.players.length === 0) {
       this.deleteRoom(room);
@@ -188,6 +207,25 @@ export class RoomManager {
     return { ok: true, room };
   }
 
+  chat(playerId: string, text: unknown): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    const clean = typeof text === 'string' ? text.trim().slice(0, MAX_CHAT_LENGTH) : '';
+    if (!clean) return { ok: false, error: 'MESSAGE_INVALID' };
+
+    const now = this.clock();
+    const recent = (this.chatTimes.get(playerId) ?? []).filter((t) => now - t < CHAT_WINDOW_MS);
+    if (recent.length >= CHAT_BURST) return { ok: false, error: 'MESSAGE_TOO_FAST' };
+    this.chatTimes.set(playerId, [...recent, now]);
+
+    const author = [...room.players, ...room.spectators].find((p) => p.id === playerId)!;
+    room.chat = [...room.chat, { id: this.nextMessageId++, playerId, name: author.name, text: clean, at: now }].slice(
+      -CHAT_HISTORY,
+    );
+    room.lastActivity = Date.now();
+    return { ok: true, room };
+  }
+
   view(room: Room, playerId: string, isConnected: (id: string) => boolean): RoomView {
     return {
       code: room.code,
@@ -196,6 +234,8 @@ export class RoomManager {
       status: room.status,
       options: room.options,
       players: room.players.map((p) => ({ ...p, connected: isConnected(p.id) })),
+      spectators: room.spectators.map((p) => ({ ...p, connected: isConnected(p.id) })),
+      chat: room.chat,
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
     };
   }
@@ -205,9 +245,18 @@ export class RoomManager {
     const now = Date.now();
     for (const room of this.rooms.values()) {
       if (now - room.lastActivity < idleMs) continue;
-      if (room.players.some((p) => isConnected(p.id))) continue;
-      for (const p of room.players) this.playerRoom.delete(p.id);
+      const members = [...room.players, ...room.spectators];
+      if (members.some((p) => isConnected(p.id))) continue;
+      for (const p of members) this.playerRoom.delete(p.id);
       this.deleteRoom(room);
+    }
+  }
+
+  // Spectators take free seats between games, oldest first.
+  private fillSeats(room: Room): void {
+    const max = GAME_CATALOG[room.gameType].maxPlayers;
+    while (room.status !== 'playing' && room.players.length < max && room.spectators.length > 0) {
+      room.players.push(room.spectators.shift()!);
     }
   }
 
@@ -258,4 +307,8 @@ export class RoomManager {
 
 function sanitizeName(name: unknown): string {
   return typeof name === 'string' ? name.trim().slice(0, MAX_NAME_LENGTH) : '';
+}
+
+function isMember(room: Room, playerId: string): boolean {
+  return room.players.some((p) => p.id === playerId) || room.spectators.some((p) => p.id === playerId);
 }

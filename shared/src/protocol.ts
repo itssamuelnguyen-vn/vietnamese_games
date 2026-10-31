@@ -5,7 +5,6 @@ export type ErrorCode =
   | 'GAME_UNAVAILABLE'
   | 'NAME_REQUIRED'
   | 'ROOM_NOT_FOUND'
-  | 'ROOM_IN_GAME'
   | 'ROOM_FULL'
   | 'NOT_IN_ROOM'
   | 'NOT_HOST'
@@ -17,6 +16,8 @@ export type ErrorCode =
   | 'NOT_YOUR_TURN'
   | 'INVALID_MOVE'
   | 'INVALID_OPTIONS'
+  | 'MESSAGE_INVALID'
+  | 'MESSAGE_TOO_FAST'
   | 'DISCONNECTED';
 
 export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -28,6 +29,7 @@ export interface ClientToServerEvents {
   'room:start': (ack: (r: Ack) => void) => void;
   'room:options': (options: Partial<RoomOptions>, ack: (r: Ack) => void) => void;
   'game:move': (move: unknown, ack: (r: Ack) => void) => void;
+  'chat:send': (text: string, ack: (r: Ack) => void) => void;
 }
 
 export interface ServerToClientEvents {

@@ -108,7 +108,6 @@ export const vi = {
     GAME_UNAVAILABLE: 'Game này chưa sẵn sàng',
     NAME_REQUIRED: 'Hãy nhập tên trước đã',
     ROOM_NOT_FOUND: 'Không tìm thấy phòng',
-    ROOM_IN_GAME: 'Phòng đang chơi',
     ROOM_FULL: 'Phòng đã đủ người',
     NOT_IN_ROOM: 'Bạn chưa vào phòng',
     NOT_HOST: 'Chỉ chủ phòng mới được bắt đầu',
@@ -120,6 +119,8 @@ export const vi = {
     NOT_YOUR_TURN: 'Chưa đến lượt bạn',
     INVALID_MOVE: 'Nước đi không hợp lệ',
     INVALID_OPTIONS: 'Thiết lập không hợp lệ',
+    MESSAGE_INVALID: 'Tin nhắn trống',
+    MESSAGE_TOO_FAST: 'Bạn nhắn nhanh quá, chờ chút nhé',
     DISCONNECTED: 'Mất kết nối tới server',
   } satisfies Record<ErrorCode, string>,
 };

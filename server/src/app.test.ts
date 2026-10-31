@@ -56,7 +56,7 @@ function client(playerId: string): Promise<Client> {
   });
 }
 
-const call = <E extends 'room:create' | 'room:join' | 'room:start' | 'game:move'>(
+const call = <E extends 'room:create' | 'room:join' | 'room:start' | 'game:move' | 'chat:send'>(
   c: Client,
   event: E,
   ...args: Parameters<ClientToServerEvents[E]> extends [...infer P, unknown] ? P : never
@@ -120,6 +120,26 @@ describe('game server', () => {
     const back = await b2.waitFor((r) => r.code === code);
     expect(back.status).toBe('playing');
     await a.waitFor((r) => r.players.every((p) => p.connected));
+  });
+
+  it('lets a spectator watch and chat with the players', async () => {
+    const a = await client('ffffffffffff');
+    const b = await client('gggggggggggg');
+    const watcher = await client('hhhhhhhhhhhh');
+    const { code } = await call(a, 'room:create', { gameType: 'chess', name: 'An' });
+    await call(b, 'room:join', { code: code!, name: 'Bình' });
+    await call(a, 'room:start');
+    expect((await call(watcher, 'room:join', { code: code!, name: 'Chi' })).ok).toBe(true);
+
+    const watching = await watcher.waitFor((r) => r.status === 'playing');
+    expect(watching.spectators.map((p) => p.name)).toEqual(['Chi']);
+    expect((watching.game as ChessView).fen).toBeTruthy();
+
+    expect((await call(watcher, 'chat:send', 'hay quá')).ok).toBe(true);
+    for (const c of [a, b]) {
+      const room = await c.waitFor((r) => r.chat.length > 0);
+      expect(room.chat.at(-1)).toMatchObject({ name: 'Chi', text: 'hay quá' });
+    }
   });
 
   it('survives events sent without an ack callback or with junk payloads', async () => {

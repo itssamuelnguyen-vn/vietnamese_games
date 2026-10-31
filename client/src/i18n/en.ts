@@ -107,7 +107,6 @@ export const en: Strings = {
     GAME_UNAVAILABLE: 'This game isn’t available yet',
     NAME_REQUIRED: 'Please enter your name first',
     ROOM_NOT_FOUND: 'Room not found',
-    ROOM_IN_GAME: 'This room is already playing',
     ROOM_FULL: 'This room is full',
     NOT_IN_ROOM: 'You’re not in a room',
     NOT_HOST: 'Only the host can start the game',
@@ -119,6 +118,8 @@ export const en: Strings = {
     NOT_YOUR_TURN: 'It’s not your turn',
     INVALID_MOVE: 'Illegal move',
     INVALID_OPTIONS: 'Invalid settings',
+    MESSAGE_INVALID: 'Message is empty',
+    MESSAGE_TOO_FAST: 'You’re sending messages too fast',
     DISCONNECTED: 'Lost connection to the server',
   },
 };

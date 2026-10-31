@@ -49,6 +49,16 @@ export interface PlayerInfo {
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished';
 
+export interface ChatMessage {
+  id: number;
+  playerId: string;
+  name: string;
+  text: string;
+  at: number;
+}
+
+export const MAX_CHAT_LENGTH = 200;
+
 // What a single player sees of a room. `game` is the game's playerView() output:
 // the server only sends what this player is allowed to know (e.g. their own hand).
 export interface RoomView {
@@ -56,8 +66,10 @@ export interface RoomView {
   gameType: GameType;
   hostId: string;
   players: PlayerInfo[];
+  spectators: PlayerInfo[];
   status: RoomStatus;
   options: RoomOptions;
+  chat: ChatMessage[];
   game: unknown;
 }
 

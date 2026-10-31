@@ -46,16 +46,46 @@ describe('RoomManager', () => {
     expect(rooms.join(B, 'Bình', ` ${created.room.code.toLowerCase()} `).ok).toBe(true);
   });
 
-  it('rejects joining a full room', () => {
+  it('seats newcomers as spectators once the seats are taken', () => {
     const { rooms, code } = roomWithTwo();
-    expect(rooms.join(C, 'Chi', code)).toEqual({ ok: false, error: 'ROOM_FULL' });
+    const r = rooms.join(C, 'Chi', code);
+    expect(r.ok && r.room.spectators).toEqual([{ id: C, name: 'Chi' }]);
+    expect(rooms.view(rooms.roomOf(C)!, C, allOnline).spectators.map((p) => p.id)).toEqual([C]);
+    expect(rooms.start(C)).toEqual({ ok: false, error: 'NOT_HOST' });
   });
 
-  it('lets an existing member rejoin even while playing', () => {
+  it('lets an existing member rejoin and newcomers watch while playing', () => {
     const { rooms, code } = roomWithTwo();
     rooms.start(A);
     expect(rooms.join(B, 'Bình', code).ok).toBe(true);
-    expect(rooms.join(C, 'Chi', code)).toEqual({ ok: false, error: 'ROOM_IN_GAME' });
+    const r = rooms.join(C, 'Chi', code);
+    expect(r.ok && r.room.spectators.map((p) => p.id)).toEqual([C]);
+    expect(rooms.move(C, { type: 'move', from: 'e2', to: 'e4' })).toEqual({ ok: false, error: 'NOT_A_PLAYER' });
+  });
+
+  it('caps the number of spectators', () => {
+    const { rooms, code } = roomWithTwo();
+    for (let i = 0; i < 20; i++) expect(rooms.join(`spectator-${i}`, `S${i}`, code).ok).toBe(true);
+    expect(rooms.join(C, 'Chi', code)).toEqual({ ok: false, error: 'ROOM_FULL' });
+  });
+
+  it('a spectator leaving does not affect the game', () => {
+    const { rooms, code } = roomWithTwo();
+    rooms.join(C, 'Chi', code);
+    rooms.start(A);
+    const room = rooms.leave(C);
+    expect(room?.status).toBe('playing');
+    expect(room?.spectators).toEqual([]);
+  });
+
+  it('promotes spectators into free seats between games', () => {
+    const { rooms, code } = roomWithTwo();
+    rooms.join(C, 'Chi', code);
+    rooms.start(A);
+    const room = rooms.leave(B);
+    expect(room?.status).toBe('finished');
+    expect(room?.players.map((p) => p.id)).toEqual([A, C]);
+    expect(room?.spectators).toEqual([]);
   });
 
   it('only lets the host start, and only with enough players', () => {
@@ -120,6 +150,47 @@ describe('RoomManager', () => {
     const r = rooms.create(B, 'Bình', 'chess');
     expect(r.ok && r.left?.code).toBe(code);
     expect(rooms.roomOf(A)?.players.map((p) => p.id)).toEqual([A]);
+  });
+
+  describe('chat', () => {
+    it('stores trimmed messages from players and spectators', () => {
+      const { rooms, code } = roomWithTwo();
+      rooms.join(C, 'Chi', code);
+      expect(rooms.chat(A, '  xin chào  ').ok).toBe(true);
+      expect(rooms.chat(C, 'hi from the stands').ok).toBe(true);
+      const chat = rooms.view(rooms.roomOf(A)!, B, allOnline).chat;
+      expect(chat.map((m) => [m.name, m.text])).toEqual([
+        ['An', 'xin chào'],
+        ['Chi', 'hi from the stands'],
+      ]);
+      expect(chat[0].id).not.toBe(chat[1].id);
+    });
+
+    it('rejects empty or non-text messages and truncates long ones', () => {
+      const { rooms } = roomWithTwo();
+      for (const bad of ['', '   ', null, 42, { text: 'x' }]) {
+        expect(rooms.chat(A, bad)).toEqual({ ok: false, error: 'MESSAGE_INVALID' });
+      }
+      rooms.chat(A, 'x'.repeat(500));
+      expect(rooms.roomOf(A)!.chat[0].text).toHaveLength(200);
+      expect(rooms.chat('stranger', 'hi')).toEqual({ ok: false, error: 'NOT_IN_ROOM' });
+    });
+
+    it('rate-limits each person and keeps only recent history', () => {
+      let now = 0;
+      const rooms = new RoomManager({ clock: () => now });
+      const created = rooms.create(A, 'An', 'chess');
+      if (!created.ok) throw new Error();
+      for (let i = 0; i < 5; i++) expect(rooms.chat(A, `m${i}`).ok).toBe(true);
+      expect(rooms.chat(A, 'one too many')).toEqual({ ok: false, error: 'MESSAGE_TOO_FAST' });
+      now += 10_000;
+      for (let round = 0; round < 12; round++, now += 10_000) {
+        for (let i = 0; i < 5; i++) rooms.chat(A, `r${round}-${i}`);
+      }
+      const chat = rooms.roomOf(A)!.chat;
+      expect(chat).toHaveLength(50);
+      expect(chat.at(-1)?.text).toBe('r11-4');
+    });
   });
 
   it('sweeps rooms only once everyone has been gone long enough', () => {
