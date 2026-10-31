@@ -304,6 +304,7 @@ main {
   font-size: 1.3rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .topbar-actions {
@@ -1782,5 +1783,46 @@ main {
   .clock {
     font-size: 1.3rem;
     padding: 6px 10px;
+  }
+}
+
+/* Narrow phones: keep the brand on one line; the connection dot only shows when offline. */
+@media (max-width: 420px) {
+  .brand {
+    gap: 8px;
+  }
+
+  .brand svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .brand-name {
+    font-size: 1rem;
+  }
+
+  /* Too narrow for one row: brand on top, controls below on the right. */
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px 8px;
+  }
+
+  .topbar-actions {
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .lang-switch button {
+    padding: 4px 8px;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .conn-pill.on {
+    display: none;
   }
 }

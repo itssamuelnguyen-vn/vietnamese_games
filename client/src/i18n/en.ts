@@ -2,7 +2,7 @@ import type { Strings } from './vi';
 
 // English UI strings. Must keep the same shape as vi.ts.
 export const en: Strings = {
-  appName: 'Sân Chơi',
+  appName: 'Games Nhà Chang',
   connected: 'Online',
   connecting: 'Connecting…',
   footer: 'Made for fun, played for fun.',

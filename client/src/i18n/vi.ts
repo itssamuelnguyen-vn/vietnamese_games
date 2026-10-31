@@ -4,7 +4,7 @@ import type { OpeningId } from '../games/chessOpenings';
 // Vietnamese UI strings. This is the only place user-facing text should live;
 // a new locale is a copy of this object with the same shape.
 export const vi = {
-  appName: 'Sân Chơi',
+  appName: 'Games Nhà Chang',
   connected: 'Trực tuyến',
   connecting: 'Đang kết nối…',
   footer: 'Làm cho vui, chơi cho vui.',
