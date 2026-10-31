@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import type { ChessView, ClientToServerEvents, RoomView, ServerToClientEvents } from '@vg/shared';
+import type { ChessView, ClientToServerEvents, RoomView, ServerToClientEvents, TienLenView } from '@vg/shared';
 import { createGameServer, publicId, type GameServer } from './app';
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -138,6 +138,34 @@ describe('game server', () => {
     const back = await b2.waitFor((r) => r.code === code);
     expect(back.status).toBe('playing');
     await a.waitFor((r) => r.players.every((p) => p.connected));
+  });
+
+  it('sends each tien len player only their own cards', async () => {
+    const players = await Promise.all(['tl-an-secret', 'tl-bob-secret', 'tl-chi-secret'].map(client));
+    const watcher = await client('tl-dan-secret');
+    const [host, ...guests] = players;
+    const { code } = await call(host, 'room:create', { gameType: 'tienlen', name: 'An' });
+    for (const [i, g] of guests.entries()) await call(g, 'room:join', { code: code!, name: `P${i}` });
+    await call(host, 'room:start');
+    await call(watcher, 'room:join', { code: code!, name: 'Dan' });
+
+    const views = await Promise.all(players.map((c) => c.waitFor((r) => r.status !== 'waiting')));
+    // A deal that wins on the spot ends the game, and then every hand is shown on purpose.
+    if (views[0].status !== 'playing') return;
+    const hands = views.map((v) => (v.game as TienLenView).hand);
+    expect(hands.map((h) => h.length)).toEqual([13, 13, 13]);
+    for (const [i, view] of views.entries()) {
+      const game = view.game as TienLenView;
+      expect(game.revealed).toBeNull();
+      expect(game.seats.every((s) => s.cards === 13)).toBe(true);
+      expect(JSON.stringify(view)).not.toContain('"hands"');
+      // Nothing in this player's own hand belongs to anyone else.
+      const others = hands.filter((_, j) => j !== i).flat();
+      expect(game.hand.filter((c) => others.includes(c))).toEqual([]);
+    }
+    const watching = await watcher.waitFor((r) => r.spectators.length > 0);
+    expect((watching.game as TienLenView).hand).toEqual([]);
+    expect((watching.game as TienLenView).revealed).toBeNull();
   });
 
   it('lets a spectator watch and chat with the players', async () => {
