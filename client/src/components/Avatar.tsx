@@ -19,13 +19,15 @@ interface Props {
   name: string;
   size?: number;
   online?: boolean;
+  // Overrides the colour picked from the id, e.g. to match a player's tokens on a board.
+  color?: string;
 }
 
-export function Avatar({ id, name, size = 40, online }: Props) {
+export function Avatar({ id, name, size = 40, online, color }: Props) {
   return (
     <span
       className="avatar"
-      style={{ width: size, height: size, fontSize: size * 0.42, background: AVATAR_COLORS[hash(id) % AVATAR_COLORS.length] }}
+      style={{ width: size, height: size, fontSize: size * 0.42, background: color ?? AVATAR_COLORS[hash(id) % AVATAR_COLORS.length] }}
     >
       {initials(name)}
       {online !== undefined && <span className={`avatar-status ${online ? 'on' : 'off'}`} />}

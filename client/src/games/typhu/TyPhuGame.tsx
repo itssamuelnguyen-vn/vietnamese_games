@@ -20,7 +20,7 @@ import {
 } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
-import { Avatar } from '../../components/Avatar';
+import { Avatar, initials } from '../../components/Avatar';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
 import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
@@ -146,9 +146,11 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   const isHost = room.hostId === me;
   const name = (id: string) => (id === me ? t.room.you : ([...room.players, ...room.departed].find((p) => p.id === id)?.name ?? '…'));
   const player = (id: string) => room.players.find((p) => p.id === id);
-  const color = (id: string) => SEAT_COLORS[Math.max(0, view.seats.findIndex((s) => s.id === id)) % SEAT_COLORS.length];
-  // Token letter: the last word of the name, which tells "Bot 1" from "Bot 2" and is the given name in Vietnamese.
-  const initial = (id: string) => ((player(id)?.name ?? name(id)).trim().split(/\s+/).at(-1) ?? '?').slice(0, 1).toUpperCase();
+  const color = (id: string) => {
+    const i = view.seats.findIndex((s) => s.id === id);
+    return i < 0 ? undefined : SEAT_COLORS[i % SEAT_COLORS.length];
+  };
+  const initial = (id: string) => initials(player(id)?.name ?? name(id));
   const bizLabel = (b: Business) => `${BIZ_ICON[b.type]} ${T.biz[b.type]} · ${squareName(t, BOARD[b.square])} (${T.level(b.level)})`;
 
   const shown = useShownPositions(view);
@@ -238,6 +240,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
         <RoomCodeCard code={room.code} />
         <PlayersCard
           room={room}
+          colorOf={color}
           subtitle={(id) => {
             const seat = view.seats.find((s) => s.id === id);
             return (
@@ -318,7 +321,6 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                       })}
                     </span>
                   )}
-                  {factor !== 1 && <span className={`tp-factor ${factor > 1 ? 'up' : 'down'}`}>×{money(factor)}</span>}
                   {here.length > 0 && (
                     <span className="tp-tokens">
                       {here.map((s) => (
@@ -362,7 +364,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                     return (
                       <li key={id} className={`medal-${last ? 'last' : i + 1} ${id === me ? 'me' : ''}`}>
                         <span className="tl-medal">{i + 1}</span>
-                        <Avatar id={id} name={player(id)?.name ?? name(id)} size={38} />
+                        <Avatar id={id} name={player(id)?.name ?? name(id)} size={38} color={color(id)} />
                         <span className="tl-podium-text">
                           <strong>{name(id)}</strong>
                           <span className="muted small">
@@ -411,7 +413,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
 
         <div className={`tl-me card tp-me ${myTurn ? 'turn' : ''}`}>
           <div className="tl-me-head">
-            {seated && <Avatar id={me} name={player(me)?.name ?? '?'} size={36} online />}
+            {seated && <Avatar id={me} name={player(me)?.name ?? '?'} size={36} online color={color(me)} />}
             <p className="tl-status">
               <Ellipsis text={status} />
             </p>
@@ -570,7 +572,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                   </li>
                 ) : (
                   <li key={i} className={`tl-log-row ${'player' in entry && entry.player === me ? 'mine' : ''} ${entry.kind === 'pay' || entry.kind === 'interest' ? 'pass' : entry.kind === 'buy' || entry.kind === 'upgrade' || entry.kind === 'trade' ? 'finish' : ''}`}>
-                    <Avatar id={'player' in entry ? entry.player : entry.from} name={name('player' in entry ? entry.player : entry.from)} size={22} />
+                    <Avatar id={'player' in entry ? entry.player : entry.from} name={player('player' in entry ? entry.player : entry.from)?.name ?? '?'} size={22} color={color('player' in entry ? entry.player : entry.from)} />
                     <span className="tl-log-text">{describe(t, entry, name)}</span>
                   </li>
                 ),
@@ -602,7 +604,7 @@ function SquareDetails({
   view: TyPhuView;
   me: string;
   name: (id: string) => string;
-  color: (id: string) => string;
+  color: (id: string) => string | undefined;
   onClose: () => void;
   flyButton: ReactNode;
 }) {

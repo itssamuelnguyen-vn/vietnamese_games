@@ -3203,8 +3203,10 @@ main {
   position: relative;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  /* Shrinks to fit three slots in a narrow square. */
+  flex: 0 1 22px;
+  min-width: 0;
+  aspect-ratio: 1;
   border-radius: 6px;
   border: 1.5px dashed #c9b99a;
   font-size: 0.78rem;
@@ -3231,18 +3233,14 @@ main {
   line-height: 13px;
 }
 
-.tp-factor {
-  position: absolute;
-  top: 8px;
-  right: 3px;
-  padding: 0 4px;
-  border-radius: 6px;
-  font-size: 0.62rem;
-  font-weight: 800;
+/* This month's event tints the squares it affects. */
+.tp-square.boost {
+  background: #ffeaa0;
 }
 
-.tp-factor.up { background: #fde7a8; color: #8a5a00; }
-.tp-factor.down { background: #e8e2d6; color: #6b6255; }
+.tp-square.cut {
+  background: #ddd6c8;
+}
 
 .tp-tokens {
   position: absolute;
@@ -3603,8 +3601,7 @@ main {
   }
 
   .tp-slot {
-    width: 14px;
-    height: 14px;
+    flex-basis: 14px;
     border-radius: 4px;
     font-size: 0.5rem;
   }
@@ -3618,19 +3615,6 @@ main {
     height: 15px;
     border-width: 1.5px;
     font-size: 0.5rem;
-  }
-
-  /* No room for badges on phones: the square's colour shows this month's event instead. */
-  .tp-factor {
-    display: none;
-  }
-
-  .tp-square.boost {
-    background: #ffeaa0;
-  }
-
-  .tp-square.cut {
-    background: #ddd6c8;
   }
 
   .tp-tokens {

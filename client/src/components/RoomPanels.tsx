@@ -65,9 +65,11 @@ interface PlayersCardProps {
   room: RoomView;
   // Extra line under each player's name, e.g. their colour in chess.
   subtitle?: (playerId: string) => ReactNode;
+  // Per-player colours when a game draws players in fixed colours.
+  colorOf?: (playerId: string) => string | undefined;
 }
 
-export function PlayersCard({ room, subtitle }: PlayersCardProps) {
+export function PlayersCard({ room, subtitle, colorOf }: PlayersCardProps) {
   const { t } = useI18n();
   const info = GAME_CATALOG[room.gameType];
   return (
@@ -81,7 +83,7 @@ export function PlayersCard({ room, subtitle }: PlayersCardProps) {
       <ul className="player-list">
         {room.players.map((p) => (
           <li key={p.id} className={p.id === room.you ? 'me' : ''}>
-            <Avatar id={p.id} name={p.name} size={40} online={p.connected} />
+            <Avatar id={p.id} name={p.name} size={40} online={p.connected} color={colorOf?.(p.id)} />
             <div className="player-list-text">
               <span className="player-list-name">
                 {p.name} {p.id === room.you && <span className="muted">{t.room.youSuffix}</span>}
