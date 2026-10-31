@@ -3,6 +3,7 @@ import {
   DEFAULT_ROOM_OPTIONS,
   GAME_CATALOG,
   HANDICAPS,
+  HOUSE_RULES,
   MAX_CHAT_LENGTH,
   TIME_CONTROLS,
   TURN_TIMERS,
@@ -218,13 +219,15 @@ export class RoomManager {
       hostColor = room.options.hostColor,
       handicap = room.options.handicap,
       turnTimer = room.options.turnTimer,
+      houseRules = room.options.houseRules,
     } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
     }
     if (!HOST_COLORS.includes(hostColor) || !HANDICAPS.includes(handicap)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (typeof turnTimer !== 'string' || !Object.hasOwn(TURN_TIMERS, turnTimer)) return { ok: false, error: 'INVALID_OPTIONS' };
-    room.options = { ...room.options, timeControl, hostColor, handicap, turnTimer };
+    if (!Array.isArray(houseRules) || !houseRules.every((r) => HOUSE_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
+    room.options = { ...room.options, timeControl, hostColor, handicap, turnTimer, houseRules: [...new Set(houseRules)] };
     room.lastActivity = Date.now();
     return { ok: true, room };
   }

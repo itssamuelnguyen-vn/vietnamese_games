@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ABANDON_CLAIM_MS, beats, classify, hintPlays, quickPick, rankOf, suitOf, type Card, type RoomView, type TienLenLogEntry, type TienLenMove, type TienLenView } from '@vg/shared';
+import { ABANDON_CLAIM_MS, canChopOutOfTurn, classify, hintPlays, playProblem, quickPick, rankOf, suitOf, type Card, type RoomView, type TienLenLogEntry, type TienLenMove, type TienLenView } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
@@ -153,16 +153,28 @@ export function TienLenGame({ room, view, onLeave }: Props) {
   const turnLeft = view.turnMs === null ? null : Math.max(0, view.turnMs - (performance.now() - receivedAt));
   const turnFraction = turnLeft !== null && view.turnLimitMs ? turnLeft / view.turnLimitMs : null;
 
-  // What's wrong with the current selection, if anything.
-  const combo = selected.length ? classify(selected) : null;
+  // What's wrong with the current selection under this table's rules, if anything.
   const trickCombo = view.trick ? classify(view.trick.cards) : null;
+  const ruleState = { rules: view.rules, mustPlay: view.mustPlay, trick: view.trick && trickCombo && { ...view.trick, combo: trickCombo } };
+  // A 4-pair run may chop out of turn when the table allows it.
+  const outOfTurnChop = !myTurn && seated && !view.result && selected.length > 0 && canChopOutOfTurn(ruleState, selected);
   let problem: string | null = null;
-  if (myTurn && selected.length) {
-    if (!combo) problem = t.tienlen.invalidCombo;
-    else if (view.mustPlay !== null && !selected.includes(view.mustPlay)) problem = t.tienlen.mustPlay(cardLabel(view.mustPlay));
-    else if (!beats(combo, trickCombo)) problem = t.tienlen.cannotBeat;
+  if ((myTurn || outOfTurnChop) && selected.length) {
+    const reason = playProblem(ruleState, view.hand, selected);
+    problem =
+      reason === 'invalid'
+        ? t.tienlen.invalidCombo
+        : reason === 'must-play'
+          ? t.tienlen.mustPlay(cardLabel(view.mustPlay!))
+          : reason === 'cannot-beat'
+            ? t.tienlen.cannotBeat
+            : reason === 'stacked-chop'
+              ? t.tienlen.stackedChop
+              : reason === 'two-finish'
+                ? t.tienlen.twoFinish
+                : null;
   }
-  const canPlay = myTurn && selected.length > 0 && !problem;
+  const canPlay = (myTurn || outOfTurnChop) && selected.length > 0 && !problem;
 
   // "Hint" cycles through legal plays, cheapest first; it restarts when the table changes.
   const hintIndex = useRef(0);
@@ -284,7 +296,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
       <aside className="game-left">
         <RoomCodeCard code={room.code} />
         <PlayersCard room={room} />
-        <RulesButton gameType="tienlen" wide />
+        <RulesButton gameType="tienlen" houseRules={view.rules} wide />
         <button className="btn btn-ghost" onClick={onLeave}>
           <ExitIcon /> {t.room.leave}
         </button>
@@ -432,7 +444,9 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                   />
                 ))}
               </div>
-              <p className={`tl-hint ${problem ? 'error' : 'muted'}`}>{problem ?? (myTurn ? t.tienlen.pickCards : ' ')}</p>
+              <p className={`tl-hint ${problem ? 'error' : outOfTurnChop ? 'chop-ready' : 'muted'}`}>
+                {problem ?? (outOfTurnChop ? t.tienlen.chopNow : myTurn ? t.tienlen.pickCards : ' ')}
+              </p>
               <div className="tl-actions">
                 <button className="btn btn-secondary" onClick={() => setSortBySuit((v) => !v)}>
                   {sortBySuit ? t.tienlen.sortByRank : t.tienlen.sortBySuit}

@@ -44,6 +44,10 @@ export const HANDICAPS: HandicapId[] = ['none', 'chariot', 'horse', 'cannon', 't
 export type TurnTimerId = 'none' | '15' | '30' | '60';
 export const TURN_TIMERS: Record<TurnTimerId, number | null> = { none: null, '15': 15_000, '30': 30_000, '60': 60_000 };
 
+// Optional tien len house rules the host can switch on.
+export type HouseRuleId = 'no-two-finish' | 'no-stack-chop' | 'four-pairs-anytime' | 'penalties';
+export const HOUSE_RULES: HouseRuleId[] = ['no-two-finish', 'no-stack-chop', 'four-pairs-anytime', 'penalties'];
+
 // Settings the host picks before starting a game.
 export interface RoomOptions {
   timeControl: TimeControlId;
@@ -51,9 +55,10 @@ export interface RoomOptions {
   hostColor: HostColor;
   handicap: HandicapId;
   turnTimer: TurnTimerId;
+  houseRules: HouseRuleId[];
 }
 
-export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30' };
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [] };
 
 export interface PlayerInfo {
   id: string;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { GameType } from '@vg/shared';
+import type { GameType, HouseRuleId } from '@vg/shared';
 import { useI18n, type Strings } from '../i18n';
 import { BookIcon, CloseIcon } from './icons';
 
@@ -10,15 +10,20 @@ interface RulesText {
 }
 
 // Games that publish their house rules; others don't show the button.
-function rulesFor(t: Strings, gameType: GameType): RulesText | null {
-  if (gameType === 'tienlen') return { title: t.tienlen.rulesTitle, intro: t.tienlen.rulesIntro, sections: t.tienlen.rules };
-  return null;
+function rulesFor(t: Strings, gameType: GameType, houseRules: HouseRuleId[]): RulesText | null {
+  if (gameType !== 'tienlen') return null;
+  // The table's switched-on house rules are listed after the standard ones.
+  const extra = {
+    title: t.tienlen.extraRulesTitle,
+    items: houseRules.length ? houseRules.map((r) => t.tienlen.houseRuleDetails[r]) : [t.tienlen.noExtraRules],
+  };
+  return { title: t.tienlen.rulesTitle, intro: t.tienlen.rulesIntro, sections: [...t.tienlen.rules, extra] };
 }
 
-export function RulesButton({ gameType, wide = false }: { gameType: GameType; wide?: boolean }) {
+export function RulesButton({ gameType, houseRules = [], wide = false }: { gameType: GameType; houseRules?: HouseRuleId[]; wide?: boolean }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const rules = rulesFor(t, gameType);
+  const rules = rulesFor(t, gameType, houseRules);
   if (!rules) return null;
   return (
     <>

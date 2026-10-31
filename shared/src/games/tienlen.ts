@@ -1,4 +1,4 @@
-import { TURN_TIMERS, type GameDefinition } from '../types';
+import { TURN_TIMERS, type GameDefinition, type HouseRuleId } from '../types';
 
 // Tien len mien Nam, the Southern Vietnamese shedding card game ("go up").
 // A card is a number 0–51: rank = card >> 2 (0 = 3, 1 = 4, …, 11 = A, 12 = 2) and
@@ -40,9 +40,11 @@ export interface TienLenState {
   // Turn order.
   seats: string[];
   hands: Record<string, Card[]>;
+  // House rules switched on for this game.
+  rules: HouseRuleId[];
   turn: string | null;
-  // The combination currently on the table and who played it.
-  trick: { cards: Card[]; combo: Combo; by: string } | null;
+  // The combination currently on the table, who played it, and whether it was a chop.
+  trick: { cards: Card[]; combo: Combo; by: string; chop: boolean } | null;
   // Players who passed this round; they sit out until a new round starts.
   passed: string[];
   // Players who emptied their hand, in finishing order.
@@ -60,11 +62,12 @@ export interface TienLenState {
 export type TienLenMove = { type: 'play'; cards: Card[] } | { type: 'pass' };
 
 export interface TienLenView {
+  rules: HouseRuleId[];
   seats: { id: string; cards: number; passed: boolean; place: number | null; out: boolean }[];
   // The viewer's own hand (empty for spectators).
   hand: Card[];
   turn: string | null;
-  trick: { cards: Card[]; combo: ComboType; by: string } | null;
+  trick: { cards: Card[]; combo: ComboType; by: string; chop: boolean } | null;
   mustPlay: Card | null;
   log: TienLenLogEntry[];
   result: TienLenResult | null;
@@ -254,20 +257,41 @@ function advance(s: TienLenState, from: string, now: number): TienLenState {
   return startTurn(next, leader, now);
 }
 
+// Why a play isn't allowed under the table's rules, or null if it is.
+export function playProblem(
+  s: Pick<TienLenState, 'rules' | 'trick' | 'mustPlay'>,
+  hand: Card[],
+  cards: Card[],
+): 'invalid' | 'must-play' | 'cannot-beat' | 'stacked-chop' | 'two-finish' | null {
+  const combo = classify(cards);
+  if (!combo) return 'invalid';
+  if (s.mustPlay !== null && !cards.includes(s.mustPlay)) return 'must-play';
+  if (s.trick && s.trick.chop && s.rules.includes('no-stack-chop')) return 'stacked-chop';
+  if (s.trick && !beats(combo, s.trick.combo)) return 'cannot-beat';
+  if (s.rules.includes('no-two-finish') && cards.length === hand.length && cards.some((c) => rankOf(c) === TWO)) return 'two-finish';
+  return null;
+}
+
+// "4 pairs in a row chop anytime": such a run may chop out of turn, even after passing.
+export function canChopOutOfTurn(s: Pick<TienLenState, 'rules' | 'trick'>, cards: Card[]): boolean {
+  const combo = classify(cards);
+  return !!combo && !!s.trick && s.rules.includes('four-pairs-anytime') && pairRunOf(combo) >= 4 && isChop(combo, s.trick.combo);
+}
+
 function play(s: TienLenState, player: string, cards: Card[], now: number, auto: boolean): TienLenState | null {
   const hand = s.hands[player];
   if (!Array.isArray(cards) || !cards.every((c) => Number.isInteger(c) && hand.includes(c))) return null;
-  const combo = classify(cards);
-  if (!combo) return null;
-  if (s.mustPlay !== null && !cards.includes(s.mustPlay)) return null;
-  if (s.trick && !beats(combo, s.trick.combo)) return null;
+  if (playProblem(s, hand, cards)) return null;
+  const combo = classify(cards)!;
 
   const chop = !!s.trick && isChop(combo, s.trick.combo);
   const rest = hand.filter((c) => !cards.includes(c));
   let next: TienLenState = {
     ...s,
     hands: { ...s.hands, [player]: rest },
-    trick: { cards: sortCards(cards), combo, by: player },
+    // An out-of-turn chop brings a player who had passed back into the round.
+    passed: s.passed.filter((id) => id !== player),
+    trick: { cards: sortCards(cards), combo, by: player, chop },
     mustPlay: null,
     log: withLog(s, { kind: 'play', player, cards: sortCards(cards), combo: combo.type, chop, auto }),
   };
@@ -288,6 +312,7 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
     const base: TienLenState = {
       seats: playerIds,
       hands,
+      rules: [...(options.houseRules ?? [])],
       turn: null,
       trick: null,
       passed: [],
@@ -322,7 +347,13 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
   applyMove(state, playerId, move, { now }) {
     if (state.result) return { ok: false, error: 'GAME_OVER' };
     if (!state.seats.includes(playerId) || !active(state, playerId)) return { ok: false, error: 'NOT_A_PLAYER' };
-    if (state.turn !== playerId) return { ok: false, error: 'NOT_YOUR_TURN' };
+    if (state.turn !== playerId) {
+      if (move.type === 'play' && Array.isArray(move.cards) && canChopOutOfTurn(state, move.cards)) {
+        const next = play(state, playerId, move.cards, now, false);
+        return next ? { ok: true, state: next } : { ok: false, error: 'INVALID_MOVE' };
+      }
+      return { ok: false, error: 'NOT_YOUR_TURN' };
+    }
 
     if (move.type === 'pass') {
       // Whoever leads a round has to play something.
@@ -373,6 +404,7 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
 
   playerView(state, playerId, { now }) {
     return {
+      rules: state.rules,
       seats: state.seats.map((id) => ({
         id,
         cards: state.hands[id]?.length ?? 0,
@@ -382,7 +414,7 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
       })),
       hand: state.hands[playerId] ?? [],
       turn: state.turn,
-      trick: state.trick && { cards: state.trick.cards, combo: state.trick.combo.type, by: state.trick.by },
+      trick: state.trick && { cards: state.trick.cards, combo: state.trick.combo.type, by: state.trick.by, chop: state.trick.chop },
       mustPlay: state.mustPlay,
       log: state.log,
       result: state.result,

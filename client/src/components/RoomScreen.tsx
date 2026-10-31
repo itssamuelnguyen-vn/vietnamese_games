@@ -59,7 +59,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           <h1>{gameName}</h1>
         </div>
         <div className="waiting-actions">
-          <RulesButton gameType={room.gameType} wide />
+          <RulesButton gameType={room.gameType} houseRules={room.options.houseRules} wide />
           <button className="btn btn-ghost" onClick={onLeave}>
             <ExitIcon /> {t.room.leave}
           </button>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { RoomOptions } from '../types';
 import { beats, classify, combosIn, hintPlays, instantWin, quickPick, tienlenGame, type Card, type TienLenState } from './tienlen';
 
 const RANKS = '3456789TJQKA2';
@@ -9,13 +10,14 @@ const cards = (codes: string) => codes.split(' ').map(card);
 const combo = (codes: string) => classify(cards(codes))!;
 
 const ctx = { now: 0 };
-const options = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none' } as const;
+const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [] };
 
 function table(hands: Record<string, string>, extra: Partial<TienLenState> = {}): TienLenState {
   const seats = Object.keys(hands);
   return {
     seats,
     hands: Object.fromEntries(seats.map((id) => [id, cards(hands[id]).sort((a, b) => a - b)])),
+    rules: [],
     turn: seats[0],
     trick: null,
     passed: [],
@@ -260,5 +262,36 @@ describe('tienlenGame', () => {
     const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
     const s = tienlenGame.setup(['a', 'b'], options, { now: 0, random }, previous);
     if (!s.result) expect(s).toMatchObject({ turn: 'b', mustPlay: null });
+  });
+
+  describe('house rules', () => {
+    it('no-two-finish: you cannot go out on a 2', () => {
+      const s = table({ a: '2h', b: '4h 9h' }, { rules: ['no-two-finish'] });
+      expect(tienlenGame.applyMove(s, 'a', { type: 'play', cards: cards('2h') }, ctx).ok).toBe(false);
+      expect(act(table({ a: '2h', b: '4h 9h' }), 'a', '2h').result?.ranking).toEqual(['a', 'b']);
+    });
+
+    it('no-stack-chop: a chop cannot itself be chopped', () => {
+      const hands = { a: '2h 3d', b: '7s 7c 7d 7h 9s', c: '8s 8c 8d 8h Ts' };
+      const chopped = act(act(table(hands, { rules: ['no-stack-chop'] }), 'a', '2h'), 'b', '7s 7c 7d 7h');
+      expect(tienlenGame.applyMove(chopped, 'c', { type: 'play', cards: cards('8s 8c 8d 8h') }, ctx).ok).toBe(false);
+      const allowed = act(act(table(hands), 'a', '2h'), 'b', '7s 7c 7d 7h');
+      expect(act(allowed, 'c', '8s 8c 8d 8h').trick?.by).toBe('c');
+    });
+
+    it('four-pairs-anytime: a 4-pair run chops a 2 out of turn, even after passing', () => {
+      const hands = { a: '2h 3d', b: '9s Kd', c: '3s 3h 4s 4h 5c 5d 6s 6h Ac' };
+      // c passes first, then a plays a 2 and it's b's turn.
+      let s = table(hands, { rules: ['four-pairs-anytime'], turn: 'c', trick: { cards: [card('Qd')], combo: combo('Qd'), by: 'b', chop: false } });
+      s = act(s, 'c', 'pass');
+      s = act(s, 'a', '2h');
+      expect(s.turn).toBe('b');
+      const r = tienlenGame.applyMove(s, 'c', { type: 'play', cards: cards('3s 3h 4s 4h 5c 5d 6s 6h') }, ctx);
+      expect(r.ok && r.state.trick).toMatchObject({ by: 'c', chop: true });
+      expect(r.ok && r.state.passed).not.toContain('c');
+      // Without the rule it's just not c's turn.
+      const plain = act(act(table(hands, { turn: 'c', trick: { cards: [card('Qd')], combo: combo('Qd'), by: 'b', chop: false } }), 'c', 'pass'), 'a', '2h');
+      expect(tienlenGame.applyMove(plain, 'c', { type: 'play', cards: cards('3s 3h 4s 4h 5c 5d 6s 6h') }, ctx)).toEqual({ ok: false, error: 'NOT_YOUR_TURN' });
+    });
   });
 });

@@ -2339,6 +2339,11 @@ main {
   font-size: 0.9rem;
 }
 
+.tl-hint.chop-ready {
+  color: var(--brand);
+  font-weight: 800;
+}
+
 .tl-hint.error {
   color: var(--danger);
   margin: 0;

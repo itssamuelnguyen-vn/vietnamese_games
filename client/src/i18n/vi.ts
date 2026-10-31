@@ -1,4 +1,4 @@
-import type { ChessEndReason, ComboType, ErrorCode, GameType, HandicapId, HostColor, InstantWinKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { ChessEndReason, ComboType, ErrorCode, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -330,6 +330,25 @@ export const vi = {
     removeIn: (s: number) => `Có thể loại khỏi bàn sau ${s} giây nếu không quay lại.`,
     removeNow: 'Đã mất kết nối quá lâu, có thể loại khỏi bàn (xếp bét).',
     remove: 'Loại khỏi bàn',
+    houseRulesLabel: 'Luật thêm (bấm để bật/tắt)',
+    houseRules: {
+      'no-two-finish': 'Không được về bằng heo',
+      'no-stack-chop': 'Không chặt chồng',
+      'four-pairs-anytime': '4 đôi thông chặt không cần lượt',
+      penalties: 'Tính điểm: thối heo, thối hàng, cóng',
+    } satisfies Record<HouseRuleId, string>,
+    houseRuleDetails: {
+      'no-two-finish': 'Không được về bằng heo: lượt đánh hết bài cuối cùng không được có heo.',
+      'no-stack-chop': 'Không chặt chồng: bộ vừa dùng để chặt thì không ai chặt lại được nữa.',
+      'four-pairs-anytime': '4 đôi thông chặt được heo hoặc hàng bất cứ lúc nào, kể cả khi chưa tới lượt hay đã bỏ lượt.',
+      penalties:
+        'Tính điểm: người về bét bị thối heo (heo đen −1, heo đỏ −2) và thối hàng (tứ quý, đôi thông −3). Ai chưa đánh được lá nào khi có người về nhất thì bị cóng (−2) và xếp bét.',
+    } satisfies Record<HouseRuleId, string>,
+    extraRulesTitle: 'Luật thêm của bàn này',
+    noExtraRules: 'Bàn này không bật luật thêm nào.',
+    stackedChop: 'Bàn này không cho chặt chồng',
+    twoFinish: 'Bàn này không cho về bằng heo',
+    chopNow: 'Bạn có thể chặt ngay bằng 4 đôi thông!',
     play: 'Đánh',
     pass: 'Bỏ lượt',
     clear: 'Bỏ chọn',
