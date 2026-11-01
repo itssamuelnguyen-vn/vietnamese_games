@@ -450,8 +450,9 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
     return Object.fromEntries(state.result.ranking.map((id, i) => [id, { place: i + 1, points: n - 1 - 2 * i }]));
   },
 
-  // Bots stake a tenth or so of their chips, draw below 17 (and try for five cards on a low
-  // four-card hand), and stand otherwise. A dealing bot plays its hand the same way.
+  // Bots stake a tenth or so of their chips, draw below 17 and stand otherwise. A dealing bot on
+  // 16 or more first checks the players who drew three cards or more (the likeliest to be bust,
+  // and the ones it would otherwise risk its own hand against), then plays its hand the same way.
   botMove(state, playerId) {
     if (state.result || state.out.includes(playerId)) return null;
     if (state.phase === 'bet') {
@@ -467,8 +468,11 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
     if (state.phase !== 'play' || state.turn !== playerId) return null;
     const cards = cardsOf(state, playerId);
     const v = xdHandValue(cards);
+    if (playerId === state.dealerId && (v.kind !== 'points' || v.total >= XD_MIN_STAND)) {
+      const drew = inRound(state).find((id) => !(id in state.paid) && state.hands[id].length >= 3);
+      if (drew) return { type: 'check', player: drew };
+    }
     if (v.kind !== 'points') return { type: 'stand' };
-    const draw = v.total < 17 || (cards.length === 4 && v.total <= 16);
-    return { type: draw ? 'hit' : 'stand' };
+    return { type: v.total < 17 ? 'hit' : 'stand' };
   },
 };

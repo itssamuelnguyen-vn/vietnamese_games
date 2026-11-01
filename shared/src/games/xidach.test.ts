@@ -239,6 +239,14 @@ describe('xi dach', () => {
       expect(s.turn).toBe('b');
     });
 
+    it('a dealing bot on 16 checks the players who drew, then plays on', () => {
+      let s = dealerTable({ a: hand(10, 9), b: hand(5, 4, 9) }, hand(10, 6), [c(1)]);
+      s = { ...s, stood: ['a', 'b'], turn: 'd' };
+      expect(xiDachGame.botMove!(s, 'd', { now: 0 })).toEqual({ type: 'check', player: 'b' });
+      s = act(s, 'd', { type: 'check', player: 'b' });
+      expect(xiDachGame.botMove!(s, 'd', { now: 0 })).toEqual({ type: 'hit' });
+    });
+
     it('games with a dealing bot run to the end', () => {
       let s = xiDachGame.setup(['bot:1', 'bot:2', 'bot:3'], dealt('bot:2'), { now: 0 }, null);
       let now = 0;
