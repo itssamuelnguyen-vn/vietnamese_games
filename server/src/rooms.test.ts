@@ -800,7 +800,10 @@ describe('RoomManager', () => {
 
     it('noi tu: the real dictionary loads and bots play a game to the end', () => {
       vi.useFakeTimers();
-      const rooms = new RoomManager({ botDelayMs: 10 });
+      // A fixed random source: with a random one, a bot sometimes had no word for the very first
+      // link and the game ended after two words.
+      let seed = 3;
+      const rooms = new RoomManager({ botDelayMs: 10, random: () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646 });
       const created = rooms.create(A, 'An', 'noitu');
       if (!created.ok) throw new Error(created.error);
       const room = created.room;
