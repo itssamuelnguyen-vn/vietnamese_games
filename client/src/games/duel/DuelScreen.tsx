@@ -317,6 +317,32 @@ export function DuelScreen(props: DuelScreenProps) {
 
       <section className="game-center">
         {playerBar(top)}
+        {/* On phones the status card sits below the board: offers and a claimable win show here too. */}
+        {(incomingTakeback || incomingDraw || (claimable && !result)) && (
+          <div className="offer-banner" role="alert">
+            <strong>
+              {incomingTakeback
+                ? t.chess.takebackFrom(opponent?.name ?? t.chess.opponent)
+                : incomingDraw
+                  ? t.chess.drawOfferFrom(opponent?.name ?? t.chess.opponent)
+                  : t.chess.opponentOffline(opponent!.name)}
+            </strong>
+            {incomingTakeback || incomingDraw ? (
+              <>
+                <button className="btn btn-primary btn-sm" onClick={() => act({ type: incomingTakeback ? 'accept-takeback' : 'accept-draw' })}>
+                  {t.chess.acceptDraw}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => act({ type: incomingTakeback ? 'decline-takeback' : 'decline-draw' })}>
+                  {t.chess.declineDraw}
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-primary btn-sm" onClick={claimWin}>
+                <TrophyIcon /> {t.chess.claimWin}
+              </button>
+            )}
+          </div>
+        )}
         <div className="board-frame">
           {props.renderBoard({ bottom, ply, reviewing, canMove, canTouch })}
           {result && showResult && !reviewing && (

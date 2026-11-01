@@ -389,6 +389,7 @@ export const en: Strings = {
   },
 
   caro: {
+    tapAgain: 'Tap the cell again to play there, or tap another to change.',
     x: 'X',
     o: 'O',
     xToMove: 'X to move',

@@ -397,6 +397,7 @@ export const vi = {
   },
 
   caro: {
+    tapAgain: 'Chạm lần nữa vào ô đó để đánh, hoặc chạm ô khác để đổi.',
     x: 'Quân X',
     o: 'Quân O',
     xToMove: 'Lượt X',
