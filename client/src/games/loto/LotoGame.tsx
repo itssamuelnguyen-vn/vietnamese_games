@@ -7,7 +7,7 @@ import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
 import { AbsentPlayersNote, ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
-import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
+import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { isSoundOn, playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
 import { loadSetting, saveSetting } from '../../settings';
@@ -38,6 +38,19 @@ export function vietnameseNumber(n: number): string {
 function vietnameseVoice(): SpeechSynthesisVoice | null {
   if (typeof speechSynthesis === 'undefined') return null;
   return speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith('vi')) ?? null;
+}
+
+const CAN_SPEAK = typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined';
+
+// Reads a line out in Vietnamese. Without a listed Vietnamese voice it still asks for vi-VN: many
+// phones (Android especially) list few or no voices yet speak Vietnamese through the system.
+function speak(text: string, voice: SpeechSynthesisVoice | null) {
+  if (!CAN_SPEAK) return;
+  speechSynthesis.cancel();
+  const say = new SpeechSynthesisUtterance(text);
+  say.lang = voice?.lang ?? 'vi-VN';
+  if (voice) say.voice = voice;
+  speechSynthesis.speak(say);
 }
 
 function useVoiceReady() {
@@ -144,17 +157,24 @@ export function LotoGame({ room, view, onLeave }: Props) {
     seenLog.current = view.log;
     const call = fresh.filter((e) => e.kind === 'call').at(-1);
     if (call && call.kind === 'call') {
-      if (voiceOn && voice && isSoundOn()) {
-        speechSynthesis.cancel();
-        const say = new SpeechSynthesisUtterance(T.say(vietnameseNumber(call.number)));
-        say.voice = voice;
-        say.lang = voice.lang;
-        speechSynthesis.speak(say);
-      } else playSound('move');
+      if (voiceOn && CAN_SPEAK && isSoundOn()) speak(T.say(vietnameseNumber(call.number)), voice);
+      else playSound('move');
     }
     if (fresh.some((e) => e.kind === 'kinh')) playSound('end');
     if (fresh.some((e) => e.kind === 'bust')) playSound('capture');
   }, [view.log]);
+
+  // The log folds away like the other games' logs, remembered per browser; folded, it shows the
+  // latest line. Open, it keeps scrolled to the newest entry.
+  const [logOpen, setLogOpen] = useState(() => loadSetting('vg:ltLog') !== 'closed');
+  function toggleLog() {
+    saveSetting('vg:ltLog', logOpen ? 'closed' : 'open');
+    setLogOpen(!logOpen);
+  }
+  const logRef = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
+  }, [view.log.length, logOpen]);
 
   async function send(move: LotoMove) {
     const r = await api.move(move);
@@ -222,14 +242,20 @@ export function LotoGame({ room, view, onLeave }: Props) {
               {last !== undefined && <span className="muted">{vietnameseNumber(last)}</span>}
             </div>
             <div className="lt-toggles">
-              <label className="lt-toggle" title={voice ? undefined : T.noVoice}>
+              <label className="lt-toggle" title={CAN_SPEAK ? undefined : T.cannotSpeak}>
                 <input
                   type="checkbox"
-                  checked={voiceOn && !!voice}
-                  disabled={!voice}
+                  checked={voiceOn && CAN_SPEAK}
+                  disabled={!CAN_SPEAK}
                   onChange={(e) => {
-                    setVoiceOn(e.target.checked);
-                    saveSetting('vg:loto-voice', e.target.checked ? 'on' : 'off');
+                    const on = e.target.checked;
+                    setVoiceOn(on);
+                    saveSetting('vg:loto-voice', on ? 'on' : 'off');
+                    if (!on) return;
+                    // A sample right away, so you know whether you can hear it.
+                    if (!isSoundOn()) return toast(T.soundOff);
+                    speak(T.say(vietnameseNumber(1)), voice);
+                    if (!voice) toast(T.noVoice);
                   }}
                 />
                 🔊 {T.voice}
@@ -282,7 +308,7 @@ export function LotoGame({ room, view, onLeave }: Props) {
             </button>
           )}
           {view.tickets.length > 0 && (
-            <div className="lt-tickets">
+            <div className={`lt-tickets count-${view.tickets.length}`}>
               {view.tickets.map((ticket, i) => (
                 <Ticket key={i} ticket={ticket} index={i} marked={marked} onMark={toggleMark} highlight={winRows.size ? winRows : null} />
               ))}
@@ -337,15 +363,22 @@ export function LotoGame({ room, view, onLeave }: Props) {
       </section>
 
       <aside className="game-right">
-        <section className="card panel tl-log-panel open">
-          <h2>{T.logTitle}</h2>
-          <ol className="tl-log">
-            {view.log.slice(-14).map((e, i) => (
-              <li key={i} className={`tl-log-row ${'player' in e && e.player === me ? 'mine' : ''} ${e.kind === 'kinh' ? 'finish' : e.kind === 'bust' ? 'chop' : ''}`}>
-                <span className="tl-log-text">{describe(t, e, name)}</span>
-              </li>
-            ))}
-          </ol>
+        <section className={`card panel tl-log-panel ${logOpen ? 'open' : 'closed'}`}>
+          <button className="panel-toggle" aria-expanded={logOpen} aria-controls="lt-log" onClick={toggleLog} title={logOpen ? T.hideLog : T.showLog}>
+            <h2>{T.logTitle}</h2>
+            <ChevronRightIcon className="panel-chevron" />
+          </button>
+          {view.log.length === 0 ? null : logOpen ? (
+            <ol className="tl-log" id="lt-log" ref={logRef}>
+              {view.log.map((e, i) => (
+                <li key={i} className={`tl-log-row ${'player' in e && e.player === me ? 'mine' : ''} ${e.kind === 'kinh' ? 'finish' : e.kind === 'bust' ? 'chop' : ''}`}>
+                  <span className="tl-log-text">{describe(t, e, name)}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="tl-log-latest muted small">{describe(t, view.log.at(-1)!, name)}</p>
+          )}
         </section>
         <ScoreboardPanel room={room} />
         <ChatCard room={room} />

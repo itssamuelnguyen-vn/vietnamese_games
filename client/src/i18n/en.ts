@@ -596,7 +596,7 @@ export const en: Strings = {
 
   loto: {
     buyTitle: 'Get your tickets!',
-    buyPrompt: 'Pick how many tickets to play this round (up to 3).',
+    buyPrompt: 'Pick how many tickets to play this round (up to 2).',
     buyingOthers: 'Everyone is buying tickets…',
     waitingOthers: 'Tickets bought, waiting for the others…',
     buy: (n: number) => (n === 1 ? '1 ticket' : `${n} tickets`),
@@ -607,7 +607,9 @@ export const en: Strings = {
     say: (number: string) => `Số ${number}`,
     board: 'Numbers called',
     voice: 'Read aloud',
-    noVoice: 'This browser has no Vietnamese voice',
+    noVoice: 'No Vietnamese voice found in this browser. If you hear nothing, try Microsoft Edge, or add a Vietnamese voice in your system settings (Windows: Settings > Time & language > Speech).',
+    cannotSpeak: 'This browser can’t read aloud',
+    soundOff: 'Sound is off: turn on the speaker at the top to hear the numbers',
     auto: 'Auto-mark',
     markHint: 'Tap the numbers on your tickets as they are called. Five in a row: shout Kinh!',
     autoHint: 'Your tickets are marked for you. Five in a row: shout Kinh!',
@@ -623,6 +625,8 @@ export const en: Strings = {
     resultTitle: 'Round over',
     youPaid: (amount: string) => `You lost ${amount}`,
     logTitle: 'Game log',
+    showLog: 'Show the log',
+    hideLog: 'Hide the log',
     log: {
       buy: (who: string, n: number) => `${who} bought ${n === 1 ? '1 ticket' : `${n} tickets`}`,
       call: (number: number, count: number) => `${number} (call ${count})`,
@@ -639,7 +643,7 @@ export const en: Strings = {
       {
         title: 'Tickets',
         items: [
-          'Each round, everyone buys 1 to 3 tickets. A ticket has 9 rows of 5 numbers.',
+          'Each round, everyone buys 1 or 2 tickets. A ticket has 9 rows of 5 numbers.',
           'The first column holds 1–9, the next 10–19… the last 80–90. No number appears twice on a ticket.',
         ],
       },

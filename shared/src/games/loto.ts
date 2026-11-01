@@ -1,6 +1,6 @@
 import type { GameDefinition, LotoSpeed } from '../types';
 
-// Lô tô, the Vietnamese fairground and Tết number game. Everyone buys one to three tickets; the
+// Lô tô, the Vietnamese fairground and Tết number game. Everyone buys one or two tickets; the
 // house calls the numbers 1 to 90 one by one, and players mark (dò) them on their tickets. The
 // first to have all five numbers of a row called shouts "Kinh!" and takes the pot; several who
 // shout on the same number share it. A wrong shout (kinh sai) puts that player out of the game.
@@ -12,7 +12,7 @@ export const LOTO_MAX = 90;
 export const LOTO_ROWS = 9;
 export const LOTO_COLS = 9;
 export const LOTO_PER_ROW = 5;
-export const LOTO_MAX_TICKETS = 3;
+export const LOTO_MAX_TICKETS = 2;
 export const LOTO_BUY_MS = 15_000;
 // After a valid kinh, others who also have a full row get this long to shout too.
 export const LOTO_KINH_MS = 3_000;

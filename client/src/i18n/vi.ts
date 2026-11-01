@@ -607,7 +607,7 @@ export const vi = {
 
   loto: {
     buyTitle: 'Mua vé đi nào!',
-    buyPrompt: 'Chọn số tờ vé cho ván này (tối đa 3).',
+    buyPrompt: 'Chọn số tờ vé cho ván này (tối đa 2).',
     buyingOthers: 'Mọi người đang mua vé…',
     waitingOthers: 'Đã mua vé, chờ mọi người…',
     buy: (n: number) => `${n} tờ`,
@@ -618,7 +618,9 @@ export const vi = {
     say: (number: string) => `Số ${number}`,
     board: 'Các số đã xướng',
     voice: 'Đọc số',
-    noVoice: 'Trình duyệt không có giọng đọc tiếng Việt',
+    noVoice: 'Không thấy giọng đọc tiếng Việt trên trình duyệt này. Nếu không nghe gì, hãy dùng Microsoft Edge, hoặc cài giọng tiếng Việt trong cài đặt máy (Windows: Cài đặt > Thời gian và ngôn ngữ > Giọng nói).',
+    cannotSpeak: 'Trình duyệt này không hỗ trợ đọc thành tiếng',
+    soundOff: 'Âm thanh đang tắt: bật loa ở góc trên để nghe đọc số',
     auto: 'Tự dò',
     markHint: 'Chạm vào số trên vé để dò. Đủ 5 số một hàng thì hô Kinh!',
     autoHint: 'Máy đang dò giúp bạn. Hàng nào đủ 5 số thì hô Kinh!',
@@ -634,6 +636,8 @@ export const vi = {
     resultTitle: 'Hết ván',
     youPaid: (amount: string) => `Bạn mất ${amount}`,
     logTitle: 'Diễn biến',
+    showLog: 'Hiện diễn biến',
+    hideLog: 'Ẩn diễn biến',
     log: {
       buy: (who: string, n: number) => `${who} mua ${n} tờ`,
       call: (number: number, count: number) => `Số ${number} (thứ ${count})`,
@@ -650,7 +654,7 @@ export const vi = {
       {
         title: 'Vé',
         items: [
-          'Mỗi ván, mỗi người mua 1 đến 3 tờ vé. Mỗi tờ có 9 hàng, mỗi hàng 5 số.',
+          'Mỗi ván, mỗi người mua 1 hoặc 2 tờ vé. Mỗi tờ có 9 hàng, mỗi hàng 5 số.',
           'Cột đầu là các số 1–9, cột kế là 10–19… cột cuối là 80–90. Mỗi tờ không có số nào trùng nhau.',
         ],
       },
