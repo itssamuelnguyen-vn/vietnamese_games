@@ -32,7 +32,8 @@ export type TienLenLogEntry =
   | { kind: 'frozen'; player: string }
   | { kind: 'stuck'; player: string };
 
-export type PenaltyKind = 'frozen' | 'black-two' | 'red-two' | 'quad' | 'pair-run';
+// 'chopped' is paid by a player whose 2s or bomb were chopped; 'chop' is what the chopper takes.
+export type PenaltyKind = 'frozen' | 'black-two' | 'red-two' | 'quad' | 'pair-run' | 'chopped' | 'chop';
 
 export interface TienLenScore {
   place: number;
@@ -54,8 +55,11 @@ export interface TienLenState {
   // House rules switched on for this game.
   rules: HouseRuleId[];
   turn: string | null;
-  // The combination currently on the table, who played it, and whether it was a chop.
-  trick: { cards: Card[]; combo: Combo; by: string; chop: boolean } | null;
+  // The combination currently on the table, who played it, and whether it was a chop. A chop
+  // carries what the chopped player owes for it (`pot`): chopped again, the debt grows and moves on.
+  trick: { cards: Card[]; combo: Combo; by: string; chop: boolean; pot?: ChopPot } | null;
+  // Chops settled at the end of their round: who pays whom how many points (scoring rule only).
+  chopDebts: { from: string; to: string; points: number }[];
   // Players who passed this round; they sit out until a new round starts.
   passed: string[];
   // Players who emptied their hand, in finishing order.
@@ -238,6 +242,11 @@ function shuffled(random: () => number): Card[] {
 const active = (s: TienLenState, id: string) =>
   (s.hands[id]?.length ?? 0) > 0 && !s.out.includes(id) && !s.frozen.includes(id) && !s.stuck.includes(id);
 
+export interface ChopPot {
+  victim: string;
+  points: number;
+}
+
 // Points by finishing place, for 2, 3 and 4 players.
 const PLACE_POINTS: Record<number, number[]> = { 2: [1, -1], 3: [2, 0, -2], 4: [3, 1, -1, -3] };
 const FROZEN_POINTS = -2;
@@ -263,16 +272,32 @@ export function leftoverPenalties(hand: Card[]): { kind: PenaltyKind; points: nu
   return out;
 }
 
+// What a chop is worth (chặt heo): a black 2 is 1 point, a red 2 is 2; chopping a chop adds a bomb's
+// worth to the debt already on it, and the last player chopped pays the lot (chặt chồng).
+function chopPot(trick: NonNullable<TienLenState['trick']>): ChopPot {
+  const points = trick.chop ? (trick.pot?.points ?? 0) - BOMB_POINTS : trick.cards.reduce((sum, c) => sum + (suitOf(c) >= 2 ? 2 : 1), 0);
+  return { victim: trick.by, points };
+}
+
+// Every chop of the game, including one still on the table when the game ends.
+const allChopDebts = (s: TienLenState) => [...s.chopDebts, ...(s.trick?.pot ? [{ from: s.trick.pot.victim, to: s.trick.by, points: s.trick.pot.points }] : [])];
+
 function scoreGame(s: TienLenState, ranking: string[]): Record<string, TienLenScore> {
   const table = PLACE_POINTS[ranking.length] ?? ranking.map(() => 0);
   const penalties = s.rules.includes('penalties');
-  // Leftover cards are judged on the last player still at the table (those who left have none).
+  // Leftover cards are judged on the last player still at the table (those who left have none),
+  // on anyone stuck holding a 2, and on frozen players, who never got to play theirs.
   const lastIn = [...ranking].reverse().find((id) => !s.out.includes(id));
+  const debts = penalties ? allChopDebts(s) : [];
   return Object.fromEntries(
     ranking.map((id, i) => {
       const extra: { kind: PenaltyKind; points: number }[] = [];
       if (penalties && s.frozen.includes(id)) extra.push({ kind: 'frozen', points: FROZEN_POINTS });
-      if (penalties && (id === lastIn || s.stuck.includes(id))) extra.push(...leftoverPenalties(s.hands[id] ?? []));
+      if (penalties && (id === lastIn || s.stuck.includes(id) || s.frozen.includes(id))) extra.push(...leftoverPenalties(s.hands[id] ?? []));
+      for (const d of debts) {
+        if (d.from === id) extra.push({ kind: 'chopped', points: -d.points });
+        if (d.to === id) extra.push({ kind: 'chop', points: d.points });
+      }
       const points = table[i] + extra.reduce((sum, p) => sum + p.points, 0);
       return [id, { place: i + 1, points, penalties: extra }];
     }),
@@ -327,7 +352,8 @@ function advance(s: TienLenState, from: string, now: number): TienLenState {
   // New round: the last player to play leads, or the next one if they've gone out.
   const owner = s.trick?.by ?? from;
   const leader = active(s, owner) ? owner : nextActiveAfter(s, owner);
-  const next = { ...s, trick: null, passed: [], log: leader ? withLog(s, { kind: 'round', leader }) : s.log };
+  // The round's chop, if any, is settled now that nobody can chop it again.
+  const next = { ...s, chopDebts: allChopDebts(s), trick: null, passed: [], log: leader ? withLog(s, { kind: 'round', leader }) : s.log };
   return startTurn(next, leader, now);
 }
 
@@ -367,7 +393,7 @@ function play(s: TienLenState, player: string, cards: Card[], now: number, auto:
     // An out-of-turn chop brings a player who had passed back into the round.
     passed: s.passed.filter((id) => id !== player),
     played: s.played.includes(player) ? s.played : [...s.played, player],
-    trick: { cards: sortCards(cards), combo, by: player, chop },
+    trick: { cards: sortCards(cards), combo, by: player, chop, ...(chop ? { pot: chopPot(s.trick!) } : {}) },
     mustPlay: null,
     log: withLog(s, { kind: 'play', player, cards: sortCards(cards), combo: combo.type, chop, auto }),
   };
@@ -492,6 +518,7 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
       log: [],
       turnLimitMs: TURN_TIMERS[options.turnTimer] ?? null,
       turnDeadline: null,
+      chopDebts: [],
     };
 
     // The previous winner leads; otherwise whoever holds the lowest card dealt, which they must play.
@@ -510,9 +537,11 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
       const kind = instantWin(hands[id]);
       if (kind) {
         const ranking = [id, ...order.filter((p) => p !== id)];
-        // Everyone else loses equally, whatever their seat.
+        // Everyone else loses equally, whatever their seat: a point each, or under the scoring
+        // rule as much as finishing last (tới trắng is the biggest win there is).
+        const loss = base.rules.includes('penalties') ? ranking.length - 1 : 1;
         const scores = Object.fromEntries(
-          ranking.map((p, i) => [p, { place: i === 0 ? 1 : 2, points: i === 0 ? ranking.length - 1 : -1, penalties: [] }]),
+          ranking.map((p, i) => [p, { place: i === 0 ? 1 : 2, points: i === 0 ? loss * (ranking.length - 1) : -loss, penalties: [] }]),
         );
         return { ...base, mustPlay: null, result: { ranking, instant: { player: id, kind }, scores } };
       }

@@ -725,7 +725,7 @@ export const en: Strings = {
       'no-two-finish': 'No going out on a 2',
       'no-stack-chop': 'No chopping a chop',
       'four-pairs-anytime': '4-pair runs chop anytime',
-      penalties: 'Scoring: 2s, bombs and "frozen" penalties',
+      penalties: 'Scoring: chops, 2s, bombs and "frozen" penalties',
     },
     houseRuleDetails: {
       'no-two-finish':
@@ -733,7 +733,7 @@ export const en: Strings = {
       'no-stack-chop': 'No chopping a chop: once a bomb has chopped, nobody can chop it back.',
       'four-pairs-anytime': 'A run of 4 pairs can chop a 2 or a bomb at any time, even out of turn or after passing.',
       penalties:
-        'Scoring: the last player is penalised for 2s left in hand (black −1, red −2) and bombs (four of a kind, pair runs −3). Anyone who hasn’t played a card when someone goes out first is "frozen" (−2) and ranks last.',
+        'Scoring: the last player is penalised for 2s left in hand (black −1, red −2) and bombs (four of a kind, pair runs −3). Anyone who hasn’t played a card when someone goes out first is "frozen" (−2), ranks last and also pays for the 2s and bombs in hand. A chopped 2 is paid to the chopper (black 1, red 2); in a chain of chops the last player chopped pays it all, plus 3 for each bomb chopped. An instant win makes every other player pay as if they finished last.',
     },
     extraRulesTitle: 'House rules at this table',
     noExtraRules: 'No extra house rules at this table.',
@@ -748,6 +748,8 @@ export const en: Strings = {
       'red-two': 'Red 2 left',
       quad: 'Four of a kind left',
       'pair-run': 'Pair run left',
+      chopped: 'Chopped',
+      chop: 'Chopped someone',
     },
     points: (n: number) => `${n > 0 ? '+' : ''}${n} pts`,
     play: 'Play',

@@ -464,8 +464,8 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                         {score && score.penalties.length > 0 && (
                           <span className="tl-penalties">
                             {score.penalties.map((p, k) => (
-                              <span key={k} className="tag tag-danger">
-                                {t.tienlen.penalties[p.kind]} {p.points}
+                              <span key={k} className={`tag ${p.points > 0 ? 'tag-gold' : 'tag-danger'}`}>
+                                {t.tienlen.penalties[p.kind]} {p.points > 0 ? `+${p.points}` : p.points}
                               </span>
                             ))}
                           </span>

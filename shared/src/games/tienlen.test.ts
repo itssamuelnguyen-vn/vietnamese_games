@@ -31,6 +31,7 @@ function table(hands: Record<string, string>, extra: Partial<TienLenState> = {})
     log: [],
     turnLimitMs: null,
     turnDeadline: null,
+    chopDebts: [],
     ...extra,
   };
 }
@@ -306,6 +307,10 @@ describe('tienlenGame', () => {
         const losers = s.result.ranking.slice(1).map((id) => s.result!.scores[id]);
         expect(losers.every((l) => l.points === -1 && l.place === 2)).toBe(true);
         expect(s.result.scores[s.result.ranking[0]].points).toBe(2);
+        // Under the scoring rule each loser pays as much as finishing last.
+        const scored = tienlenGame.setup(['a', 'b', 'c'], { ...options, houseRules: ['penalties'] }, { now: 0, random: ((y) => () => (y = (y * 16807) % 2147483647) / 2147483647)(seed) }, null);
+        expect(scored.result!.scores[scored.result!.ranking[1]].points).toBe(-2);
+        expect(scored.result!.scores[scored.result!.ranking[0]].points).toBe(4);
         return;
       }
       throw new Error('no instant win in the seeds tried');
@@ -394,6 +399,39 @@ describe('tienlenGame', () => {
       t = act(t, 'a', '3s');
       expect(t.result!.scores.b).toEqual({ place: 2, points: -1 - 2, penalties: [{ kind: 'red-two', points: -2 }] });
       expect(t.result!.scores.a.points).toBe(1);
+    });
+
+    it('with the scoring rule, a chopped 2 is paid to the chopper once the round is over', () => {
+      let t = table({ a: '2h 9h', b: '7s 7c 7d 7h Jh' }, { rules: ['penalties'] });
+      t = act(act(t, 'a', '2h'), 'b', '7s 7c 7d 7h');
+      expect(t.trick?.pot).toEqual({ victim: 'a', points: 2 });
+      t = act(t, 'a', 'pass');
+      expect(t.chopDebts).toEqual([{ from: 'a', to: 'b', points: 2 }]);
+      t = act(t, 'b', 'Jh');
+      expect(t.result!.scores.a).toEqual({ place: 2, points: -1 - 2, penalties: [{ kind: 'chopped', points: -2 }] });
+      expect(t.result!.scores.b).toEqual({ place: 1, points: 1 + 2, penalties: [{ kind: 'chop', points: 2 }] });
+    });
+
+    it('chopping a chop moves the whole debt, plus the bomb, onto the last one chopped', () => {
+      let t = table({ a: '2s 9h', b: '3s 3c 4s 4c 5s 5c Th', c: '7s 7c 7d 7h Jh' }, { rules: ['penalties'] });
+      t = act(act(act(t, 'a', '2s'), 'b', '3s 3c 4s 4c 5s 5c'), 'c', '7s 7c 7d 7h');
+      t = act(act(t, 'a', 'pass'), 'b', 'pass');
+      expect(t.chopDebts).toEqual([{ from: 'b', to: 'c', points: 1 + 3 }]);
+    });
+
+    it('a chop still on the table when the game ends counts, and without the scoring rule chops score nothing', () => {
+      const end = (rules: TienLenState['rules']) => act(act(table({ a: '2h 9h', b: '7s 7c 7d 7h' }, { rules }), 'a', '2h'), 'b', '7s 7c 7d 7h');
+      expect(end(['penalties']).result!.scores.a.penalties).toEqual([{ kind: 'chopped', points: -2 }]);
+      expect(end([]).result!.scores.a.penalties).toEqual([]);
+    });
+
+    it('with the scoring rule, frozen players also pay for the 2s and bombs they hold', () => {
+      let t = table({ a: '9s', b: '3h 4h', c: '6c 2h' }, { rules: ['penalties'], played: ['b'] });
+      t = act(t, 'a', '9s');
+      expect(t.result!.scores.c.penalties).toEqual([
+        { kind: 'frozen', points: -2 },
+        { kind: 'red-two', points: -2 },
+      ]);
     });
 
     it('with the scoring rule, players who never played are frozen when someone goes out', () => {

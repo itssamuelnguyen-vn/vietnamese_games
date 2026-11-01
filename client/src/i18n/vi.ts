@@ -738,7 +738,7 @@ export const vi = {
       'no-two-finish': 'Không được về bằng heo',
       'no-stack-chop': 'Không chặt chồng',
       'four-pairs-anytime': '4 đôi thông chặt không cần lượt',
-      penalties: 'Tính điểm: thối heo, thối hàng, cóng',
+      penalties: 'Tính điểm: chặt heo, thối heo, thối hàng, cóng',
     } satisfies Record<HouseRuleId, string>,
     houseRuleDetails: {
       'no-two-finish':
@@ -746,7 +746,7 @@ export const vi = {
       'no-stack-chop': 'Không chặt chồng: bộ vừa dùng để chặt thì không ai chặt lại được nữa.',
       'four-pairs-anytime': '4 đôi thông chặt được heo hoặc hàng bất cứ lúc nào, kể cả khi chưa tới lượt hay đã bỏ lượt.',
       penalties:
-        'Tính điểm: người về bét bị thối heo (heo đen −1, heo đỏ −2) và thối hàng (tứ quý, đôi thông −3). Ai chưa đánh được lá nào khi có người về nhất thì bị cóng (−2) và xếp bét.',
+        'Tính điểm: người về bét bị thối heo (heo đen −1, heo đỏ −2) và thối hàng (tứ quý, đôi thông −3). Ai chưa đánh được lá nào khi có người về nhất thì bị cóng (−2), xếp bét và cũng bị thối heo, thối hàng trên tay. Bị chặt heo thì trả cho người chặt (heo đen 1, heo đỏ 2); bị chặt chồng thì người bị chặt sau cùng trả hết, cộng thêm 3 cho mỗi lần hàng bị chặt. Tới trắng: mỗi người còn lại trả như về bét.',
     } satisfies Record<HouseRuleId, string>,
     extraRulesTitle: 'Luật thêm của bàn này',
     noExtraRules: 'Bàn này không bật luật thêm nào.',
@@ -761,6 +761,8 @@ export const vi = {
       'red-two': 'Thối heo đỏ',
       quad: 'Thối tứ quý',
       'pair-run': 'Thối đôi thông',
+      chopped: 'Bị chặt',
+      chop: 'Chặt được',
     } satisfies Record<PenaltyKind, string>,
     points: (n: number) => `${n > 0 ? '+' : ''}${n} điểm`,
     play: 'Đánh',
