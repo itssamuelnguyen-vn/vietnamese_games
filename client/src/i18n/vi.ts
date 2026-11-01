@@ -1,4 +1,4 @@
-import type { BizType, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, SpecialKind, StreetId, Area, Deck, FortuneId, BauCuaSymbol, HandKind, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { BizType, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, SpecialKind, StreetId, Area, Deck, FortuneId, BauCuaSymbol, HandKind, Stakes, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -117,6 +117,14 @@ export const vi = {
     scoreGames: 'Ván',
     scoreWins: 'Nhất',
     scorePoints: 'Điểm',
+    stakesLabel: 'Cách tính',
+    stakes: { points: 'Ghi điểm', money: 'Tiền ảo' } satisfies Record<Stakes, string>,
+    walletStartLabel: 'Tiền ban đầu mỗi người',
+    stakePerPointLabel: 'Mức cược mỗi điểm',
+    moneyNote: 'Tiền ảo chỉ là con số trong game, không có giá trị quy đổi thực tế. Mỗi ván, ví được cộng hoặc trừ bằng điểm × mức cược; hết tiền thì ra ngoài xem.',
+    wallet: 'Ví',
+    broke: 'Hết tiền',
+    moneyChange: (amount: string, up: boolean) => `${up ? '+' : '−'}${amount}`,
     showScoreboard: 'Hiện bảng điểm',
     hideScoreboard: 'Ẩn bảng điểm',
     close: 'Đóng',

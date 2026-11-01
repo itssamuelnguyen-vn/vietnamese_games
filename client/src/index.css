@@ -5383,3 +5383,19 @@ main {
     height: calc(40px * 1.4);
   }
 }
+
+/* ---- Play money ---- */
+
+.seat-wallet,
+.tl-seat-wallet {
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.tl-seat-wallet {
+  color: #f6d98a;
+}
+
+.stakes-note {
+  max-width: 52ch;
+}

@@ -130,6 +130,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                 <li key={p.id} className={`seat ${p.id === room.you ? 'me' : ''}`}>
                   <Avatar id={p.id} name={p.name} size={52} online={p.connected} />
                   <span className="seat-name">{p.name}</span>
+                  {room.wallets && <span className="seat-wallet">🪙 {t.typhu.money(room.wallets[p.id] ?? room.options.walletStart)}</span>}
                   <span className="seat-tags">
                     {p.id === room.hostId && (
                       <span className="tag tag-gold">

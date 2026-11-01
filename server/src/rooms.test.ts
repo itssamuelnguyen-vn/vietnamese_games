@@ -236,6 +236,60 @@ describe('RoomManager', () => {
     });
   });
 
+  describe('play money', () => {
+    it('only tien len can be played for money, on the listed terms', () => {
+      const rooms = new RoomManager();
+      rooms.create(A, 'An', 'tienlen');
+      expect(rooms.setOptions(A, { stakes: 'money', walletStart: 500_000, stakePerPoint: 10_000 }).ok).toBe(true);
+      expect(rooms.setOptions(A, { walletStart: 123 })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, { stakePerPoint: 7 })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      rooms.create(B, 'Bob', 'chess');
+      expect(rooms.setOptions(B, { stakes: 'money' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+    });
+
+    it('moves wallets by points times the stake, and sends broke players to watch', () => {
+      let seed = 1;
+      const rooms = new RoomManager({ random: () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646 });
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.join(B, 'Bob', room.code);
+      rooms.join(C, 'Chi', room.code);
+      rooms.setOptions(A, { stakes: 'money', walletStart: 100_000, stakePerPoint: 10_000 });
+      expect(rooms.view(room, A, allOnline).wallets).toEqual({ [A]: 100_000, [B]: 100_000, [C]: 100_000 });
+      expect(rooms.start(A).ok).toBe(true);
+      expect(room.status).toBe('playing');
+      // C and B leave: A wins.
+      rooms.leave(C);
+      rooms.leave(B);
+      expect(room.status).toBe('finished');
+      const scores = tienlenGame.points!(room.state as TienLenState)!;
+      expect(room.wallets[A]).toBe(100_000 + scores[A].points * 10_000);
+      expect(room.wallets[B]).toBe(Math.max(0, 100_000 + scores[B].points * 10_000));
+
+      // B comes back broke: they watch instead of playing.
+      rooms.join(B, 'Bob', room.code);
+      rooms.join(C, 'Chi', room.code);
+      room.wallets[B] = 0;
+      expect(room.players.map((p) => p.id)).toContain(B);
+      expect(rooms.start(A).ok).toBe(true);
+      expect(room.players.map((p) => p.id)).toEqual([A, C]);
+      expect(room.spectators.map((p) => p.id)).toEqual([B]);
+    });
+
+    it('new terms start everyone afresh', () => {
+      const rooms = new RoomManager();
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      rooms.setOptions(A, { stakes: 'money' });
+      created.room.wallets[A] = 5_000;
+      rooms.setOptions(A, { walletStart: 1_000_000 });
+      expect(rooms.view(created.room, A, allOnline).wallets).toEqual({ [A]: 1_000_000 });
+      rooms.setOptions(A, { stakes: 'points' });
+      expect(rooms.view(created.room, A, allOnline).wallets).toBeNull();
+    });
+  });
+
   describe('tien len', () => {
     const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
@@ -393,14 +447,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000 });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000 });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });

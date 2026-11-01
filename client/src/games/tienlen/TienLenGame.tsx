@@ -377,7 +377,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
     <div className="tl-layout">
       <aside className="game-left">
         <RoomCodeCard code={room.code} />
-        <PlayersCard room={room} />
+        <PlayersCard room={room} subtitle={room.wallets ? (id) => <>🪙 {t.typhu.money(room.wallets![id] ?? 0)}</> : undefined} />
         <RulesButton gameType="tienlen" houseRules={view.rules} wide />
         <button className="btn btn-ghost" onClick={onLeave}>
           <ExitIcon /> {t.room.leave}
@@ -393,6 +393,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
               <div key={seat.id} className={`tl-seat pos-${positions[i]} ${turn ? 'turn' : ''}`}>
                 <Avatar id={seat.id} name={p?.name ?? name(seat.id)} size={44} online={p?.connected} />
                 <span className="tl-seat-name">{p?.name ?? name(seat.id)}</span>
+                {room.wallets && <span className="tl-seat-wallet">🪙 {t.typhu.money(room.wallets[seat.id] ?? 0)}</span>}
                 <span className="tl-backs" aria-label={t.tienlen.cardsLeft(seat.cards)}>
                   {seat.cards > 0 && <span className="tl-back" />}
                   <span className="tl-count">{seat.cards}</span>
@@ -466,7 +467,11 @@ export function TienLenGame({ room, view, onLeave }: Props) {
                         </span>
                         {score && (
                           <span className={`tl-points ${score.points > 0 ? 'up' : score.points < 0 ? 'down' : ''}`}>
-                            {t.tienlen.points(score.points)}
+                            {room.wallets
+                              ? score.points === 0
+                                ? '0'
+                                : t.room.moneyChange(t.typhu.money(Math.abs(score.points) * room.options.stakePerPoint), score.points > 0)
+                              : t.tienlen.points(score.points)}
                           </span>
                         )}
                         {score && score.penalties.length > 0 && (
