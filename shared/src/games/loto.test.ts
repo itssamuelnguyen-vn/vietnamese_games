@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ROOM_OPTIONS, type RoomOptions } from '../types';
-import { LOTO_BUY_MS, LOTO_CALL_MS, LOTO_COLS, LOTO_KINH_MS, LOTO_PER_ROW, LOTO_ROWS, LOTO_SET, fullRow, lotoGame, lotoPair, rowNumbers, type LotoMove, type LotoState, type LotoTicket } from './loto';
+import { LOTO_BUY_MS, LOTO_CALL_MS, LOTO_COLS, LOTO_KINH_MS, LOTO_PER_ROW, LOTO_ROWS, LOTO_SET, fullRow, lotoGame, rowNumbers, type LotoMove, type LotoState, type LotoTicket } from './loto';
+import { LOTO_TICKETS } from './loto-tickets';
 
 const options: RoomOptions = { ...DEFAULT_ROOM_OPTIONS };
 const seeded = (seed: number) => () => {
@@ -22,25 +23,23 @@ const started = (picks: Record<string, number[]>) => Object.entries(picks).reduc
 const calling = (s: LotoState, numbers: number[]): LotoState => ({ ...s, called: [...s.called, ...numbers], deck: s.deck.filter((n) => !numbers.includes(n)) });
 
 describe('lô tô', () => {
-  it("a colour's two tickets share out the 90 numbers: nine rows of five, each column its own tens", () => {
-    for (let seed = 1; seed <= 200; seed++) {
-      const pair = lotoPair(seeded(seed));
-      for (const t of pair) {
-        expect(t).toHaveLength(LOTO_ROWS);
-        for (const row of t) {
-          expect(row).toHaveLength(LOTO_COLS);
-          expect(row.filter((n) => n !== null)).toHaveLength(LOTO_PER_ROW);
-        }
-        for (let c = 0; c < LOTO_COLS; c++) {
-          const col = t.map((row) => row[c]).filter((n): n is number => n !== null);
-          expect(col).toEqual([...col].sort((x, y) => x - y));
-          for (const n of col) expect(c === 0 ? n >= 1 && n <= 9 : c === 8 ? n >= 80 && n <= 90 : Math.floor(n / 10) === c).toBe(true);
-        }
+  it("the real set: 16 tickets of nine rows of five, each column its own tens, a colour's pair sharing out the 90", () => {
+    expect(LOTO_TICKETS).toHaveLength(LOTO_SET);
+    for (const t of LOTO_TICKETS) {
+      expect(t).toHaveLength(LOTO_ROWS);
+      for (const row of t) {
+        expect(row).toHaveLength(LOTO_COLS);
+        expect(row.filter((n) => n !== null)).toHaveLength(LOTO_PER_ROW);
+        row.forEach((n, c) => n !== null && expect(c === 0 ? n >= 1 && n <= 9 : c === 8 ? n >= 80 && n <= 90 : Math.floor(n / 10) === c).toBe(true));
       }
-      // Every number exactly once across the pair: none on both tickets.
-      const all = [...numbersOf(pair[0]), ...numbersOf(pair[1])].sort((x, y) => x - y);
+    }
+    for (let k = 0; k < 8; k++) {
+      const all = [...numbersOf(LOTO_TICKETS[2 * k]), ...numbersOf(LOTO_TICKETS[2 * k + 1])].sort((x, y) => x - y);
       expect(all).toEqual(Array.from({ length: 90 }, (_, i) => i + 1));
     }
+    // Spot checks against the printed tickets: pink 1's first row, purple 2's last.
+    expect(LOTO_TICKETS[0][0]).toEqual([null, 19, 28, null, 46, null, 68, 75, null]);
+    expect(LOTO_TICKETS[15][8]).toEqual([null, 10, 27, null, 48, 59, null, null, 86]);
   });
 
   it('the table set has 16 tickets in 8 colours', () => {

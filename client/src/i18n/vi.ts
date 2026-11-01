@@ -610,7 +610,7 @@ export const vi = {
     buyPrompt: 'Chọn 1 tờ, hoặc lấy trọn cặp 2 tờ cùng màu, rồi bấm Xong.',
     buyingOthers: 'Mọi người đang mua vé…',
     waitingOthers: 'Đã mua vé, chờ mọi người…',
-    colors: ['Đỏ', 'Cam', 'Vàng', 'Lục', 'Lam', 'Tím', 'Hồng', 'Nâu'],
+    colors: ['Hồng', 'Đỏ', 'Cam', 'Vàng', 'Xanh lá', 'Xanh cốm', 'Xanh dương', 'Tím'],
     ticketName: (color: string, n: number) => `${color} ${n}`,
     takePair: 'Lấy cả cặp',
     pickHint: 'Chạm vào tờ muốn lấy (2 tờ cùng màu chia nhau đủ 90 số).',

@@ -5665,13 +5665,15 @@ main {
   padding: 2px 10px;
   border-radius: 999px;
   background: var(--lt-color);
-  color: #fff;
+  color: var(--lt-ink, #fff);
   font-weight: 800;
   font-size: 0.85rem;
 }
 
+/* As on the printed tickets: blank cells in the ticket's colour, numbers on white. */
 .lt-ticket .lt-cell.blank {
-  background: color-mix(in srgb, var(--lt-color) 22%, #fff3d6);
+  border-color: color-mix(in srgb, var(--lt-color) 80%, #000);
+  background: var(--lt-color);
 }
 
 /* Picking tickets from the table set: eight colours, two tickets each. */
@@ -5767,7 +5769,7 @@ main {
 }
 
 .lt-row.full {
-  box-shadow: 0 0 0 2px #d4417a;
+  box-shadow: 0 0 0 3px #f5b400;
 }
 
 .lt-cell {
@@ -5792,14 +5794,13 @@ main {
   cursor: default;
 }
 
+/* A marked number gets a dark token on it, like the beans or coins put on a paper ticket: unlike
+   every ticket colour, so it never looks like a blank cell. */
 .lt-cell.marked {
-  background: #d4417a;
-  border-color: #b02d61;
+  background: radial-gradient(circle, #2b2f3a 0 58%, #fff 60%);
   color: #fff;
 }
 
 .lt-cell.win {
-  background: #27ae60;
-  border-color: #1e8449;
-  color: #fff;
+  box-shadow: inset 0 0 0 3px #f5b400;
 }

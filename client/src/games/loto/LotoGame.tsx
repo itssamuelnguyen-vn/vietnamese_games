@@ -19,8 +19,10 @@ interface Props {
   onLeave: () => void;
 }
 
-// The table set's eight ticket colours, in set order (tickets 2k and 2k + 1 are colour k).
-export const TICKET_COLORS = ['#d64541', '#e67e22', '#d4a017', '#27ae60', '#2e86de', '#8e44ad', '#e84393', '#8d6e63'];
+// The printed set's eight ticket colours, in set order (tickets 2k and 2k + 1 are colour k, see
+// LOTO_COLOR_IDS: pink, red, orange, yellow, green, lime, blue, purple), and the ink for labels on them.
+export const TICKET_COLORS = ['#e8478c', '#e8473a', '#f37b2b', '#f2cb27', '#3cae4a', '#a3cb3b', '#1f9ad6', '#8f4bc9'];
+const TICKET_INK = ['#fff', '#fff', '#fff', '#3a2a00', '#fff', '#253500', '#fff', '#fff'];
 
 const SEAT_COLORS = ['#d64541', '#2e86de', '#27ae60', '#e67e22', '#8e44ad', '#16a085', '#c0392b', '#2c3e50'];
 const DIGITS = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
@@ -68,7 +70,7 @@ function Ticket({ ticket, id, marked, onMark, highlight }: { ticket: LotoTicket;
   const { t } = useI18n();
   const label = t.loto.ticketName(t.loto.colors[lotoColor(id)], (id % 2) + 1);
   return (
-    <section className="lt-ticket" style={{ '--lt-color': TICKET_COLORS[lotoColor(id)] } as CSSProperties} aria-label={label}>
+    <section className="lt-ticket" style={{ '--lt-color': TICKET_COLORS[lotoColor(id)], '--lt-ink': TICKET_INK[lotoColor(id)] } as CSSProperties} aria-label={label}>
       <header className="lt-ticket-head">{label}</header>
       <div className="lt-grid">
         {ticket.map((row, r) => {

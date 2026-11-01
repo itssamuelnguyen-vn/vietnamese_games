@@ -599,7 +599,7 @@ export const en: Strings = {
     buyPrompt: 'Take one ticket, or both tickets of a colour, then tap Done.',
     buyingOthers: 'Everyone is buying tickets…',
     waitingOthers: 'Tickets bought, waiting for the others…',
-    colors: ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'Brown'],
+    colors: ['Pink', 'Red', 'Orange', 'Yellow', 'Green', 'Lime', 'Blue', 'Purple'],
     ticketName: (color: string, n: number) => `${color} ${n}`,
     takePair: 'Take both',
     pickHint: 'Tap a ticket to take it (a colour’s two tickets share out all 90 numbers).',

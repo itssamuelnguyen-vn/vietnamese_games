@@ -1,14 +1,15 @@
 import type { GameDefinition, LotoSpeed } from '../types';
+import { LOTO_TICKETS } from './loto-tickets';
 
 // Lô tô, the Vietnamese fairground and Tết number game, played with a table set of 16 tickets in
-// 8 colours. The two tickets of a colour share out the 90 numbers between them: every number is on
-// one or the other, never both. Each player picks one ticket, or both of a colour (so no number is
+// 8 colours, copied from a real printed set (loto-tickets.ts). The two tickets of a colour share out
+// the 90 numbers between them: every number is on one or the other, never both. Each player picks one ticket, or both of a colour (so no number is
 // on two of their tickets); the house calls the numbers 1 to 90 one by one and players mark (dò)
 // them. The first to have all five numbers of a row called shouts "Kinh!" and takes the pot;
 // several who shout on the same number share it. A wrong shout (kinh sai) puts that player out.
 //
 // A ticket is a 9 × 9 grid: each row holds five numbers, and each column its own tens (1–9,
-// 10–19, … 80–90), smallest at the top.
+// 10–19, … 80–90).
 
 export const LOTO_MAX = 90;
 export const LOTO_ROWS = 9;
@@ -104,9 +105,6 @@ const playing = (s: LotoState) => active(s).filter((id) => held(s, id).length > 
 // Who holds each ticket of the set.
 const holdersOf = (s: LotoState): Record<number, string> => Object.fromEntries(Object.entries(s.picks).flatMap(([id, ts]) => ts.map((t) => [t, id])));
 
-// The numbers a column of a ticket draws from.
-const columnRange = (c: number): [number, number] => (c === 0 ? [1, 9] : c === LOTO_COLS - 1 ? [80, 90] : [c * 10, c * 10 + 9]);
-
 function shuffle<T>(items: T[], random: () => number): T[] {
   const pool = [...items];
   for (let i = pool.length - 1; i > 0; i--) {
@@ -114,88 +112,6 @@ function shuffle<T>(items: T[], random: () => number): T[] {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool;
-}
-
-// Which columns each of the nine rows uses, five per row, given how many numbers each column holds.
-// Each row takes the columns with the most left to place (ties at random), which always works out
-// when every row needs the same count.
-function rowLayout(counts: number[], random: () => number): number[][] {
-  const left = [...counts];
-  return Array.from({ length: LOTO_ROWS }, () => {
-    const cols = shuffle(
-      left.map((_, c) => c),
-      random,
-    )
-      .sort((a, b) => left[b] - left[a])
-      .slice(0, LOTO_PER_ROW);
-    for (const c of cols) left[c]--;
-    return cols;
-  });
-}
-
-// Fills a ticket from its row layout and each column's numbers, smallest at the top.
-function fillTicket(layout: number[][], numbers: number[][]): LotoTicket {
-  const rows: LotoTicket = Array.from({ length: LOTO_ROWS }, () => Array<number | null>(LOTO_COLS).fill(null));
-  for (let c = 0; c < LOTO_COLS; c++) {
-    const sorted = [...numbers[c]].sort((a, b) => a - b);
-    let k = 0;
-    layout.forEach((cols, r) => {
-      if (cols.includes(c)) rows[r][c] = sorted[k++];
-    });
-  }
-  return rows;
-}
-
-// One colour's two tickets, sharing out all 90 numbers between them.
-export function lotoPair(random: () => number): [LotoTicket, LotoTicket] {
-  const sizes = Array.from({ length: LOTO_COLS }, (_, c) => columnRange(c)[1] - columnRange(c)[0] + 1);
-  // How many of each column's numbers go to the first ticket: about half, at most nine on either
-  // ticket (one per row), 45 in all (nine rows of five).
-  const fits = (c: number, k: number) => k >= Math.max(0, sizes[c] - LOTO_ROWS) && k <= Math.min(LOTO_ROWS, sizes[c]);
-  const first = sizes.map((n) => Math.floor(n / 2));
-  for (let total = first.reduce((a, b) => a + b, 0); total < 45; total++) {
-    const c = shuffle(
-      first.map((_, i) => i),
-      random,
-    ).find((i) => fits(i, first[i] + 1))!;
-    first[c]++;
-  }
-  // A few random swaps of one number's worth between columns, so the colours don't all look alike.
-  for (let i = 0; i < 6; i++) {
-    const [a, b] = shuffle(
-      first.map((_, c) => c),
-      random,
-    );
-    if (fits(a, first[a] + 1) && fits(b, first[b] - 1)) {
-      first[a]++;
-      first[b]--;
-    }
-  }
-  const split = sizes.map((_, c) => {
-    const [lo, hi] = columnRange(c);
-    const all = shuffle(
-      Array.from({ length: hi - lo + 1 }, (_, i) => lo + i),
-      random,
-    );
-    return [all.slice(0, first[c]), all.slice(first[c])];
-  });
-  return [
-    fillTicket(
-      rowLayout(first, random),
-      split.map(([a]) => a),
-    ),
-    fillTicket(
-      rowLayout(
-        sizes.map((n, c) => n - first[c]),
-        random,
-      ),
-      split.map(([, b]) => b),
-    ),
-  ];
-}
-
-export function lotoSet(random: () => number): LotoTicket[] {
-  return Array.from({ length: LOTO_COLORS }, () => lotoPair(random)).flat();
 }
 
 export const rowNumbers = (ticket: LotoTicket, row: number) => ticket[row].filter((n): n is number => n !== null);
@@ -267,12 +183,12 @@ const BOT_QUICK = 0.4;
 export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
   type: 'loto',
 
-  setup(playerIds, options, { now, random = Math.random }, _previous, wallets) {
+  setup(playerIds, options, { now }, _previous, wallets) {
     return {
       seats: [...playerIds],
       price: wallets ? options.stakePerPoint : 1,
       wallets: wallets ? Object.fromEntries(playerIds.map((id) => [id, wallets[id] ?? 0])) : null,
-      set: lotoSet(random),
+      set: LOTO_TICKETS,
       picks: {},
       ready: [],
       out: [],
