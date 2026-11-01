@@ -46,7 +46,8 @@ export interface XiangqiBotOptions {
 }
 
 // The bot's move for the side to move in `game`, or null if there is none. Moves that bring back a
-// position already seen twice are avoided when possible: repeating checks loses in xiangqi.
+// position already seen twice are avoided when possible: perpetual checks and chases lose in xiangqi,
+// and any other third repetition is only a draw.
 export function xiangqiBotMove(game: Xiangqi, seen: Map<string, number>, opts: XiangqiBotOptions): { from: string; to: string } | null {
   const repeats = (m: XMove) => {
     game.playTrusted(m);

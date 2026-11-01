@@ -326,6 +326,7 @@ export const vi = {
       checkmate: 'Chiếu bí',
       stalemate: 'Hết nước đi',
       'perpetual-check': 'Chiếu dai',
+      'perpetual-chase': 'Đuổi dai',
       repetition: 'Lặp lại thế cờ',
       'no-capture': '60 nước không ăn quân',
       insufficient: 'Hai bên không còn quân tấn công',

@@ -20,6 +20,7 @@ export type XiangqiEndReason =
   | 'checkmate'
   | 'stalemate'
   | 'perpetual-check'
+  | 'perpetual-chase'
   | 'repetition'
   | 'no-capture'
   | 'insufficient'
@@ -129,6 +130,30 @@ function finish(state: XiangqiState, result: XiangqiResult, now: number): Xiangq
   return { ...state, clock, drawOffer: null, takebackRequest: null, firstMoveDeadline: null, result };
 }
 
+// Perpetual chase (đuổi dai), a practical simplification of the Asian rules: over the last
+// `plies` moves of `game` (a repetition cycle), did each side check or chase on every one of its
+// moves? A move chases when, after it, the mover threatens to win an enemy piece it didn't
+// threaten before the move (see Xiangqi.threatened: undefended, or worth more than the attacker).
+// Unlike the full rules, this doesn't insist on the same piece being chased throughout, and it
+// doesn't weigh exchanges or chases that are forced replies. Only runs once a position has
+// come up a third time, replaying just the cycle; `game` ends up where it started.
+function chasedEveryMove(game: Xiangqi, plies: number): Record<XSide, boolean> {
+  const cycle = game.history().slice(-plies);
+  for (let i = 0; i < plies; i++) game.undo();
+  const perpetual: Record<XSide, boolean> = { r: true, b: true };
+  for (const move of cycle) {
+    const side = move.side;
+    if (!perpetual[side] || move.check) {
+      game.playTrusted(move);
+      continue;
+    }
+    const before = game.threatened(side);
+    game.playTrusted(move);
+    perpetual[side] = [...game.threatened(side)].some((square) => !before.has(square));
+  }
+  return perpetual;
+}
+
 // Result after the latest move, if the game is over.
 export function detectResult(state: XiangqiState): XiangqiResult | null {
   const game = new Xiangqi(state.startFen);
@@ -149,7 +174,9 @@ export function detectResult(state: XiangqiState): XiangqiResult | null {
   }
 
   // Third occurrence of a position: a side that checked on every move of the cycle loses
-  // (perpetual check); otherwise it's a draw.
+  // (perpetual check). Failing that, a side whose every move in the cycle checked or chased loses
+  // (perpetual chase, see chasedEveryMove). Otherwise, including when both sides are perpetual,
+  // it's a draw.
   const current = keys.at(-1)!;
   const seen = keys.flatMap((k, i) => (k === current ? [i] : []));
   if (seen.length >= REPETITIONS) {
@@ -166,6 +193,10 @@ export function detectResult(state: XiangqiState): XiangqiResult | null {
     const red = perpetual('r');
     const black = perpetual('b');
     if (red !== black) return { winner: playerOf(state, red ? 'b' : 'r'), reason: 'perpetual-check' };
+    if (!red) {
+      const chasing = chasedEveryMove(game, cycle.length);
+      if (chasing.r !== chasing.b) return { winner: playerOf(state, chasing.r ? 'b' : 'r'), reason: 'perpetual-chase' };
+    }
     return { winner: null, reason: 'repetition' };
   }
 

@@ -64,6 +64,39 @@ describe('xiangqiGame', () => {
     expect(s.result).toEqual({ winner: null, reason: 'repetition' });
   });
 
+  describe('perpetual chase', () => {
+    // Plays a four-move cycle three times round, ending on the third occurrence of the start position.
+    const cycle = (fen: string, moves: string[]) => play(fresh(fen), [...moves, ...moves]);
+
+    it('loses for a chariot that keeps chasing an undefended horse', () => {
+      // The red chariot follows the black horse between g7 and h9; nothing defends the horse.
+      const s = cycle('4k2n1/9/9/9/9/9/9/6R2/9/3K5 w', ['g2h2', 'h9g7', 'h2g2', 'g7h9']);
+      expect(s.result).toEqual({ winner: B, reason: 'perpetual-chase' });
+    });
+
+    it('is a draw when the chased piece is defended and worth as much as the attacker', () => {
+      // A red horse chases a black cannon up and down the i-file, where the black chariot guards it.
+      const defended = '4k3r/9/9/6N1c/9/9/9/9/9/3K5 w';
+      const s = cycle(defended, ['g6h4', 'i6i7', 'h4g6', 'i7i6']);
+      expect(s.result).toEqual({ winner: null, reason: 'repetition' });
+      // Without the chariot the same chase loses.
+      const lone = cycle(defended.replace('4k3r', '4k4'), ['g6h4', 'i6i7', 'h4g6', 'i7i6']);
+      expect(lone.result).toEqual({ winner: B, reason: 'perpetual-chase' });
+    });
+
+    it('is a draw when both sides chase', () => {
+      // Each chariot swings between two files, attacking a fresh undefended horse every move.
+      const s = cycle('4k4/6nn1/2r6/9/9/9/9/6R2/1NN6/3K5 w', ['g2h2', 'c7b7', 'h2g2', 'b7c7']);
+      expect(s.result).toEqual({ winner: null, reason: 'repetition' });
+    });
+
+    it('does not count a piece that stays attacked without being chased', () => {
+      // The red chariot pins down an undefended horse but only shuffles its general: no new threat.
+      const s = cycle('4k4/9/6n2/9/9/9/9/6R2/9/3K5 w', ['d0d1', 'e9f9', 'd1d0', 'f9e9']);
+      expect(s.result).toEqual({ winner: null, reason: 'repetition' });
+    });
+  });
+
   it('is a draw after 60 moves each without a capture', () => {
     // Build a quiet game: every move avoids captures, checks and earlier positions,
     // so neither repetition nor any other rule can end it first.

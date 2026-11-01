@@ -318,6 +318,7 @@ export const en: Strings = {
       checkmate: 'Checkmate',
       stalemate: 'No legal moves',
       'perpetual-check': 'Perpetual check',
+      'perpetual-chase': 'Perpetual chase',
       repetition: 'Repetition',
       'no-capture': '60 moves without a capture',
       insufficient: 'No attacking pieces left',

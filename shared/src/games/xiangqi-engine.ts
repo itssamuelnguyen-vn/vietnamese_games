@@ -27,6 +27,11 @@ const FILES = 'abcdefghi';
 // Pieces that can ever attack the enemy general; advisors and elephants never leave home.
 const ATTACKERS: XPieceType[] = ['r', 'n', 'c', 'p'];
 
+// Piece values for the perpetual-chase rule, in soldiers. Horse and cannon count as equal, as in
+// the Asian rules, so a horse attacking a defended cannon (or the other way round) isn't a chase.
+// Generals are never chased, so their value doesn't matter.
+const CHASE_VALUE: Record<XPieceType, number> = { k: 0, r: 9, c: 4.5, n: 4.5, b: 2, a: 2, p: 1 };
+
 type Grid = (XPiece | null)[][]; // grid[rank][file]
 
 export function squareName(file: number, rank: number): string {
@@ -229,6 +234,48 @@ export class Xiangqi {
   // Board + side to move, for repetition detection.
   positionKey(): string {
     return this.fen();
+  }
+
+  // Squares of the enemy pieces `side` threatens to win, whoever is to move: for the
+  // perpetual-chase rule (Asian rules). A piece is threatened when one of `side`'s chariots,
+  // horses, cannons, advisors or elephants could legally take it and it is either undefended
+  // (the owner couldn't legally take back on that square) or worth more than the attacker.
+  // Generals and soldiers aren't counted as chasers (they may chase freely), and the general and
+  // soldiers still on their own half can't be chased. Playing out each capture and each recapture
+  // takes care of pins and of defences that only open up once the attacker has moved.
+  threatened(side: XSide): Set<string> {
+    const enemy = other(side);
+    const out = new Set<string>();
+    for (let r = 0; r <= 9; r++) {
+      for (let f = 0; f <= 8; f++) {
+        const piece = this.grid[r][f];
+        if (!piece || piece.side !== side || piece.type === 'k' || piece.type === 'p') continue;
+        for (const [tf, tr] of this.pseudoMoves(f, r)) {
+          const target = this.grid[tr][tf];
+          if (!target || target.type === 'k' || (target.type === 'p' && ownHalf(enemy, tr))) continue;
+          const square = squareName(tf, tr);
+          if (out.has(square)) continue;
+          this.grid[tr][tf] = piece;
+          this.grid[r][f] = null;
+          const wins = !this.generalInDanger(side) && (CHASE_VALUE[piece.type] < CHASE_VALUE[target.type] || !this.canTake(enemy, tf, tr));
+          this.grid[r][f] = piece;
+          this.grid[tr][tf] = target;
+          if (wins) out.add(square);
+        }
+      }
+    }
+    return out;
+  }
+
+  // Whether `side` has a legal capture on the given square.
+  private canTake(side: XSide, tf: number, tr: number): boolean {
+    for (let r = 0; r <= 9; r++) {
+      for (let f = 0; f <= 8; f++) {
+        if (this.grid[r][f]?.side !== side) continue;
+        if (this.pseudoMoves(f, r).some(([mf, mr]) => mf === tf && mr === tr) && this.tryMove(f, r, tf, tr, false)) return true;
+      }
+    }
+    return false;
   }
 
   // Plays a move and checks the mover's general is safe; returns the move or null, leaving the board unchanged.
