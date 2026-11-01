@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import type { ChessView, ClientToServerEvents, RoomView, ServerToClientEvents, TienLenView } from '@vg/shared';
-import { createGameServer, publicId, type GameServer } from './app';
+import { createGameServer, publicId, voiceIceServers, type GameServer } from './app';
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -200,18 +200,31 @@ describe('game server', () => {
     for (const [who, token] of [[b, 'voice-token-bbbb'], [c, 'voice-token-cccc']] as const) {
       who.socket.on('voice:signal', (p) => got.push({ to: token, from: p.from, sdp: p.data.sdp }));
     }
-    expect(await (a.socket.timeout(2000).emitWithAck('voice:join') as Promise<unknown>)).toEqual({ ok: true });
-    expect(await (b.socket.timeout(2000).emitWithAck('voice:join') as Promise<unknown>)).toEqual({ ok: true });
+    expect(await (a.socket.timeout(2000).emitWithAck('voice:join') as Promise<unknown>)).toMatchObject({ ok: true, session: 1 });
+    expect(await (b.socket.timeout(2000).emitWithAck('voice:join') as Promise<unknown>)).toMatchObject({ ok: true, session: 1 });
     const room = await a.waitFor((r) => r.voice.members.length === 2);
     // Outside a game everyone hears everyone in voice.
     expect(room.voice.to).toEqual([idOf('voice-token-bbbb')]);
-    a.socket.emit('voice:signal', { to: idOf('voice-token-bbbb'), data: { type: 'offer', sdp: 'v=0 hello' } });
+    a.socket.emit('voice:signal', { to: idOf('voice-token-bbbb'), data: { type: 'offer', sdp: 'v=0 hello', session: 1 } });
     // C isn't in voice, so nothing reaches them.
-    a.socket.emit('voice:signal', { to: idOf('voice-token-cccc'), data: { type: 'offer', sdp: 'v=0 nope' } });
+    a.socket.emit('voice:signal', { to: idOf('voice-token-cccc'), data: { type: 'offer', sdp: 'v=0 nope', session: 1 } });
     await new Promise((r) => setTimeout(r, 200));
     expect(got).toEqual([{ to: 'voice-token-bbbb', from: idOf('voice-token-aaaa'), sdp: 'v=0 hello' }]);
+    // Joining again starts a new session, which tells the others to reconnect.
+    await b.socket.timeout(2000).emitWithAck('voice:join');
+    expect((await a.waitFor((r) => r.voice.sessions[idOf('voice-token-bbbb')] === 2)).voice.members).toHaveLength(2);
     b.socket.emit('voice:leave');
     await a.waitFor((r) => r.voice.members.length === 1);
+  });
+
+  it('adds a TURN relay to the ICE servers only when it is fully set up', () => {
+    expect(voiceIceServers({})).toHaveLength(1);
+    expect(voiceIceServers({ TURN_URLS: 'turn:relay.example.com:3478', TURN_USERNAME: 'u' })).toHaveLength(1);
+    expect(voiceIceServers({ TURN_URLS: 'turn:a:3478, junk, turns:a:443?transport=tcp', TURN_USERNAME: 'u', TURN_CREDENTIAL: 'p' })[1]).toEqual({
+      urls: ['turn:a:3478', 'turns:a:443?transport=tcp'],
+      username: 'u',
+      credential: 'p',
+    });
   });
 
   it('rate-limits a flooding connection', async () => {

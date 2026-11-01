@@ -588,7 +588,7 @@ describe('RoomManager', () => {
       rooms.voiceJoin(A);
       rooms.voiceJoin(B);
       rooms.voiceJoin(C);
-      expect(rooms.view(room, A, allOnline).voice).toEqual({ members: [A, B, C], to: [], from: [] });
+      expect(rooms.view(room, A, allOnline).voice).toEqual({ members: [A, B, C], to: [], from: [], sessions: { [A]: 1, [B]: 1, [C]: 1 } });
       expect(rooms.view(room, B, allOnline).voice).toMatchObject({ to: [], from: [] });
       expect(rooms.view(room, C, allOnline).voice).toMatchObject({ to: [], from: [] });
       // Once the game is over, everything is out in the open.

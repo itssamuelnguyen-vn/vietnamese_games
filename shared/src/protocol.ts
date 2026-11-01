@@ -53,15 +53,25 @@ export interface ClientToServerEvents {
   'room:add-bot': (level: BotLevel | undefined, ack: (r: Ack) => void) => void;
   'room:remove-bot': (botId: string, ack: (r: Ack) => void) => void;
   // Voice chat: join or leave the room's voice, and pass WebRTC offers/answers to another member.
-  'voice:join': (ack: (r: Ack) => void) => void;
+  // The reply carries the ICE servers to use (STUN, and TURN when the server has one set up).
+  'voice:join': (ack: (r: Ack<{ iceServers: VoiceIceServer[]; session: number }>) => void) => void;
   'voice:leave': () => void;
   'voice:signal': (p: { to: string; data: VoiceSignal }) => void;
 }
 
-// A WebRTC session description, sent once ICE gathering is done (no trickled candidates).
+// A WebRTC session description, sent once ICE gathering is done (no trickled candidates), and
+// which of the sender's voice sessions it belongs to (it goes up each time they join).
 export interface VoiceSignal {
   type: 'offer' | 'answer';
   sdp: string;
+  session: number;
+}
+
+// Shaped like the browser's RTCIceServer.
+export interface VoiceIceServer {
+  urls: string[];
+  username?: string;
+  credential?: string;
 }
 
 export interface ServerToClientEvents {

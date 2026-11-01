@@ -3,7 +3,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import express from 'express';
 import { Server } from 'socket.io';
-import { ABANDON_CLAIM_MS, type ClientToServerEvents, type ServerToClientEvents, type SocketAuth } from '@vg/shared';
+import { ABANDON_CLAIM_MS, type ClientToServerEvents, type ServerToClientEvents, type SocketAuth, type VoiceIceServer } from '@vg/shared';
 import { RoomManager, type Room } from './rooms';
 import { createWorkerThinker } from './botThinker';
 
@@ -55,6 +55,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   const channel = (playerId: string) => `player:${playerId}`;
   // The socket carrying each person's voice chat.
   const voiceSockets = new Map<string, string>();
+  const iceServers = voiceIceServers(process.env);
 
   function broadcast(room: Room | undefined) {
     if (!room) return;
@@ -201,7 +202,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       if (!r.ok) return reply(r);
       // One tab per person carries their voice: signals go to the socket that joined.
       voiceSockets.set(playerId, socket.id);
-      reply({ ok: true });
+      reply({ ok: true, iceServers, session: r.session });
       broadcast(r.room);
     });
 
@@ -216,8 +217,9 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       const data = p?.data;
       if (typeof to !== 'string' || voiceSockets.get(playerId) !== socket.id || !rooms.canSignal(playerId, to)) return;
       if (!data || (data.type !== 'offer' && data.type !== 'answer') || typeof data.sdp !== 'string' || data.sdp.length > MAX_SDP_LENGTH) return;
+      if (!Number.isSafeInteger(data.session)) return;
       const target = voiceSockets.get(to);
-      if (target) io.to(target).emit('voice:signal', { from: playerId, data: { type: data.type, sdp: data.sdp } });
+      if (target) io.to(target).emit('voice:signal', { from: playerId, data: { type: data.type, sdp: data.sdp, session: data.session } });
     });
 
     socket.on('chat:send', (text, ack) => {
@@ -261,6 +263,19 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
         io.close(() => resolve());
       }),
   };
+}
+
+// Public STUN servers find direct routes between most networks. A TURN relay, for networks that
+// block those, is optional: TURN_URLS (comma-separated, e.g. "turn:relay.example.com:3478,
+// turns:relay.example.com:443?transport=tcp") with TURN_USERNAME and TURN_CREDENTIAL.
+export function voiceIceServers(env: Record<string, string | undefined>): VoiceIceServer[] {
+  const servers: VoiceIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+  const urls = (env.TURN_URLS ?? '')
+    .split(',')
+    .map((u) => u.trim())
+    .filter((u) => /^turns?:/.test(u));
+  if (urls.length && env.TURN_USERNAME && env.TURN_CREDENTIAL) servers.push({ urls, username: env.TURN_USERNAME, credential: env.TURN_CREDENTIAL });
+  return servers;
 }
 
 // One-way: other players see this id, but cannot turn it back into the token.

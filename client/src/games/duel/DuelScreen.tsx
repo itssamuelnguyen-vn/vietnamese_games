@@ -279,7 +279,7 @@ export function DuelScreen(props: DuelScreenProps) {
     const ms = clockOf?.(side);
     return (
       <div className={`player-bar ${running || (!view.clock && view.turn === side && !view.result) ? 'active' : ''}`}>
-        <Avatar id={p?.id ?? side} name={p?.name ?? '?'} size={44} online={p?.connected} />
+        <Avatar id={p?.id ?? side} name={p?.name ?? '?'} size={44} online={p?.connected} live />
         <div className="player-bar-info">
           <span className="player-bar-name">
             {p?.name ?? '…'} {p?.id === playerId && <span className="muted">{t.room.youSuffix}</span>}

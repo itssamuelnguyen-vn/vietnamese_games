@@ -228,7 +228,8 @@ export interface RoomView {
   chatTo: string | null;
   // Voice chat: who is in it, and of those, who can hear you and who you can hear right now
   // (games with private channels route voice like chat).
-  voice: { members: string[]; to: string[]; from: string[] };
+  // `sessions`: each member's current voice session, which changes when they join again.
+  voice: { members: string[]; to: string[]; from: string[]; sessions: Record<string, number> };
   game: unknown;
 }
 

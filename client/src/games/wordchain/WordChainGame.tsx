@@ -60,7 +60,7 @@ function Seat({ id, name, out, words, turn, ms, since, limit }: { id: string; na
   return (
     <li className={`wc-seat ${out ? 'out' : ''} ${turn ? 'turn' : ''} ${left !== null && left <= URGENT_MS ? 'urgent' : ''}`}>
       <span className="wc-seat-avatar">
-        <Avatar id={id} name={name} size={44} />
+        <Avatar id={id} name={name} size={44} live />
         {turn && (
           <svg className="wc-ring" viewBox="0 0 56 56" aria-hidden="true">
             <circle cx="28" cy="28" r={r} strokeDasharray={length} strokeDashoffset={length * (1 - fraction)} />

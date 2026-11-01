@@ -378,7 +378,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
             const turn = view.turn === seat.id && !view.result;
             return (
               <div key={seat.id} className={`tl-seat pos-${positions[i]} ${turn ? 'turn' : ''}`}>
-                <Avatar id={seat.id} name={p?.name ?? name(seat.id)} size={44} online={p?.connected} />
+                <Avatar id={seat.id} name={p?.name ?? name(seat.id)} size={44} online={p?.connected} live />
                 <span className="tl-seat-name">{p?.name ?? name(seat.id)}</span>
                 {room.wallets && <span className="tl-seat-wallet">🪙 {t.typhu.money(room.wallets[seat.id] ?? 0)}</span>}
                 <span className="tl-backs" aria-label={t.tienlen.cardsLeft(seat.cards)}>
