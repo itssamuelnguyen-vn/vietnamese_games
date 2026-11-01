@@ -92,10 +92,17 @@ describe('chess bot levels', () => {
 
   it('hard searches deeper than medium in the same time', () => {
     const fen = 'r1bq1rk1/pp2bppp/2n1pn2/3p4/2PP4/2N2N2/PP2BPPP/R2QKB1R w KQ - 0 8';
-    const medium = chessBotSearch(fen, { timeMs: 500, level: 'medium' });
-    const hard = chessBotSearch(fen, { timeMs: 500, level: 'hard' });
+    // A clock that ticks once per check (every 64 positions), so "the same time" is the same work
+    // whatever else the machine is doing, and the test can't flake under load.
+    const ticking = () => {
+      let t = 0;
+      return () => t++;
+    };
+    const medium = chessBotSearch(fen, { timeMs: 600, level: 'medium', now: ticking() });
+    const hard = chessBotSearch(fen, { timeMs: 600, level: 'hard', now: ticking() });
     expect(hard.depth).toBeGreaterThan(medium.depth);
-  });
+    // The work is fixed, but a busy machine (the whole suite in parallel) may take a while over it.
+  }, 30_000);
 
   it('steers clear of a threefold repetition when ahead', () => {
     // White is a queen up; its favourite move would repeat a position for the third time.
