@@ -41,7 +41,7 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
   noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
-  masoi: { type: 'masoi', minPlayers: 5, maxPlayers: 12, available: false },
+  masoi: { type: 'masoi', minPlayers: 5, maxPlayers: 12, available: true, bots: true },
   baucua: { type: 'baucua', minPlayers: 2, maxPlayers: 10, available: true, bots: true },
   xidach: { type: 'xidach', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   loto: { type: 'loto', minPlayers: 2, maxPlayers: 16, available: true, bots: true },
@@ -90,6 +90,14 @@ export const CANGUA_RULES: CaNguaRuleId[] = ['jump', 'fast-home', 'one-out'];
 export type LotoSpeed = 'slow' | 'normal' | 'fast';
 export const LOTO_SPEEDS: LotoSpeed[] = ['slow', 'normal', 'fast'];
 
+// Ma sói: the special roles the host can put in the game (wolves and villagers are always in),
+// how many wolves (0: chosen by the number of players), and how long the village talks each day.
+export type MaSoiSpecialRole = 'seer' | 'guard' | 'witch' | 'hunter';
+export const MASOI_SPECIAL_ROLES: MaSoiSpecialRole[] = ['seer', 'guard', 'witch', 'hunter'];
+export const MASOI_WOLF_COUNTS = [0, 1, 2, 3, 4];
+export type MaSoiTalk = 'short' | 'normal' | 'long';
+export const MASOI_TALKS: MaSoiTalk[] = ['short', 'normal', 'long'];
+
 // Settings the host picks before starting a game.
 // How a room keeps score from game to game: points, or a play-money wallet per player (made-up
 // numbers with no real-world value) that wins and losses move by points × the stake per point.
@@ -125,6 +133,12 @@ export interface RoomOptions {
   dealer: string | null;
   // Lô tô: how fast numbers are called.
   callSpeed: LotoSpeed;
+  // Ma sói: special roles in play, the number of wolves (0: automatic), whether a player's role is
+  // shown when they die, and the length of the day's discussion.
+  masoiRoles: MaSoiSpecialRole[];
+  masoiWolves: number;
+  masoiReveal: boolean;
+  masoiTalk: MaSoiTalk;
 }
 
 export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
@@ -142,6 +156,10 @@ export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
   stakePerPoint: 5_000,
   dealer: null,
   callSpeed: 'normal',
+  masoiRoles: [...MASOI_SPECIAL_ROLES],
+  masoiWolves: 0,
+  masoiReveal: true,
+  masoiTalk: 'normal',
 };
 
 export interface PlayerInfo {
@@ -169,6 +187,16 @@ export interface ChatMessage {
   name: string;
   text: string;
   at: number;
+  // A private channel within a game (ma sói: the wolves' night talk, the dead), or absent for
+  // a message to the whole room.
+  channel?: string;
+}
+
+// Where a person's chat goes during a game with private channels, and what they may read.
+// 'public' is the whole room; null `send` means they can't talk right now (the village sleeps).
+export interface ChatRoute {
+  send: string | null;
+  read: string[] | 'all';
 }
 
 export const MAX_CHAT_LENGTH = 200;
@@ -195,6 +223,12 @@ export interface RoomView {
   // A player at 0 is broke and can only watch.
   wallets: Record<string, number> | null;
   chat: ChatMessage[];
+  // The channel your next chat message goes to ('public' for the whole room), or null while you
+  // can't talk (games with private channels, see GameDefinition.chatRoute).
+  chatTo: string | null;
+  // Voice chat: who is in it, and of those, who can hear you and who you can hear right now
+  // (games with private channels route voice like chat).
+  voice: { members: string[]; to: string[]; from: string[] };
   game: unknown;
 }
 
@@ -244,6 +278,9 @@ export interface GameDefinition<S, M, V> {
   // Until when (absolute ms) clients are still animating the latest change, or null. Bots wait for
   // it before acting, so they don't move while people are still watching the last turn play out.
   busyUntil?(state: S): number | null;
+  // Games with private chat channels (ma sói): where a player's or spectator's message goes while
+  // the game is on, and which channels they may read. Without it everyone talks to the whole room.
+  chatRoute?(state: S, playerId: string): ChatRoute;
 }
 
 export interface TallyEntry {

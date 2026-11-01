@@ -5812,3 +5812,646 @@ main {
   text-align: center;
   font-weight: 700;
 }
+
+/* Ma soi (werewolf) */
+
+.tag-ok {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+
+.btn-danger {
+  background: linear-gradient(180deg, #3a3f6b, #23264a);
+  color: #eceefc;
+  box-shadow: 0 6px 16px -6px #23264a;
+}
+
+.ms-actions .btn[aria-pressed='true'] {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+/* Waiting room: the roles about to be dealt. */
+.ms-role-list {
+  list-style: none;
+  padding: 0 !important;
+  color: var(--text) !important;
+}
+
+.ms-role-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.ms-role-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 1.2rem;
+}
+
+.ms-role-icon.big {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  font-size: 1.9rem;
+}
+
+.ms-role-icon.huge {
+  width: 96px;
+  height: 96px;
+  border-radius: 28px;
+  font-size: 3.6rem;
+}
+
+.team-wolves .ms-role-icon {
+  background: color-mix(in srgb, #c0392b 18%, var(--surface-2));
+}
+
+/* Side column */
+.ms-my-role {
+  display: grid;
+  gap: 8px;
+}
+
+.ms-my-role.team-wolves {
+  border-color: color-mix(in srgb, #c0392b 45%, var(--border));
+}
+
+.ms-my-role.ghost {
+  opacity: 0.75;
+}
+
+.ms-my-role-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.ms-my-role-head h2 {
+  font-size: 1.2rem;
+}
+
+.ms-pack {
+  font-weight: 700;
+  color: #c0392b;
+}
+
+.ms-lineup ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ms-lineup li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.85rem;
+  cursor: help;
+}
+
+/* The board: a sky that turns from day to night, over the village's players. */
+.ms-board {
+  position: relative;
+  overflow: hidden;
+  padding: 0 0 18px;
+  display: grid;
+  gap: 16px;
+  transition: background 0.8s ease, color 0.8s ease;
+}
+
+.ms-board.phase-intro,
+.ms-board.phase-over {
+  min-height: 480px;
+  align-content: start;
+}
+
+.ms-board.night {
+  --surface: #1d2140;
+  --surface-2: #2a2f58;
+  --text: #eceefc;
+  --muted: #a8acd0;
+  --border: #363c6c;
+  --gold-soft: #3d3418;
+  --gold-text: #f1c873;
+  --brand-soft: #4a1f2a;
+  --brand: #ff7b6e;
+  background: radial-gradient(ellipse at 50% -20%, #3a4078 0%, #161a33 55%, #0e1024 100%);
+  color: var(--text);
+  border-color: #2a2f58;
+}
+
+.ms-board.day {
+  background: linear-gradient(180deg, color-mix(in srgb, #f6c766 22%, var(--surface)) 0, var(--surface) 160px);
+}
+
+.ms-sky {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 0;
+}
+
+.ms-board.night .ms-sky::before {
+  /* A scatter of stars. */
+  content: '';
+  position: absolute;
+  inset: 0 0 -60px;
+  pointer-events: none;
+  background-image: radial-gradient(1.5px 1.5px at 12% 30%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 28% 70%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 46% 20%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 63% 55%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 78% 25%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 90% 65%, #fff 50%, transparent 51%);
+  opacity: 0.7;
+  animation: ms-twinkle 4s ease-in-out infinite alternate;
+}
+
+@keyframes ms-twinkle {
+  to {
+    opacity: 0.35;
+  }
+}
+
+.ms-sky-orb {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff6d5, #f6c766 60%, #e59a2f);
+  box-shadow: 0 0 28px 6px rgba(246, 199, 102, 0.55);
+  transition: all 0.8s ease;
+}
+
+.ms-board.night .ms-sky-orb {
+  background: radial-gradient(circle at 65% 40%, transparent 0 38%, #f3f0dc 39%);
+  box-shadow: none;
+  transform: rotate(-20deg);
+}
+
+.ms-sky-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ms-sky-text h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.ms-sky-text p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.ms-clock {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  min-width: 90px;
+}
+
+.ms-bar {
+  width: 90px;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold) calc(var(--left) * 100%), var(--surface-2) 0);
+}
+
+.ms-board.night .tl-seconds {
+  color: #f1c873;
+}
+
+.ms-seats {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+.ms-seat {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 6px;
+  padding: 12px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+  cursor: default;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, opacity 0.3s ease;
+}
+
+.ms-seat:disabled {
+  opacity: 1;
+}
+
+.ms-seat.can {
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--border));
+}
+
+.ms-seat.can:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.ms-seat.chosen {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold), var(--shadow-md);
+}
+
+.ms-seat.me {
+  background: color-mix(in srgb, var(--gold) 12%, var(--surface-2));
+}
+
+.ms-seat.packmate {
+  border-color: color-mix(in srgb, #c0392b 60%, var(--border));
+}
+
+.ms-seat.accused {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand);
+  animation: ms-accused 1.4s ease-in-out infinite;
+}
+
+@keyframes ms-accused {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand) 35%, transparent);
+  }
+}
+
+.ms-seat.dead {
+  opacity: 0.55;
+  filter: grayscale(0.8);
+}
+
+.ms-seat-avatar {
+  position: relative;
+}
+
+.ms-seat-role {
+  position: absolute;
+  right: -8px;
+  bottom: -4px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.85rem;
+}
+
+.ms-seat-x {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #e74c3c;
+}
+
+.ms-seat-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-seat-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* The role card at the start. */
+.ms-reveal {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 10, 24, 0.7);
+  backdrop-filter: blur(3px);
+}
+
+.ms-reveal-card {
+  width: min(100%, 380px);
+  padding: 26px 22px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  animation: ms-flip 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ms-reveal-card.team-wolves {
+  box-shadow: 0 0 0 2px #c0392b, var(--shadow-lg);
+}
+
+.ms-reveal-card h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.ms-reveal-card p {
+  margin: 0;
+}
+
+@keyframes ms-flip {
+  from {
+    transform: perspective(600px) rotateY(90deg);
+    opacity: 0;
+  }
+}
+
+/* What to do now. */
+.ms-me .ms-prompt {
+  margin: 0;
+}
+
+.ms-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The village's story so far. */
+.ms-feed-card {
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.ms-feed-card h2 {
+  font-size: 1rem;
+}
+
+.ms-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.ms-event {
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.ms-event.ms-night,
+.ms-event.ms-dawn,
+.ms-event.ms-end {
+  color: var(--text);
+  font-weight: 700;
+  padding-top: 6px;
+}
+
+.ms-event.ms-verdict,
+.ms-event.ms-shot,
+.ms-event.ms-accused {
+  color: var(--text);
+}
+
+.ms-say {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ms-bubble {
+  padding: 7px 12px;
+  border-radius: 4px 14px 14px 14px;
+  background: var(--surface-2);
+  font-size: 0.92rem;
+}
+
+.ms-result-roles {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ms-result-roles ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.ms-result-roles li {
+  display: grid;
+  grid-template-columns: 26px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.ms-result-roles li.team-wolves {
+  background: color-mix(in srgb, #c0392b 14%, var(--surface-2));
+}
+
+.ms-result-roles li.me {
+  outline: 2px solid var(--gold);
+}
+
+.ms-result-roles li.dead strong {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.ms-result-roles .muted {
+  text-align: right;
+}
+
+/* Chat channels: the wolves' night talk, the ghosts, the spectators. */
+.chat-list li.chan-wolves {
+  background: color-mix(in srgb, #c0392b 16%, var(--surface-2));
+}
+
+.chat-list li.chan-dead {
+  background: color-mix(in srgb, #7f8cff 16%, var(--surface-2));
+  font-style: italic;
+}
+
+.chat-list li.chan-watch {
+  background: color-mix(in srgb, var(--gold) 14%, var(--surface-2));
+}
+
+.chat-list li.mine.chan {
+  color: var(--text);
+}
+
+.chat-chan {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.chat-form.chan-wolves input {
+  border-color: #c0392b;
+}
+
+.chat-form.chan-dead input {
+  border-color: #7f8cff;
+}
+
+.chat-form input:disabled {
+  opacity: 0.6;
+}
+
+@media (max-width: 560px) {
+  .ms-seats {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .ms-sky {
+    padding: 14px 14px 0;
+  }
+
+  .ms-sky-text h2 {
+    font-size: 1.15rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-board.night .ms-sky::before,
+  .ms-seat.accused {
+    animation: none;
+  }
+}
+
+/* Voice chat bar, pinned to the bottom-left corner of every room screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.voice-dock {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 96px);
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.voice-dock .btn-sm {
+  border-radius: 999px;
+}
+
+.voice-mic.off {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.voice-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.voice-members li {
+  position: relative;
+  flex: none;
+  border-radius: 50%;
+  transition: box-shadow 0.15s ease, opacity 0.2s ease;
+}
+
+.voice-members li.speaking {
+  box-shadow: 0 0 0 3px var(--ok);
+}
+
+.voice-members li.pending {
+  opacity: 0.55;
+}
+
+.voice-members li.unheard:not(.speaking) {
+  opacity: 0.4;
+}
+
+.voice-members li.failed {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+.voice-warn {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.voice-note {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ms-seat.speaking {
+  box-shadow: 0 0 0 3px var(--ok), var(--shadow-md);
+}
+
+@media (max-width: 560px) {
+  .voice-note,
+  .voice-leave-text {
+    display: none;
+  }
+}

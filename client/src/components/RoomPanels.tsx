@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { ABANDON_CLAIM_MS, LOTO_SPEEDS, BOT_LEVELS, DEFAULT_BOT_LEVEL, type BotLevel, type PlayerInfo, CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
+import { MASOI_ROLES, MASOI_SPECIAL_ROLES, MASOI_TALKS, MASOI_WOLF_COUNTS, maSoiLineup, maSoiTeam, type MaSoiRole, type MaSoiSpecialRole, ABANDON_CLAIM_MS, LOTO_SPEEDS, BOT_LEVELS, DEFAULT_BOT_LEVEL, type BotLevel, type PlayerInfo, CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -550,5 +550,84 @@ export function LotoOptionsPicker({ room }: { room: RoomView }) {
       <ChipGroup label={t.loto.speedLabel} options={LOTO_SPEEDS} value={room.options.callSpeed} labelOf={(s) => t.loto.speeds[s]} disabled={locked} onPick={(callSpeed) => set({ callSpeed })} />
       <StakesPicker room={room} locked={locked} onSet={set} chips stakeLabel={t.loto.priceLabel} />
     </>
+  );
+}
+
+export const MASOI_ICONS: Record<MaSoiRole, string> = { wolf: '🐺', villager: '👨‍🌾', seer: '🔮', guard: '🛡️', witch: '🧪', hunter: '🏹' };
+
+export function MaSoiOptionsPicker({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const M = t.masoi;
+  const locked = room.hostId !== room.you || room.status === 'playing';
+  const o = room.options;
+  async function set(options: Partial<RoomOptions>) {
+    const r = await api.options(options);
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  const toggle = (role: MaSoiSpecialRole) => set({ masoiRoles: o.masoiRoles.includes(role) ? o.masoiRoles.filter((r) => r !== role) : [...o.masoiRoles, role] });
+  return (
+    <>
+      <div className="time-picker">
+        <span className="field-label">{M.rolesLabel}</span>
+        <div className="chip-group" role="group" aria-label={M.rolesLabel}>
+          {MASOI_SPECIAL_ROLES.map((role) => (
+            <button key={role} className="chip toggle" aria-pressed={o.masoiRoles.includes(role)} disabled={locked} onClick={() => toggle(role)}>
+              {MASOI_ICONS[role]} {M.roles[role]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ChipGroup
+        label={M.wolvesLabel}
+        options={MASOI_WOLF_COUNTS.map(String)}
+        value={String(o.masoiWolves)}
+        labelOf={(n) => (n === '0' ? M.wolvesAuto : n)}
+        disabled={locked}
+        onPick={(n) => set({ masoiWolves: Number(n) })}
+      />
+      <ChipGroup
+        label={M.revealLabel}
+        options={['on', 'off']}
+        value={o.masoiReveal ? 'on' : 'off'}
+        labelOf={(v) => (v === 'on' ? M.revealOn : M.revealOff)}
+        disabled={locked}
+        onPick={(v) => set({ masoiReveal: v === 'on' })}
+      />
+      <ChipGroup label={M.talkLabel} options={MASOI_TALKS} value={o.masoiTalk} labelOf={(v) => M.talks[v]} disabled={locked} onPick={(masoiTalk) => set({ masoiTalk })} />
+    </>
+  );
+}
+
+// The roles a ma sói game would deal for the players seated now (at least the minimum), each with
+// what it does, so everyone knows what they might get before the game starts.
+export function MaSoiRolesCard({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const M = t.masoi;
+  const n = Math.max(GAME_CATALOG.masoi.minPlayers, room.players.length);
+  const lineup = maSoiLineup(n, room.options);
+  const counts = MASOI_ROLES.map((role) => [role, lineup.filter((r) => r === role).length] as const).filter(([, c]) => c > 0);
+  return (
+    <section className="card rules-summary ms-roles-card">
+      <h2>{M.lineupFor(n)}</h2>
+      <ul className="ms-role-list">
+        {counts.map(([role, c]) => (
+          <li key={role} className={`ms-role-item team-${maSoiTeam(role)}`}>
+            <span className="ms-role-icon" aria-hidden="true">
+              {MASOI_ICONS[role]}
+            </span>
+            <span>
+              <strong>
+                {M.roles[role]}
+                {c > 1 && ` ×${c}`}
+              </strong>
+              <span className="muted small"> · {M.teams[maSoiTeam(role)]}</span>
+              <br />
+              <span className="small">{M.roleBlurbs[role]}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="muted small">{M.lineupNote}</p>
+    </section>
   );
 }

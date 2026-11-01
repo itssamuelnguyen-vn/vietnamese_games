@@ -188,6 +188,32 @@ describe('game server', () => {
     }
   });
 
+  it('passes voice signals only between members of the same room’s voice', async () => {
+    const a = await client('voice-token-aaaa');
+    const b = await client('voice-token-bbbb');
+    const c = await client('voice-token-cccc');
+    const { code } = await call(a, 'room:create', { gameType: 'chess', name: 'An' });
+    await call(b, 'room:join', { code: code!, name: 'Bob' });
+    await call(c, 'room:join', { code: code!, name: 'Chi' });
+    const idOf = (token: string) => publicId(token);
+    const got: { to: string; from: string; sdp: string }[] = [];
+    for (const [who, token] of [[b, 'voice-token-bbbb'], [c, 'voice-token-cccc']] as const) {
+      who.socket.on('voice:signal', (p) => got.push({ to: token, from: p.from, sdp: p.data.sdp }));
+    }
+    expect(await (a.socket.timeout(2000).emitWithAck('voice:join') as Promise<unknown>)).toEqual({ ok: true });
+    expect(await (b.socket.timeout(2000).emitWithAck('voice:join') as Promise<unknown>)).toEqual({ ok: true });
+    const room = await a.waitFor((r) => r.voice.members.length === 2);
+    // Outside a game everyone hears everyone in voice.
+    expect(room.voice.to).toEqual([idOf('voice-token-bbbb')]);
+    a.socket.emit('voice:signal', { to: idOf('voice-token-bbbb'), data: { type: 'offer', sdp: 'v=0 hello' } });
+    // C isn't in voice, so nothing reaches them.
+    a.socket.emit('voice:signal', { to: idOf('voice-token-cccc'), data: { type: 'offer', sdp: 'v=0 nope' } });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(got).toEqual([{ to: 'voice-token-bbbb', from: idOf('voice-token-aaaa'), sdp: 'v=0 hello' }]);
+    b.socket.emit('voice:leave');
+    await a.waitFor((r) => r.voice.members.length === 1);
+  });
+
   it('rate-limits a flooding connection', async () => {
     const spammer = await client('spammer-token-1');
     const replies = await Promise.all(

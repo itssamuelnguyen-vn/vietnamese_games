@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaNguaView, CaroView, ChessView, WordChainView, TienLenView, TyPhuView } from '@vg/shared';
 import { caNguaGame, caroGame, fullRow, tienlenGame, xdHandValue, type LotoView, type BauCuaView, type TienLenState, type XiDachView } from '@vg/shared';
+import type { MaSoiState } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -30,7 +31,7 @@ describe('RoomManager', () => {
 
   it('refuses unavailable games and blank names', () => {
     const rooms = new RoomManager();
-    expect(rooms.create(A, 'An', 'masoi')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    expect(rooms.create(A, 'An', 'nope' as unknown as 'chess')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
     expect(rooms.create(A, '   ', 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
@@ -341,7 +342,7 @@ describe('RoomManager', () => {
     expect(rooms.setOptions(A, { turnTimer: '15' }).ok).toBe(true);
     expect(rooms.start(A).ok).toBe(true);
     expect((rooms.view(room, A, allOnline).game as XiDachView).dealerId).toBeNull();
-    expect(rooms.setOptions(A, { dealer: null, callSpeed: 'normal', caroLoserFirst: true })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
+    expect(rooms.setOptions(A, { dealer: null, callSpeed: 'normal', caroLoserFirst: true, masoiRoles: ['seer', 'guard', 'witch', 'hunter'], masoiWolves: 0, masoiReveal: true, masoiTalk: 'normal' })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
   });
 
   describe('play money', () => {
@@ -552,12 +553,47 @@ describe('RoomManager', () => {
       for (let i = 0; i < 5; i++) expect(rooms.chat(A, `m${i}`).ok).toBe(true);
       expect(rooms.chat(A, 'one too many')).toEqual({ ok: false, error: 'MESSAGE_TOO_FAST' });
       now += 10_000;
-      for (let round = 0; round < 12; round++, now += 10_000) {
+      for (let round = 0; round < 17; round++, now += 10_000) {
         for (let i = 0; i < 5; i++) rooms.chat(A, `r${round}-${i}`);
       }
       const chat = rooms.roomOf(A)!.chat;
-      expect(chat).toHaveLength(50);
-      expect(chat.at(-1)?.text).toBe('r11-4');
+      expect(chat).toHaveLength(80);
+      expect(chat.at(-1)?.text).toBe('r16-4');
+    });
+
+    it('keeps a ma soi game’s private channels to those allowed to read them', () => {
+      const rooms = new RoomManager({ botDelayMs: 1e8 });
+      const created = rooms.create(A, 'An', 'masoi');
+      if (!created.ok) throw new Error();
+      rooms.join(B, 'Bob', created.room.code);
+      rooms.chat(A, 'before the game');
+      for (let i = 0; i < 3; i++) rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      rooms.join(C, 'Chi', created.room.code);
+      const room = rooms.roomOf(A)!;
+      // A is a wolf, B a villager; it's night.
+      const state = room.state as MaSoiState;
+      room.state = { ...state, phase: 'night', roles: { ...state.roles, [A]: 'wolf', [B]: 'villager' } } satisfies MaSoiState;
+      expect(rooms.chat(A, 'eat the bot').ok).toBe(true);
+      expect(rooms.chat(B, 'help')).toEqual({ ok: false, error: 'CHAT_LOCKED' });
+      expect(rooms.chat(C, 'popcorn').ok).toBe(true);
+      const text = (id: string) => rooms.view(room, id, allOnline).chat.map((m) => m.text);
+      expect(text(A)).toEqual(['before the game', 'eat the bot']);
+      expect(text(B)).toEqual(['before the game']);
+      expect(text(C)).toEqual(['before the game', 'popcorn']);
+      expect(rooms.view(room, B, allOnline).chatTo).toBeNull();
+      expect(rooms.view(room, A, allOnline).chatTo).toBe('wolves');
+      // Voice follows the same routes: at night the villager is silent, the wolf talks to wolves
+      // only, and players and spectators don't hear each other.
+      rooms.voiceJoin(A);
+      rooms.voiceJoin(B);
+      rooms.voiceJoin(C);
+      expect(rooms.view(room, A, allOnline).voice).toEqual({ members: [A, B, C], to: [], from: [] });
+      expect(rooms.view(room, B, allOnline).voice).toMatchObject({ to: [], from: [] });
+      expect(rooms.view(room, C, allOnline).voice).toMatchObject({ to: [], from: [] });
+      // Once the game is over, everything is out in the open.
+      room.status = 'finished';
+      expect(text(B)).toEqual(['before the game', 'eat the bot', 'popcorn']);
     });
   });
 
@@ -579,14 +615,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true, masoiRoles: ['seer', 'guard', 'witch', 'hunter'], masoiWolves: 0, masoiReveal: true, masoiTalk: 'normal' });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true, masoiRoles: ['seer', 'guard', 'witch', 'hunter'], masoiWolves: 0, masoiReveal: true, masoiTalk: 'normal' });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });

@@ -39,7 +39,7 @@ import {
   type TyPhuState,
 } from './typhu';
 
-const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true };
+const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true, masoiRoles: ['seer', 'guard', 'witch', 'hunter'], masoiWolves: 0, masoiReveal: true, masoiTalk: 'normal' };
 
 // Deterministic randomness for shuffles, dice and cards.
 const seeded = (seed: number) => () => {
