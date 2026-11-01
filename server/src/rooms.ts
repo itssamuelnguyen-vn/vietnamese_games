@@ -398,6 +398,7 @@ export class RoomManager {
       houseRules = room.options.houseRules,
       caroSize = room.options.caroSize,
       caroBlock = room.options.caroBlock,
+      caroLoserFirst = room.options.caroLoserFirst,
       caNguaRules = room.options.caNguaRules,
       stakes = room.options.stakes,
       walletStart = room.options.walletStart,
@@ -411,7 +412,7 @@ export class RoomManager {
     if (!HOST_COLORS.includes(hostColor) || !HANDICAPS.includes(handicap)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (typeof turnTimer !== 'string' || !Object.hasOwn(TURN_TIMERS, turnTimer)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (!Array.isArray(houseRules) || !houseRules.every((r) => HOUSE_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
-    if (!CARO_SIZE_IDS.includes(caroSize) || typeof caroBlock !== 'boolean') return { ok: false, error: 'INVALID_OPTIONS' };
+    if (!CARO_SIZE_IDS.includes(caroSize) || typeof caroBlock !== 'boolean' || typeof caroLoserFirst !== 'boolean') return { ok: false, error: 'INVALID_OPTIONS' };
     if (!Array.isArray(caNguaRules) || !caNguaRules.every((r) => CANGUA_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
     if (!STAKES.includes(stakes) || !WALLET_STARTS.includes(walletStart) || !STAKES_PER_POINT.includes(stakePerPoint)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (stakes === 'money' && !MONEY_GAMES.includes(room.gameType)) return { ok: false, error: 'INVALID_OPTIONS' };
@@ -430,6 +431,7 @@ export class RoomManager {
       houseRules: [...new Set(houseRules)],
       caroSize,
       caroBlock,
+      caroLoserFirst,
       caNguaRules: [...new Set(caNguaRules)],
       stakes,
       walletStart,

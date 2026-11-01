@@ -114,6 +114,8 @@ export interface RoomOptions {
   caroSize: CaroSizeId;
   // Caro's "blocked at both ends" rule: a five stopped by the opponent at both ends doesn't win.
   caroBlock: boolean;
+  // Caro: in the next game the loser moves first (X); otherwise, and after a draw, sides swap.
+  caroLoserFirst: boolean;
   caNguaRules: CaNguaRuleId[];
   stakes: Stakes;
   // Play money each player's wallet starts with, and how much a point of a game's result is worth.
@@ -133,6 +135,7 @@ export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
   houseRules: [],
   caroSize: '15',
   caroBlock: true,
+  caroLoserFirst: true,
   caNguaRules: [],
   stakes: 'points',
   walletStart: 200_000,

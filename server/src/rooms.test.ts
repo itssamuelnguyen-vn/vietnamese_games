@@ -341,7 +341,7 @@ describe('RoomManager', () => {
     expect(rooms.setOptions(A, { turnTimer: '15' }).ok).toBe(true);
     expect(rooms.start(A).ok).toBe(true);
     expect((rooms.view(room, A, allOnline).game as XiDachView).dealerId).toBeNull();
-    expect(rooms.setOptions(A, { dealer: null, callSpeed: 'normal' })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
+    expect(rooms.setOptions(A, { dealer: null, callSpeed: 'normal', caroLoserFirst: true })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
   });
 
   describe('play money', () => {
@@ -579,14 +579,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });

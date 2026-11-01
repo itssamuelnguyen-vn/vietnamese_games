@@ -215,6 +215,14 @@ export function ChessOptionsPicker({ room }: { room: RoomView }) {
             disabled={locked}
             onPick={(v) => set({ caroBlock: v === 'on' })}
           />
+          <ChipGroup
+            label={t.caro.nextFirstLabel}
+            options={['loser', 'swap'] as ('loser' | 'swap')[]}
+            value={room.options.caroLoserFirst ? 'loser' : 'swap'}
+            labelOf={(v) => (v === 'loser' ? t.caro.loserFirst : t.caro.swapFirst)}
+            disabled={locked}
+            onPick={(v) => set({ caroLoserFirst: v === 'loser' })}
+          />
         </>
       )}
       {room.gameType === 'xiangqi' && (

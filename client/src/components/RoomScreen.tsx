@@ -1,16 +1,7 @@
-import { GAME_CATALOG, type BauCuaView, type XiDachView, type LotoView, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type GameType, type BauCuaView, type XiDachView, type LotoView, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
+import { lazy, Suspense, useEffect } from 'react';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
-import { ChessGame } from '../games/ChessGame';
-import { XiangqiGame } from '../games/xiangqi/XiangqiGame';
-import { TienLenGame } from '../games/tienlen/TienLenGame';
-import { TyPhuGame } from '../games/typhu/TyPhuGame';
-import { CaroGame } from '../games/caro/CaroGame';
-import { CaNguaGame } from '../games/cangua/CaNguaGame';
-import { BauCuaGame } from '../games/baucua/BauCuaGame';
-import { XiDachGame } from '../games/xidach/XiDachGame';
-import { LotoGame } from '../games/loto/LotoGame';
-import { WordChainGame } from '../games/wordchain/WordChainGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
 import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, LotoOptionsPicker, AddBotButton, BotTag, copyInvite, inviteLink, removeBot } from './RoomPanels';
@@ -20,6 +11,43 @@ import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './i
 
 interface Props {
   room: RoomView;
+}
+
+// Each game's screen (and the engine code it pulls in, like chess.js) is its own download, fetched
+// when a room for that game opens rather than with the lobby. The waiting room fetches it ahead, so
+// the game starts without a wait.
+const SCREENS = {
+  chess: () => import('../games/ChessGame').then((m) => ({ default: m.ChessGame })),
+  xiangqi: () => import('../games/xiangqi/XiangqiGame').then((m) => ({ default: m.XiangqiGame })),
+  tienlen: () => import('../games/tienlen/TienLenGame').then((m) => ({ default: m.TienLenGame })),
+  typhu: () => import('../games/typhu/TyPhuGame').then((m) => ({ default: m.TyPhuGame })),
+  caro: () => import('../games/caro/CaroGame').then((m) => ({ default: m.CaroGame })),
+  cangua: () => import('../games/cangua/CaNguaGame').then((m) => ({ default: m.CaNguaGame })),
+  baucua: () => import('../games/baucua/BauCuaGame').then((m) => ({ default: m.BauCuaGame })),
+  xidach: () => import('../games/xidach/XiDachGame').then((m) => ({ default: m.XiDachGame })),
+  loto: () => import('../games/loto/LotoGame').then((m) => ({ default: m.LotoGame })),
+  wordchain: () => import('../games/wordchain/WordChainGame').then((m) => ({ default: m.WordChainGame })),
+};
+const screenOf = (type: GameType): keyof typeof SCREENS | null => (type === 'noitu' ? 'wordchain' : type in SCREENS ? (type as keyof typeof SCREENS) : null);
+
+const ChessGame = lazy(SCREENS.chess);
+const XiangqiGame = lazy(SCREENS.xiangqi);
+const TienLenGame = lazy(SCREENS.tienlen);
+const TyPhuGame = lazy(SCREENS.typhu);
+const CaroGame = lazy(SCREENS.caro);
+const CaNguaGame = lazy(SCREENS.cangua);
+const BauCuaGame = lazy(SCREENS.baucua);
+const XiDachGame = lazy(SCREENS.xidach);
+const LotoGame = lazy(SCREENS.loto);
+const WordChainGame = lazy(SCREENS.wordchain);
+
+function GameLoading() {
+  const { t } = useI18n();
+  return (
+    <p className="game-loading muted">
+      <Ellipsis text={t.room.loadingGame} />
+    </p>
+  );
 }
 
 export function RoomScreen({ room }: Props) {
@@ -32,7 +60,14 @@ export function RoomScreen({ room }: Props) {
   }
 
   if (room.game === null) return <WaitingRoom room={room} onLeave={leave} />;
+  return (
+    <Suspense fallback={<GameLoading />}>
+      <GameScreen room={room} leave={leave} />
+    </Suspense>
+  );
+}
 
+function GameScreen({ room, leave }: { room: RoomView; leave: () => void }) {
   if (room.gameType === 'chess') return <ChessGame room={room} view={room.game as ChessView} onLeave={leave} />;
   if (room.gameType === 'xiangqi') return <XiangqiGame room={room} view={room.game as XiangqiView} onLeave={leave} />;
   if (room.gameType === 'tienlen') return <TienLenGame room={room} view={room.game as TienLenView} onLeave={leave} />;
@@ -48,6 +83,11 @@ export function RoomScreen({ room }: Props) {
 
 function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void }) {
   const { t } = useI18n();
+  // Fetch the game's screen while people gather, so it's ready when the game starts.
+  useEffect(() => {
+    const screen = screenOf(room.gameType);
+    if (screen) void SCREENS[screen]().catch(() => {});
+  }, [room.gameType]);
   const info = GAME_CATALOG[room.gameType];
   const isHost = room.hostId === room.you;
   const missing = Math.max(0, info.minPlayers - room.players.length);

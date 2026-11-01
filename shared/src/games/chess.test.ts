@@ -21,7 +21,7 @@ function play(state: ChessState, moves: [string, string, string][]): ChessState 
 describe('chessGame', () => {
   it('assigns both players a colour', () => {
     for (let i = 0; i < 20; i++) {
-      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null);
+      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null);
       expect([s.white, s.black].sort()).toEqual([A, B]);
     }
   });
@@ -151,7 +151,7 @@ describe('chessGame', () => {
     });
 
     it('a first move that arrives after the deadline aborts the game', () => {
-      const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, { now: 0 }, null);
+      const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, { now: 0 }, null);
       const r = chessGame.applyMove(s, A, { type: 'move', from: 'e2', to: 'e4' }, { now: 30_000 });
       expect(r.ok && r.state.result).toEqual({ winner: null, reason: 'aborted' });
     });
@@ -196,9 +196,9 @@ describe('chessGame', () => {
     const opened = () => mv(mv(timed(), A, 'e2', 'e4', 21_000), B, 'e7', 'e5', 50_000);
 
     it('sets up clocks from the chosen time control', () => {
-      const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null);
+      const s = chessGame.setup([A, B], { timeControl: '3+2', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null);
       expect(s.clock).toEqual({ incrementMs: 2_000, remaining: { w: 180_000, b: 180_000 }, turnStartedAt: null });
-      expect(chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null).clock).toBeNull();
+      expect(chessGame.setup([A, B], { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null).clock).toBeNull();
     });
 
     it('only starts once both sides have moved', () => {
@@ -255,7 +255,7 @@ describe('chessGame', () => {
   });
 
   describe('first-move abort', () => {
-    const timedSetup = () => chessGame.setup([A, B], { timeControl: '5+0', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, { now: 0 }, null);
+    const timedSetup = () => chessGame.setup([A, B], { timeControl: '5+0', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, { now: 0 }, null);
 
     it('aborts a timed game when white never moves', () => {
       const s = timedSetup();
@@ -275,7 +275,7 @@ describe('chessGame', () => {
     });
 
     it('never aborts untimed games', () => {
-      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, { now: 0 }, null);
+      const s = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, { now: 0 }, null);
       expect(chessGame.deadline!(s)).toBeNull();
     });
   });
@@ -323,17 +323,17 @@ describe('chessGame', () => {
 
   describe('colours', () => {
     it('honours the host’s chosen side', () => {
-      const white = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null);
+      const white = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null);
       expect([white.white, white.black]).toEqual([A, B]);
-      const black = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'black', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null);
+      const black = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'black', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null);
       expect([black.white, black.black]).toEqual([B, A]);
     });
 
     it('swaps sides for a rematch between the same players', () => {
-      const first = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null);
-      const rematch = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, first);
+      const first = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null);
+      const rematch = chessGame.setup([A, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, first);
       expect([rematch.white, rematch.black]).toEqual([B, A]);
-      const newOpponent = chessGame.setup([A, 'player-c'], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, first);
+      const newOpponent = chessGame.setup([A, 'player-c'], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, first);
       expect(newOpponent.white).toBe(A);
     });
   });
