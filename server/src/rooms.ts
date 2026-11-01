@@ -532,9 +532,14 @@ export class RoomManager {
 
   // After every change, the first bot with something to do acts after a short pause. A pending
   // pause is kept rather than restarted, so a stream of moves from people can't hold bots back;
-  // the bot decides on the state as it is when the pause ends.
+  // the bot decides on the state as it is when the pause ends. Paced games (strictly turn-based, with
+  // animated moves) restart the pause instead, so a bot never acts while the last move still plays out.
   private scheduleBots(room: Room): void {
     const game = GAMES[room.gameType]!;
+    if (game.botPace && this.botTimers.has(room.code)) {
+      clearTimeout(this.botTimers.get(room.code));
+      this.botTimers.delete(room.code);
+    }
     if (this.botTimers.has(room.code) || room.status !== 'playing' || !game.botMove || !room.players.some((p) => p.bot)) return;
     const timer = setTimeout(() => {
       this.botTimers.delete(room.code);
@@ -551,7 +556,7 @@ export class RoomManager {
           return;
         }
       }
-    }, this.botDelayMs);
+    }, this.botDelayMs * (game.botPace ?? 1));
     timer.unref?.();
     this.botTimers.set(room.code, timer);
   }
