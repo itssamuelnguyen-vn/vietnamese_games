@@ -6,6 +6,7 @@ import { Avatar } from '../../components/Avatar';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
 import { ChatCard, PlayersCard, RoomCodeCard } from '../../components/RoomPanels';
+import { RulesButton } from '../../components/RulesDialog';
 import { playSound, type SoundKind } from '../../sound';
 import {
   ChevronLeftIcon,
@@ -308,6 +309,7 @@ export function DuelScreen(props: DuelScreenProps) {
       <aside className="game-left">
         <RoomCodeCard code={room.code} />
         <PlayersCard room={room} subtitle={(id) => (sideOf(id) ? props.sideName(sideOf(id)!) : null)} />
+        <RulesButton gameType={room.gameType} wide />
         <button className="btn btn-ghost" onClick={props.onLeave}>
           <ExitIcon /> {t.room.leave}
         </button>

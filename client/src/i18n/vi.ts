@@ -171,6 +171,34 @@ export const vi = {
   },
 
   chess: {
+    rulesTitle: 'Luật chơi Cờ vua',
+    rulesIntro: 'Cờ vua theo luật quốc tế (FIDE). Trắng đi trước; chiếu hết vua đối phương là thắng.',
+    rules: [
+      {
+        title: 'Thắng, thua',
+        items: [
+          'Chiếu hết: vua bị chiếu mà không còn nước nào thoát là thua.',
+          'Hết giờ là thua, trừ khi đối thủ không còn đủ quân để chiếu hết (khi đó là hòa).',
+          'Xin thua bất cứ lúc nào bằng nút Xin thua. Đối thủ mất kết nối quá 1 phút thì bạn có thể nhận thắng.',
+        ],
+      },
+      {
+        title: 'Hòa',
+        items: [
+          'Hết nước đi: bên tới lượt không bị chiếu nhưng không còn nước hợp lệ.',
+          'Cùng một thế cờ lặp lại 3 lần; 50 nước mỗi bên không ăn quân và không đi tốt; hai bên không đủ quân để chiếu hết.',
+          'Hai bên đồng ý hòa: mỗi người được đề nghị hòa, đối thủ chấp nhận hoặc từ chối.',
+        ],
+      },
+      {
+        title: 'Nước đi đặc biệt',
+        items: [
+          'Nhập thành, bắt tốt qua đường và phong cấp (chọn hậu, xe, tượng hoặc mã) đều được hỗ trợ.',
+          'Xin đi lại: đối thủ đồng ý thì nước vừa đi được rút lại.',
+          'Ván có đồng hồ: mỗi bên phải đi nước đầu trong 30 giây, nếu không ván bị hủy.',
+        ],
+      },
+    ],
     endReasons: {
       checkmate: 'Chiếu hết',
       stalemate: 'Hết nước đi',
@@ -287,6 +315,34 @@ export const vi = {
   },
 
   xiangqi: {
+    rulesTitle: 'Luật chơi Cờ tướng',
+    rulesIntro: 'Cờ tướng theo luật châu Á. Đỏ đi trước; bắt được tướng (chiếu bí) là thắng.',
+    rules: [
+      {
+        title: 'Thắng, thua',
+        items: [
+          'Chiếu bí là thắng. Khác cờ vua, bên tới lượt mà không còn nước hợp lệ (dù không bị chiếu) cũng thua.',
+          'Hai tướng không được nhìn mặt nhau trên cùng một cột mà không có quân chắn.',
+          'Hết giờ là thua, trừ khi đối thủ không còn quân tấn công (xe, mã, pháo, tốt) thì hòa.',
+        ],
+      },
+      {
+        title: 'Chiếu dai, đuổi dai',
+        items: [
+          'Khi một thế cờ lặp lại lần thứ 3: bên chiếu liên tục mọi nước (chiếu dai) bị xử thua.',
+          'Không ai chiếu dai mà một bên nước nào cũng chiếu hoặc đuổi bắt quân (đuổi dai) thì bên đó thua. Đuổi là dọa ăn một quân không có bảo vệ, hoặc quân giá trị cao hơn quân mình. Tướng và tốt đuổi thì không tính.',
+          'Cả hai cùng dai, hoặc không ai dai, thì hòa.',
+        ],
+      },
+      {
+        title: 'Hòa và luật khác',
+        items: [
+          '60 nước mỗi bên không ăn quân thì hòa; hai bên cùng hết quân tấn công cũng hòa; hai bên có thể đồng ý hòa.',
+          'Chấp quân: chủ phòng có thể chấp xe, mã, pháo hoặc 2 mã.',
+          'Xin đi lại cần đối thủ đồng ý. Ván có đồng hồ: phải đi nước đầu trong 30 giây, nếu không ván bị hủy.',
+        ],
+      },
+    ],
     red: 'Quân đỏ',
     black: 'Quân đen',
     redToMove: 'Lượt Đỏ',

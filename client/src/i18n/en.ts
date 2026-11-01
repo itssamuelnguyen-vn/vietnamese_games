@@ -158,6 +158,34 @@ export const en: Strings = {
   },
 
   chess: {
+    rulesTitle: 'Chess rules',
+    rulesIntro: 'Standard (FIDE) chess. White moves first; checkmate the other king to win.',
+    rules: [
+      {
+        title: 'Winning and losing',
+        items: [
+          'Checkmate: a king in check with no way out loses.',
+          'Running out of time loses, unless the opponent no longer has enough to checkmate (then it is a draw).',
+          'You can resign at any time. If your opponent is offline for over a minute you can claim the win.',
+        ],
+      },
+      {
+        title: 'Draws',
+        items: [
+          'Stalemate: the side to move is not in check but has no legal move.',
+          'The same position three times; 50 moves each without a capture or pawn move; neither side able to checkmate.',
+          'By agreement: either player may offer a draw, and the other accepts or declines.',
+        ],
+      },
+      {
+        title: 'Special moves',
+        items: [
+          'Castling, en passant and promotion (to queen, rook, bishop or knight) are all supported.',
+          'Takebacks: if your opponent agrees, your last move is undone.',
+          'In timed games each side must make its first move within 30 seconds, or the game is aborted.',
+        ],
+      },
+    ],
     endReasons: {
       checkmate: 'Checkmate',
       stalemate: 'Stalemate',
@@ -274,6 +302,34 @@ export const en: Strings = {
   },
 
   xiangqi: {
+    rulesTitle: 'Xiangqi rules',
+    rulesIntro: 'Xiangqi (Chinese chess) under Asian rules. Red moves first; checkmate the other general to win.',
+    rules: [
+      {
+        title: 'Winning and losing',
+        items: [
+          'Checkmate wins. Unlike chess, a side to move with no legal move loses too, even when not in check.',
+          'The two generals may not face each other on an open file.',
+          'Running out of time loses, unless the opponent has no attacking pieces left (chariots, horses, cannons, soldiers): then it is a draw.',
+        ],
+      },
+      {
+        title: 'Perpetual check and chase',
+        items: [
+          'When a position comes up a third time, a side that gave check on every move (perpetual check) loses.',
+          'Failing that, a side that checked or chased on every move (perpetual chase) loses. A chase threatens to win an undefended piece, or one worth more than the attacker; generals and soldiers may chase freely.',
+          'If both sides or neither did so, it is a draw.',
+        ],
+      },
+      {
+        title: 'Draws and other rules',
+        items: [
+          '60 moves each without a capture is a draw, as is neither side having attacking pieces, or agreeing to a draw.',
+          'Handicap games: the host can give odds of a chariot, a horse, a cannon or two horses.',
+          'Takebacks need your opponent to agree. In timed games the first move must come within 30 seconds, or the game is aborted.',
+        ],
+      },
+    ],
     red: 'Red',
     black: 'Black',
     redToMove: 'Red to move',
