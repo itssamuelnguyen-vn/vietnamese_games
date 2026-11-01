@@ -8,7 +8,8 @@ import {
   remainingAt,
   stopClock as stopMatchClock,
   type ClockView,
-  type MatchClock, duelPoints, refundIncrements } from './match';
+  type MatchClock, BOT_DRAW_BELOW, botThinkMs, duelPoints, refundIncrements } from './match';
+import { chessBotMove, chessScore } from './chess-bot';
 
 export type ChessColor = 'w' | 'b';
 
@@ -327,6 +328,23 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
 
   points(state) {
     return state.result ? duelPoints([state.white, state.black], state.result.winner) : null;
+  },
+
+  // A bot always grants takebacks, takes a draw only when it's clearly behind, and otherwise
+  // searches for its move.
+  botMove(state, playerId, { now, random }) {
+    const color = colorOf(state, playerId);
+    if (state.result || !color) return null;
+    const opponent = opponentOf(state, color);
+    if (state.takebackRequest === opponent) return { type: 'accept-takeback' };
+    const chess = load(state);
+    if (state.drawOffer === opponent) {
+      const score = chessScore(chess.fen()) * (chess.turn() === color ? 1 : -1);
+      return { type: score < BOT_DRAW_BELOW ? 'accept-draw' : 'decline-draw' };
+    }
+    if (chess.turn() !== color) return null;
+    const move = chessBotMove(chess.fen(), { timeMs: botThinkMs(state.clock, color, now), random });
+    return move && { type: 'move', ...move };
   },
 
   playerView(state, playerId, { now }) {

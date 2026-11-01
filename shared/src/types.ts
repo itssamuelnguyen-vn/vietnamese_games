@@ -28,8 +28,8 @@ export interface GameInfo {
 // Games shown in the lobby. Flip `available` once a game has both rules and a UI.
 // Display names live in the client locale files.
 export const GAME_CATALOG: Record<GameType, GameInfo> = {
-  chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true },
-  xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
+  chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
+  xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
   tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
   caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true },

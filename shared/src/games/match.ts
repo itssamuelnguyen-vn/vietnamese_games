@@ -74,3 +74,13 @@ export function duelPoints(players: [string, string], winner: string | null): Re
     players.map((id) => [id, { points: winner === null ? 0 : winner === id ? 1 : -1, place: winner !== null && winner !== id ? 2 : 1 }]),
   );
 }
+
+// How long a bot thinks over a move: about this long, less when its clock is running low.
+export const BOT_THINK_MS = 700;
+// A bot accepts a draw offer once it's behind by about this much (two pawns, or a xiangqi horse).
+export const BOT_DRAW_BELOW = -200;
+
+export function botThinkMs<S extends string>(clock: MatchClock<S> | null, side: S, now: number): number {
+  if (!clock) return BOT_THINK_MS;
+  return Math.max(50, Math.min(BOT_THINK_MS, remainingAt(clock, side, now)[side] / 30));
+}
