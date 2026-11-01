@@ -409,27 +409,27 @@ export function CaNguaOptionsPicker({ room }: { room: RoomView }) {
   );
 }
 
-// Xi dach: the house deals, or the host seats one player as the dealer.
-export function XiDachOptionsPicker({ room }: { room: RoomView }) {
+// Xi dach and bau cua: the house deals, or the host seats one player as the dealer.
+export function DealerPicker({ room, note }: { room: RoomView; note: string }) {
   const { t } = useI18n();
   const locked = room.hostId !== room.you || room.status === 'playing';
   // A chosen dealer who has got up from the table leaves the dealing to the house.
-  const dealer = room.players.some((p) => p.id === room.options.xiDachDealer) ? room.options.xiDachDealer! : 'house';
+  const dealer = room.players.some((p) => p.id === room.options.dealer) ? room.options.dealer! : 'house';
   async function pick(id: string) {
-    const r = await api.options({ xiDachDealer: id === 'house' ? null : id });
+    const r = await api.options({ dealer: id === 'house' ? null : id });
     if (!r.ok) toast(t.errors[r.error]);
   }
   return (
     <>
       <ChipGroup
-        label={t.xidach.dealerLabel}
+        label={t.room.dealerLabel}
         options={['house', ...room.players.map((p) => p.id)]}
         value={dealer}
-        labelOf={(id) => (id === 'house' ? `🎩 ${t.xidach.houseDealer}` : (room.players.find((p) => p.id === id)?.name ?? id))}
+        labelOf={(id) => (id === 'house' ? `🎩 ${t.room.houseDealer}` : (room.players.find((p) => p.id === id)?.name ?? id))}
         disabled={locked}
         onPick={pick}
       />
-      {dealer !== 'house' && <p className="muted small stakes-note">{t.xidach.dealerNote}</p>}
+      {dealer !== 'house' && <p className="muted small stakes-note">{note}</p>}
     </>
   );
 }

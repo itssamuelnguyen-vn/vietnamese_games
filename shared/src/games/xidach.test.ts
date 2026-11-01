@@ -125,7 +125,7 @@ describe('xi dach', () => {
     for (const id of s.seats) expect(s.chips[id] % 10).toBe(0);
   });
   describe('a seated dealer', () => {
-    const dealt = (dealer = 'd') => ({ ...options, xiDachDealer: dealer });
+    const dealt = (dealer = 'd') => ({ ...options, dealer: dealer });
     // d deals to a and b, with fixed hands and deck.
     function dealerTable(hands: Record<string, XdCard[]>, dealerCards: XdCard[], deck: XdCard[], chips = XD_START_CHIPS): XiDachState {
       const ids = Object.keys(hands);

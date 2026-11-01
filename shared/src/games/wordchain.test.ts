@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RoomOptions } from '../types';
 import { buildDictionary, createWordChainGame, wordKey, type WordChainMove, type WordChainState } from './wordchain';
 
-const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, xiDachDealer: null };
+const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null };
 const VI = ['hoa hồng', 'hồng hào', 'hào hoa', 'hoa quả', 'quả cam', 'cam đoan', 'đoan trang', 'trang trại', 'trại hè', 'hòa bình', 'bình yên', 'hoa mai'];
 const game = createWordChainGame('noitu', buildDictionary('vi', VI));
 const ctx = { now: 0 };

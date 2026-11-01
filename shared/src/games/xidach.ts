@@ -310,7 +310,7 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
   setup(playerIds, options, { now }) {
     return {
       seats: [...playerIds],
-      dealerId: playerIds.includes(options.xiDachDealer ?? '') ? options.xiDachDealer : null,
+      dealerId: playerIds.includes(options.dealer ?? '') ? options.dealer : null,
       chips: Object.fromEntries(playerIds.map((id) => [id, XD_START_CHIPS])),
       bets: {},
       ready: [],

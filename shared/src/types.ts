@@ -104,8 +104,8 @@ export interface RoomOptions {
   // Play money each player's wallet starts with, and how much a point of a game's result is worth.
   walletStart: number;
   stakePerPoint: number;
-  // Xi dach: the seated player who deals and keeps the bank, or null for the automatic house.
-  xiDachDealer: string | null;
+  // Xi dach and bau cua: the seated player who deals and keeps the bank, or null for the house.
+  dealer: string | null;
 }
 
 export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
@@ -120,7 +120,7 @@ export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
   stakes: 'points',
   walletStart: 200_000,
   stakePerPoint: 5_000,
-  xiDachDealer: null,
+  dealer: null,
 };
 
 export interface PlayerInfo {
