@@ -7,8 +7,8 @@ const options = {} as RoomOptions;
 const c = (rank: number, suit = 0): XdCard => (rank - 1) * 4 + suit;
 const hand = (...ranks: number[]) => ranks.map((r, i) => c(r, i % 4));
 const game = (ids = ['a', 'b']) => xiDachGame.setup(ids, options, { now: 0 }, null);
-function act(s: XiDachState, id: string, move: XiDachMove, now = 0) {
-  const r = xiDachGame.applyMove(s, id, move, { now });
+function act(s: XiDachState, id: string, move: XiDachMove, now = 0, random?: () => number) {
+  const r = xiDachGame.applyMove(s, id, move, { now, random });
   if (!r.ok) throw new Error(`${id} ${JSON.stringify(move)}: ${r.error}`);
   return r.state;
 }
@@ -58,15 +58,14 @@ describe('xi dach', () => {
     expect(() => act(s, 'a', { type: 'bet', amount: 30 })).toThrow('INVALID_MOVE');
     s = act(s, 'b', { type: 'bet', amount: 50 });
     s = act(s, 'a', { type: 'ready' });
-    s = act(s, 'b', { type: 'ready' });
-    expect(['play', 'reveal']).toContain(s.phase);
+    // A fixed shuffle, so the dealer can't be dealt xì dách and end the round at once (about 5% of deals).
+    s = act(s, 'b', { type: 'ready' }, 0, () => 0.1);
+    expect(s.phase).toBe('play');
     expect(s.hands.a).toHaveLength(2);
     expect(s.chips.a).toBe(XD_START_CHIPS - 100);
-    if (s.phase === 'play') {
-      const view = xiDachGame.playerView(s, 'a', { now: 0 });
-      expect(Object.keys(view.hands)).toEqual(['a']);
-      expect(view.dealer).toHaveLength(1);
-    }
+    const view = xiDachGame.playerView(s, 'a', { now: 0 });
+    expect(Object.keys(view.hands)).toEqual(['a']);
+    expect(view.dealer).toHaveLength(1);
   });
 
   it('needs 16 to stand; drawing past 21 is bust and passes the turn', () => {
