@@ -96,6 +96,8 @@ export type XiDachLogEntry =
   // A seated dealer couldn't cover every win in full: the winners shared what the bank had.
   | { kind: 'bank-broke'; player: string }
   | { kind: 'result'; player: string; net: number; hand: HandValue }
+  // A seated dealer turned over one player's hand early (xét bài); their result follows.
+  | { kind: 'check'; dealer: string; player: string }
   | { kind: 'left'; player: string };
 
 export interface XiDachResult {
@@ -116,6 +118,9 @@ export interface XiDachState {
   deck: XdCard[];
   // Players who are done drawing this round.
   stood: string[];
+  // Players already paid this round, with what they won or lost: checked early by a seated
+  // dealer, or everyone once the round is revealed.
+  paid: Record<string, number>;
   turn: string | null;
   round: number;
   phase: XiDachPhase;
@@ -124,15 +129,15 @@ export interface XiDachState {
   result: XiDachResult | null;
 }
 
-export type XiDachMove = { type: 'bet'; amount: number } | { type: 'ready' } | { type: 'hit' } | { type: 'stand' };
+// `check`: a seated dealer with 16 or more turns over one player's hand and settles it now.
+export type XiDachMove = { type: 'bet'; amount: number } | { type: 'ready' } | { type: 'hit' } | { type: 'stand' } | { type: 'check'; player: string };
 
 export interface XiDachView {
   seats: { id: string; chips: number; bet: number; ready: boolean; out: boolean; cards: number; stood: boolean }[];
-  // Hands everyone may see: your own, and everyone's once the round is revealed.
+  // Hands everyone may see: your own, those the dealer checked, and everyone's once revealed.
   hands: Record<string, XdCard[]>;
   dealerId: string | null;
-  // The dealer's face-up card while the round is in play (the whole hand for the dealer
-  // themselves); the whole hand once revealed.
+  // The dealer's cards stay face down until the reveal, except to the dealer themselves.
   dealer: XdCard[];
   dealerCards: number;
   turn: string | null;
@@ -173,7 +178,42 @@ function finish(s: XiDachState): XiDachState {
   return { ...s, turn: null, result: { ranking, chips } };
 }
 
-// The dealer turns over (the house draws to at least 16 first), then everyone in the round is paid.
+// Pays `ids` against the dealer's hand. A seated dealer collects from the losers first, then
+// pays the winners from their own chips; if that isn't enough, the winners share what there is.
+// The stake was set aside when the round was dealt: it comes back, plus or minus the winnings.
+// Nobody loses more than they have.
+function payOut(s: XiDachState, ids: string[], dv: HandValue): XiDachState {
+  const chips = { ...s.chips };
+  const owed = new Map(ids.map((id) => [id, xdSettle(xdHandValue(s.hands[id]), dv) * s.bets[id]]));
+  const net = new Map<string, number>();
+  for (const [id, amount] of owed) if (amount <= 0) net.set(id, Math.max(amount, -(chips[id] + s.bets[id])));
+  const extra: XiDachLogEntry[] = [];
+  if (s.dealerId !== null) {
+    const bank = chips[s.dealerId] - [...net.values()].reduce((sum, n) => sum + n, 0);
+    const wins = [...owed].filter(([, amount]) => amount > 0);
+    const due = wins.reduce((sum, [, amount]) => sum + amount, 0);
+    if (due <= bank) for (const [id, amount] of wins) net.set(id, amount);
+    else {
+      // Shares in proportion to what each was owed; the odd chips left by rounding go in seat
+      // order, so the bank ends empty.
+      const shares = wins.map(([id, amount]) => [id, Math.floor((amount * bank) / due)] as const);
+      let left = bank - shares.reduce((sum, [, n]) => sum + n, 0);
+      for (const [id, n] of shares) net.set(id, n + (left-- > 0 ? 1 : 0));
+      extra.push({ kind: 'bank-broke', player: s.dealerId });
+    }
+  } else for (const [id, amount] of owed) if (amount > 0) net.set(id, amount);
+  const paid = { ...s.paid };
+  const results: XiDachLogEntry[] = [];
+  for (const id of owed.keys()) {
+    chips[id] += s.bets[id] + net.get(id)!;
+    if (s.dealerId !== null) chips[s.dealerId] -= net.get(id)!;
+    paid[id] = net.get(id)!;
+    results.push({ kind: 'result', player: id, net: net.get(id)!, hand: xdHandValue(s.hands[id]) });
+  }
+  return withLog({ ...s, chips, paid }, ...results, ...extra);
+}
+
+// The dealer turns over (the house draws to at least 16 first), then everyone not yet paid is.
 function reveal(s: XiDachState, now: number): XiDachState {
   let deck = s.deck;
   const dealer = [...s.dealer];
@@ -184,40 +224,20 @@ function reveal(s: XiDachState, now: number): XiDachState {
     deck = deck.slice(1);
   }
   const dv = xdHandValue(dealer);
-  const next: XiDachState = { ...s, dealer, deck, phase: 'reveal', turn: null, deadline: now + XD_REVEAL_MS };
-  const chips = { ...next.chips };
-  // What each player's hand wins (positive) or loses against the dealer's.
-  const owed = new Map(inRound(next).map((id) => [id, xdSettle(xdHandValue(next.hands[id]), dv) * next.bets[id]]));
-  // The stake was set aside when the round was dealt: it comes back, plus or minus the winnings.
-  // Nobody loses more than they have.
-  const net = new Map<string, number>();
-  for (const [id, amount] of owed) if (amount <= 0) net.set(id, Math.max(amount, -(chips[id] + next.bets[id])));
-  const extra: XiDachLogEntry[] = [];
-  if (next.dealerId !== null) {
-    // A seated dealer collects from the losers first, then pays the winners from their own chips;
-    // if that isn't enough, the winners share what there is.
-    const bank = chips[next.dealerId] - [...net.values()].reduce((sum, n) => sum + n, 0);
-    const wins = [...owed].filter(([, amount]) => amount > 0);
-    const due = wins.reduce((sum, [, amount]) => sum + amount, 0);
-    if (due <= bank) for (const [id, amount] of wins) net.set(id, amount);
-    else {
-      // Shares in proportion to what each was owed; the odd chips left by rounding go in seat
-      // order, so the bank ends empty.
-      const shares = wins.map(([id, amount]) => [id, Math.floor((amount * bank) / due)] as const);
-      let left = bank - shares.reduce((sum, [, n]) => sum + n, 0);
-      for (const [id, n] of shares) net.set(id, n + (left-- > 0 ? 1 : 0));
-      extra.push({ kind: 'bank-broke', player: next.dealerId });
-    }
-  } else for (const [id, amount] of owed) if (amount > 0) net.set(id, amount);
-  let dealerNet = 0;
-  const results: XiDachLogEntry[] = [];
-  for (const id of owed.keys()) {
-    chips[id] += next.bets[id] + net.get(id)!;
-    dealerNet -= net.get(id)!;
-    results.push({ kind: 'result', player: id, net: net.get(id)!, hand: xdHandValue(next.hands[id]) });
-  }
-  if (next.dealerId !== null) chips[next.dealerId] += dealerNet;
-  return withLog({ ...next, chips }, { kind: 'dealer', hand: dealer, value: dv, player: next.dealerId, net: dealerNet }, ...results, ...extra);
+  const turned: XiDachState = { ...s, dealer, deck, phase: 'reveal', turn: null, deadline: now + XD_REVEAL_MS };
+  // The dealer's line comes first, with the round's total (players checked earlier included).
+  const logged = withLog(turned, { kind: 'dealer', hand: dealer, value: dv, player: s.dealerId, net: 0 });
+  const next = payOut(logged, inRound(turned).filter((id) => !(id in turned.paid)), dv);
+  const dealerNet = 0 - Object.values(next.paid).reduce((sum, n) => sum + n, 0);
+  const at = next.log.length - 1 - [...next.log].reverse().findIndex((e) => e.kind === 'dealer');
+  return { ...next, log: next.log.map((e, i) => (i === at && e.kind === 'dealer' ? { ...e, net: dealerNet } : e)) };
+}
+
+// A seated dealer turns over one player's hand now (xét bài) and settles it against their own.
+// Once every player is settled, the round is over.
+function check(s: XiDachState, target: string, now: number): XiDachState {
+  const next = payOut(withLog(s, { kind: 'check', dealer: s.dealerId!, player: target }), [target], xdHandValue(s.dealer));
+  return inRound(next).every((id) => id in next.paid) ? reveal(next, now) : { ...next, deadline: now + XD_TURN_MS };
 }
 
 // The next player who still has to play this round, after `from` in seat order.
@@ -245,7 +265,7 @@ function deal(s: XiDachState, now: number, random: () => number): XiDachState {
   // Stakes are set aside for the round.
   const chips = { ...s.chips };
   for (const id of players) chips[id] -= s.bets[id];
-  let next: XiDachState = { ...s, chips, hands, dealer, deck, phase: 'play', stood: players.filter((id) => settled(hands[id])) };
+  let next: XiDachState = { ...s, chips, hands, dealer, deck, phase: 'play', paid: {}, stood: players.filter((id) => settled(hands[id])) };
   // A dealer holding xì bàn or xì dách shows it at once and the round is over.
   if (xdHandValue(dealer).kind !== 'points') return reveal(next, now);
   next = nextTurn(next, null, now);
@@ -257,7 +277,7 @@ function nextRound(s: XiDachState, now: number): XiDachState {
   if (s.round >= XD_ROUNDS || punters(s).every((id) => s.chips[id] === 0) || (s.dealerId !== null && s.chips[s.dealerId] === 0)) return finish(s);
   const round = s.round + 1;
   return withLog(
-    { ...s, round, phase: 'bet', bets: {}, ready: [], hands: {}, dealer: [], deck: [], stood: [], turn: null, deadline: now + XD_BET_MS },
+    { ...s, round, phase: 'bet', bets: {}, ready: [], hands: {}, dealer: [], deck: [], stood: [], paid: {}, turn: null, deadline: now + XD_BET_MS },
     { kind: 'round', round },
   );
 }
@@ -299,6 +319,7 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
       dealer: [],
       deck: [],
       stood: [],
+      paid: {},
       turn: null,
       round: 1,
       phase: 'bet',
@@ -332,6 +353,14 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
         if (move.type === 'stand') return v.total >= XD_MIN_STAND || v.kind !== 'points' ? { ok: true, state: stand(state, playerId, now, false) } : fail;
         return settled(cards) ? fail : { ok: true, state: hit(state, playerId, now) };
       }
+      case 'check': {
+        if (state.phase !== 'play') return fail;
+        if (state.turn !== playerId) return { ok: false, error: 'NOT_YOUR_TURN' };
+        const v = xdHandValue(state.dealer);
+        const open = playerId === state.dealerId && (v.kind !== 'points' || v.total >= XD_MIN_STAND);
+        if (!open || !inRound(state).includes(move.player) || move.player in state.paid) return fail;
+        return { ok: true, state: check(state, move.player, now) };
+      }
     }
     return fail;
   },
@@ -341,7 +370,8 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
     // A stake already on the table stays with the dealer. A seated dealer who leaves hands the
     // dealing to the house, which finishes their hand.
     const chips = { ...state.chips };
-    if (state.phase === 'play' && state.dealerId !== null && state.dealerId !== playerId && state.hands[playerId]) chips[state.dealerId] += state.bets[playerId];
+    const unsettled = state.phase === 'play' && state.hands[playerId] && !(playerId in state.paid);
+    if (unsettled && state.dealerId !== null && state.dealerId !== playerId) chips[state.dealerId] += state.bets[playerId];
     let next: XiDachState = withLog(
       {
         ...state,
@@ -375,8 +405,8 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
         cards: state.hands[id]?.length ?? 0,
         stood: state.stood.includes(id),
       })),
-      hands: shown ? state.hands : state.hands[playerId] ? { [playerId]: state.hands[playerId] } : {},
-      dealer: shown || playerId === state.dealerId ? state.dealer : state.dealer.slice(0, 1),
+      hands: shown ? state.hands : Object.fromEntries(Object.entries(state.hands).filter(([id]) => id === playerId || id in state.paid)),
+      dealer: shown || playerId === state.dealerId ? state.dealer : [],
       dealerCards: state.dealer.length,
       turn: state.turn,
       round: state.round,
