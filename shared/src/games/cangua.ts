@@ -239,6 +239,8 @@ export function caNguaBotChoice(s: CaNguaState, player: string): CaNguaChoice | 
 
 export const caNguaGame: GameDefinition<CaNguaState, CaNguaMove, CaNguaView> = {
   type: 'cangua',
+  // The client tumbles the die and walks horses square by square; bots wait for that to finish.
+  botPace: 2.2,
 
   setup(playerIds, options, { now }, previous) {
     // The previous winner starts; otherwise the host.

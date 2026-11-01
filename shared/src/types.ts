@@ -176,6 +176,10 @@ export interface GameDefinition<S, M, V> {
   points?(state: S): Record<string, { points: number; place: number }> | null;
   // Games that support computer players: the bot's next move, or null while it has nothing to do.
   botMove?(state: S, playerId: string, ctx: GameContext): M | null;
+  // How much longer than the room's usual pause bots wait before acting, for strictly turn-based
+  // games whose client animates each move (a rolling die, a walking piece). The pause restarts on
+  // every change, so it always counts from the latest move.
+  botPace?: number;
 }
 
 export interface TallyEntry {

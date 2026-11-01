@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
 import { CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
 import { toast } from './Toaster';
-import { ChevronRightIcon, CopyIcon, CrownIcon, QrIcon, SendIcon } from './icons';
+import { ChevronRightIcon, CopyIcon, CrownIcon, QrIcon } from './icons';
 import { loadSetting, saveSetting } from '../settings';
 
 // The host fills or frees seats with bots between games.
@@ -243,58 +243,8 @@ function ChipGroup<T extends string>({ label, options, value, labelOf, disabled,
   );
 }
 
-export function ChatCard({ room, recipient }: { room: RoomView; recipient?: string }) {
-  const { t } = useI18n();
-  const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
-  const listRef = useRef<HTMLOListElement>(null);
-
-  useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
-  }, [room.chat.length]);
-
-  async function send(e: FormEvent) {
-    e.preventDefault();
-    const message = text.trim();
-    if (!message || sending) return;
-    setSending(true);
-    const r = await api.chat(message);
-    setSending(false);
-    if (r.ok) setText('');
-    else toast(t.errors[r.error]);
-  }
-
-  return (
-    <section className="card panel chat-card">
-      <h2>{t.chat.title}</h2>
-      {room.chat.length === 0 ? (
-        <p className="muted small">{t.chat.empty}</p>
-      ) : (
-        <ol className="chat-list" ref={listRef}>
-          {room.chat.map((m) => (
-            <li key={m.id} className={m.playerId === room.you ? 'mine' : ''}>
-              {m.playerId !== room.you && <strong>{m.name}</strong>}
-              {m.playerId !== room.you && ' · '}
-              {m.text}
-            </li>
-          ))}
-        </ol>
-      )}
-      <form className="chat-form" onSubmit={send}>
-        <input
-          value={text}
-          maxLength={200}
-          placeholder={recipient ? t.chat.placeholderTo(recipient) : t.chat.placeholder}
-          aria-label={t.chat.title}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button className="btn btn-dark btn-square" disabled={!text.trim() || sending} aria-label={t.chat.send}>
-          <SendIcon />
-        </button>
-      </form>
-    </section>
-  );
-}
+// The chat lives in its own module; re-exported so game screens keep importing it from here.
+export { ChatCard } from './Chat';
 
 // Running scores across the games played in this room; collapsible, remembered per browser.
 export function ScoreboardPanel({ room }: { room: RoomView }) {

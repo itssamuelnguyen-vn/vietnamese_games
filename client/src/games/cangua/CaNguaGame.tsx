@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   GATE,
   HOME_STEPS,
@@ -65,6 +65,14 @@ function cellOf(color: number, progress: number, horse: number): Cell {
   return homeCell(color, progress - GATE);
 }
 
+// The squares a horse passes over on its way from `from` to `to` (neither end included).
+function pathCells(color: number, from: number, to: number, horse: number): Cell[] {
+  if (from === STABLE) return [];
+  const cells: Cell[] = [];
+  for (let p = from + 1; p < to; p++) cells.push(cellOf(color, p, horse));
+  return cells;
+}
+
 const COLOR_CLASS = ['red', 'green', 'blue', 'yellow'];
 
 // Re-renders periodically while `active`, for the turn countdown.
@@ -77,15 +85,73 @@ function useTicker(active: boolean, ms = 250) {
   }, [active, ms]);
 }
 
-function Die({ value, rolling }: { value: number | null; rolling: boolean }) {
-  const pips: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-  return (
-    <span className={`cn-die ${rolling ? 'rolling' : ''}`} aria-label={value ? String(value) : ''}>
-      {Array.from({ length: 9 }, (_, i) => (
-        <span key={i} className={value && pips[value].includes(i) ? 'pip' : ''} />
-      ))}
+const PIPS: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+
+// While rolling the die flicks through random faces before landing on the real one.
+function Die({ value, rolling, color, onRoll, label }: { value: number | null; rolling: boolean; color?: string; onRoll?: () => void; label: string }) {
+  const [face, setFace] = useState(value);
+  useEffect(() => {
+    if (!rolling) return;
+    // Faces flick by quickly at first, then slow down as the die comes to rest.
+    const start = performance.now();
+    let id: ReturnType<typeof setTimeout>;
+    const flick = () => {
+      setFace((f) => 1 + ((f ?? 0) + Math.floor(Math.random() * 5)) % 6);
+      const elapsed = (performance.now() - start) / ROLL_MS;
+      id = setTimeout(flick, 60 + 260 * elapsed * elapsed);
+    };
+    flick();
+    return () => clearTimeout(id);
+  }, [rolling]);
+  const shown = rolling ? face : value;
+  const pips = Array.from({ length: 9 }, (_, i) => <span key={i} className={shown && PIPS[shown].includes(i) ? 'pip' : ''} />);
+  const style = { '--die-c': color } as CSSProperties;
+  const className = `cn-die ${rolling ? 'rolling' : ''}`;
+  return onRoll ? (
+    <button type="button" className={`${className} can-roll`} style={style} onClick={onRoll} aria-label={label} title={label}>
+      {pips}
+    </button>
+  ) : (
+    <span className={className} style={style} aria-label={value ? String(value) : ''}>
+      {pips}
     </span>
   );
+}
+
+// How long the die tumbles; move choices stay hidden until it lands.
+const ROLL_MS = 1400;
+
+type Shown = Record<string, number[]>;
+const STEP_MS = 260;
+
+// Horses walk to where the server put them one square at a time; a kicked horse waits until the
+// horse that kicked it has landed, then goes back to its stable.
+function useWalkingHorses(seats: CaNguaView['seats']) {
+  const target = useMemo<Shown>(() => Object.fromEntries(seats.map((s) => [s.id, s.horses])), [seats]);
+  const [shown, setShown] = useState<Shown>(target);
+  useEffect(() => {
+    const settled = Object.entries(target).every(([id, horses]) => horses.every((p, i) => shown[id]?.[i] === p));
+    if (settled) return;
+    const id = setTimeout(() => {
+      setShown((prev) => {
+        const walking = Object.entries(target).some(([id, horses]) => horses.some((p, i) => (prev[id]?.[i] ?? p) >= 0 && p > (prev[id]?.[i] ?? p)));
+        return Object.fromEntries(
+          Object.entries(target).map(([id, horses]) => [
+            id,
+            horses.map((p, i) => {
+              const at = prev[id]?.[i];
+              if (at === undefined || at === p) return p;
+              if (at >= 0 && p > at) return at + 1;
+              if (p === STABLE && walking) return at;
+              return p;
+            }),
+          ]),
+        );
+      });
+    }, STEP_MS);
+    return () => clearTimeout(id);
+  }, [target, shown]);
+  return (id: string, horse: number, real: number) => shown[id]?.[horse] ?? real;
 }
 
 function describe(t: Strings, e: CaNguaLogEntry, name: (id: string) => string): string {
@@ -94,11 +160,11 @@ function describe(t: Strings, e: CaNguaLogEntry, name: (id: string) => string): 
     case 'roll':
       return (e.auto ? L.autoRoll : L.roll)(name(e.player), e.value);
     case 'release':
-      return L.release(name(e.player)) + (e.kicked ? L.kicked(name(e.kicked)) : '');
+      return L.release(name(e.player), e.horse + 1) + (e.kicked ? L.kicked(name(e.kicked)) : '');
     case 'move':
-      return L.move(name(e.player), e.to - e.from) + (e.kicked ? L.kicked(name(e.kicked)) : '');
+      return L.move(name(e.player), e.horse + 1, e.to - e.from) + (e.kicked ? L.kicked(name(e.kicked)) : '');
     case 'climb':
-      return L.climb(name(e.player), e.step);
+      return L.climb(name(e.player), e.horse + 1, e.step);
     case 'stuck':
       return L.stuck(name(e.player));
     case 'sixes':
@@ -133,10 +199,12 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
   const turnLeft = view.turnMs === null ? null : Math.max(0, view.turnMs - (performance.now() - receivedAt));
   const turnFraction = turnLeft !== null && view.turnLimitMs ? turnLeft / view.turnLimitMs : null;
 
+  const sending = useRef(false);
   async function send(move: CaNguaMove) {
     // The clicked horse or button may vanish without a mouseleave, so drop the target marker now.
     setHover(null);
-    const r = await api.move(move);
+    sending.current = true;
+    const r = await api.move(move).finally(() => (sending.current = false));
     if (!r.ok) toast(t.errors[r.error]);
     return r.ok;
   }
@@ -151,13 +219,14 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
   const rollKey = view.log.length + (lastRoll && lastRoll.kind === 'roll' ? lastRoll.value : 0);
   const [rolling, setRolling] = useState(false);
   // Logs keep only recent entries, so new ones are found by content, not by length.
+  // A layout effect, so a fresh roll hides the move choices before they are ever painted.
   const seenLog = useRef(view.log);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const fresh = freshEntries(seenLog.current, view.log);
     seenLog.current = view.log;
     if (fresh.some((e) => e.kind === 'roll')) {
       setRolling(true);
-      const id = setTimeout(() => setRolling(false), 450);
+      const id = setTimeout(() => setRolling(false), ROLL_MS);
       if (fresh.some((e) => ('kicked' in e && e.kicked) || e.kind === 'sixes')) playSound('capture');
       else playSound('move');
       return () => clearTimeout(id);
@@ -191,20 +260,40 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [view.log.length, logOpen]);
 
-  const choices = view.choices;
+  const choices = rolling ? [] : view.choices;
   const movable = new Set(choices.map((c) => c.horse));
   const hovered = hover === null ? null : choices.find((c) => c.horse === hover);
   const targetCell = hovered && mySeat ? cellOf(mySeat.color, hovered.to, hovered.horse) : null;
+  const pathPreview = hovered && mySeat ? pathCells(mySeat.color, mySeat.horses[hovered.horse], hovered.to, hovered.horse) : [];
+  const shownAt = useWalkingHorses(view.seats);
+  const canRoll = myTurn && view.phase === 'roll';
 
-  // Which colours sit at the table, for tinting the board's stables and home columns.
-  const inPlay = new Set(view.seats.map((s) => s.color));
+  // Keyboard: Space or Enter rolls, 1-4 moves that horse.
+  useEffect(() => {
+    if (!myTurn) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || sending.current) return;
+      const el = e.target as HTMLElement | null;
+      // Leave typing alone, and let a focused button handle its own Space/Enter.
+      if (el?.closest('input, textarea, select, button, [contenteditable="true"]')) return;
+      if (view.phase === 'roll' && (e.key === ' ' || e.key === 'Enter')) {
+        e.preventDefault();
+        send({ type: 'roll' });
+      } else if (view.phase === 'move' && /^[1-4]$/.test(e.key) && movable.has(Number(e.key) - 1)) {
+        e.preventDefault();
+        send({ type: 'move', horse: Number(e.key) - 1 });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   let status: string;
   if (view.result) status = C.resultTitle;
   else if (!seated) status = C.turnOf(name(view.turn));
   else if (!myTurn) status = C.turnOf(name(view.turn)) + '…';
   else if (view.phase === 'roll') status = view.die === null && lastRoll?.kind === 'roll' && lastRoll.value === 6 && lastRoll.player === me ? C.rollAgain : C.yourRoll;
-  else status = C.pickHorse;
+  else status = rolling ? C.rolling : C.pickHorse;
 
   const myPlace = view.result ? view.result.ranking.indexOf(me) + 1 : 0;
   const pos = (cell: Cell): CSSProperties => ({ top: `${(cell[0] / N) * 100}%`, left: `${(cell[1] / N) * 100}%` });
@@ -231,59 +320,101 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
 
       <section className="tl-main">
         <div className="cn-board-wrap">
-          <div className="cn-board">
-            {[0, 1, 2, 3].map((color) => {
-              const [r, c] = rotate([0, 0], color);
-              const corner: CSSProperties = { top: r === 0 ? 0 : `${(9 / N) * 100}%`, left: c === 0 ? 0 : `${(9 / N) * 100}%` };
-              return (
-                <div key={color} className={`cn-stable ${COLOR_CLASS[color]} ${inPlay.has(color) ? '' : 'empty'}`} style={corner}>
-                  <span className="cn-stable-inner" />
-                </div>
-              );
-            })}
-            {TRACK_CELLS.map((cell, i) => {
-              const startOf = [0, 1, 2, 3].find((color) => squareOf(color, 0) === i);
-              const gateOf = [0, 1, 2, 3].find((color) => squareOf(color, GATE) === i);
-              return (
-                <span
-                  key={i}
-                  className={['cn-cell', startOf !== undefined ? `start ${COLOR_CLASS[startOf]}` : '', gateOf !== undefined ? `gate gate-${COLOR_CLASS[gateOf]}` : ''].join(' ')}
-                  style={pos(cell)}
-                />
-              );
-            })}
-            {[0, 1, 2, 3].flatMap((color) =>
-              Array.from({ length: HOME_STEPS }, (_, k) => (
-                <span key={`h${color}-${k}`} className={`cn-cell home ${COLOR_CLASS[color]}`} style={pos(homeCell(color, k + 1))}>
-                  {k + 1}
+          <div className="cn-frame">
+            <div className="cn-board">
+              {[0, 1, 2, 3].map((color) => {
+                const [r, c] = rotate([0, 0], color);
+                const corner: CSSProperties = { top: r === 0 ? 0 : `${(9 / N) * 100}%`, left: c === 0 ? 0 : `${(9 / N) * 100}%` };
+                const seat = view.seats.find((s) => s.color === color);
+                const turn = !!seat && view.turn === seat.id && !view.result;
+                return (
+                  <div key={color} className={`cn-stable ${COLOR_CLASS[color]} ${seat ? '' : 'empty'} ${turn ? 'turn' : ''}`} style={corner}>
+                    <span className="cn-stable-inner" />
+                    {seat && (
+                      <span className={`cn-owner ${r === 0 ? 'top' : 'bottom'}`}>
+                        <span>
+                          {name(seat.id)}
+                          {seat.out ? ` · ${t.tienlen.left}` : ''}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              {view.seats.flatMap((seat) =>
+                Array.from({ length: 4 }, (_, horse) => (
+                  <span key={`slot-${seat.id}-${horse}`} className={`cn-slot ${COLOR_CLASS[seat.color]}`} style={pos(stableCell(seat.color, horse))}>
+                    {horse + 1}
+                  </span>
+                )),
+              )}
+              {TRACK_CELLS.map((cell, i) => {
+                const startOf = [0, 1, 2, 3].find((color) => squareOf(color, 0) === i);
+                const gateOf = [0, 1, 2, 3].find((color) => squareOf(color, GATE) === i);
+                return (
+                  <span
+                    key={i}
+                    className={['cn-cell', startOf !== undefined ? `start ${COLOR_CLASS[startOf]}` : '', gateOf !== undefined ? `gate gate-${COLOR_CLASS[gateOf]}` : ''].join(' ')}
+                    style={{ ...pos(cell), ...(startOf !== undefined ? ({ '--rot': `${startOf * 90}deg` } as CSSProperties) : {}) }}
+                  />
+                );
+              })}
+              {[0, 1, 2, 3].flatMap((color) =>
+                Array.from({ length: HOME_STEPS }, (_, k) => (
+                  <span key={`h${color}-${k}`} className={`cn-cell home ${COLOR_CLASS[color]}`} style={pos(homeCell(color, k + 1))}>
+                    {k + 1}
+                  </span>
+                )),
+              )}
+              <span className="cn-center">
+                <span className="cn-star" aria-hidden="true">
+                  ★
                 </span>
-              )),
-            )}
-            <span className="cn-center" />
-            {targetCell && <span className="cn-target" style={pos(targetCell)} />}
-            {view.seats.flatMap((seat) =>
-              seat.out
-                ? []
-                : seat.horses.map((p, horse) => {
-                    const canMove = seat.id === me && movable.has(horse);
-                    return (
-                      <button
-                        key={`${seat.id}-${horse}`}
-                        type="button"
-                        className={`cn-horse ${COLOR_CLASS[seat.color]} ${canMove ? 'movable' : ''} ${view.turn === seat.id && !view.result ? 'turn' : ''}`}
-                        style={pos(cellOf(seat.color, p, horse))}
-                        disabled={!canMove}
-                        onClick={() => send({ type: 'move', horse })}
-                        onMouseEnter={() => canMove && setHover(horse)}
-                        onMouseLeave={() => setHover(null)}
-                        aria-label={`${name(seat.id)} · ${C.horse(horse + 1)}`}
-                        title={`${name(seat.id)} · ${C.horse(horse + 1)}`}
-                      >
-                        ♞
-                      </button>
-                    );
-                  }),
-            )}
+              </span>
+              {mySeat &&
+                pathPreview.map((cell, i) => <span key={`p${i}`} className={`cn-step ${COLOR_CLASS[mySeat.color]}`} style={pos(cell)} />)}
+              {targetCell && <span className={`cn-target ${hovered?.kicks ? 'kick' : ''}`} style={pos(targetCell)} />}
+              {view.seats.flatMap((seat) =>
+                seat.out
+                  ? []
+                  : seat.horses.map((p, horse) => {
+                      const mine = seat.id === me;
+                      const canMove = mine && movable.has(horse);
+                      const at = shownAt(seat.id, horse, p);
+                      const label = `${name(seat.id)} · ${C.horse(horse + 1)}`;
+                      return (
+                        <button
+                          key={`${seat.id}-${horse}`}
+                          type="button"
+                          className={[
+                            'cn-horse',
+                            COLOR_CLASS[seat.color],
+                            canMove ? 'movable' : '',
+                            canMove && hover === horse ? 'hovered' : '',
+                            mine && myTurn && view.phase === 'move' && !canMove ? 'dim' : '',
+                            at !== p ? 'walking' : '',
+                          ].join(' ')}
+                          style={pos(cellOf(seat.color, at, horse))}
+                          disabled={!canMove}
+                          onClick={() => send({ type: 'move', horse })}
+                          onMouseEnter={() => canMove && setHover(horse)}
+                          onMouseLeave={() => setHover(null)}
+                          onFocus={() => canMove && setHover(horse)}
+                          onBlur={() => setHover(null)}
+                          aria-label={label}
+                          title={label}
+                        >
+                          <span className="cn-glyph" aria-hidden="true">
+                            ♞
+                          </span>
+                          <span className="cn-num" aria-hidden="true">
+                            {horse + 1}
+                          </span>
+                        </button>
+                      );
+                    }),
+              )}
+            </div>
           </div>
 
           {view.result && (
@@ -343,14 +474,22 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
             <p className="tl-status">
               <Ellipsis text={status} />
             </p>
-            <Die key={rollKey} value={view.die ?? (lastRoll?.kind === 'roll' ? lastRoll.value : null)} rolling={rolling} />
             {myTurn && turnLeft !== null && <span className="tl-seconds">{Math.ceil(turnLeft / 1000)}s</span>}
+            <Die
+              key={rollKey}
+              value={view.die ?? (lastRoll?.kind === 'roll' ? lastRoll.value : null)}
+              rolling={rolling}
+              color={lastRoll?.kind === 'roll' ? COLORS[colorOf(lastRoll.player)] : undefined}
+              onRoll={canRoll ? () => send({ type: 'roll' }) : undefined}
+              label={C.roll}
+            />
           </div>
           {myTurn && turnFraction !== null && <div className="tl-bar" style={{ '--left': turnFraction } as CSSProperties} />}
-          {myTurn && view.phase === 'roll' && (
+          {canRoll && (
             <div className="cn-actions">
-              <button className="btn btn-primary btn-lg" onClick={() => send({ type: 'roll' })}>
+              <button className="btn btn-primary btn-lg cn-roll" onClick={() => send({ type: 'roll' })}>
                 🎲 {C.roll}
+                <kbd className="cn-key">Space</kbd>
               </button>
             </div>
           )}
@@ -359,16 +498,27 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
               {choices.map((c) => (
                 <button
                   key={c.horse}
-                  className={`btn btn-secondary cn-choice ${COLOR_CLASS[mySeat!.color]}`}
+                  type="button"
+                  className={`cn-choice ${COLOR_CLASS[mySeat!.color]} ${hover === c.horse ? 'active' : ''} ${c.kicks ? 'kicks' : ''}`}
                   onMouseEnter={() => setHover(c.horse)}
                   onMouseLeave={() => setHover(null)}
+                  onFocus={() => setHover(c.horse)}
+                  onBlur={() => setHover(null)}
                   onClick={() => send({ type: 'move', horse: c.horse })}
                 >
-                  ♞ {C.horse(c.horse + 1)}: {choiceLabel(t, c, mySeat!.horses[c.horse], name)}
+                  <span className="cn-token" aria-hidden="true">
+                    ♞<b>{c.horse + 1}</b>
+                  </span>
+                  <span className="cn-choice-text">
+                    <strong>{C.horse(c.horse + 1)}</strong>
+                    <span>{choiceLabel(t, c, mySeat!.horses[c.horse], name)}</span>
+                  </span>
+                  <kbd className="cn-key">{c.horse + 1}</kbd>
                 </button>
               ))}
             </div>
           )}
+          {myTurn && <p className="cn-keys-hint muted small">{C.keysHint}</p>}
         </div>
       </section>
 

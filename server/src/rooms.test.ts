@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaNguaView, CaroView, ChessView, WordChainView, TienLenView, TyPhuView } from '@vg/shared';
+import { caNguaGame } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -575,9 +576,11 @@ describe('RoomManager', () => {
       rooms.addBot(A);
       rooms.addBot(A);
       expect(rooms.start(A).ok).toBe(true);
+      // Cá ngựa bots wait botPace times the room's pause, so step the clock by a whole pause.
+      const pause = 10 * (caNguaGame.botPace ?? 1);
       for (let i = 0; i < 20_000 && room.status === 'playing'; i++) {
         const view = rooms.view(room, A, allOnline).game as CaNguaView;
-        if (view.turn !== A) vi.advanceTimersByTime(10);
+        if (view.turn !== A) vi.advanceTimersByTime(pause);
         else if (view.phase === 'roll') rooms.move(A, { type: 'roll' });
         else rooms.move(A, { type: 'move', horse: view.choices[0].horse });
       }
