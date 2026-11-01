@@ -3175,7 +3175,8 @@ main {
     gap: 12px;
   }
 
-  .game-card:not(.soon) {
+  .game-card:not(.soon),
+  .game-card.soon-alone {
     grid-column: 1 / -1;
   }
 
