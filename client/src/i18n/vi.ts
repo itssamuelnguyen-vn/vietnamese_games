@@ -454,6 +454,87 @@ export const vi = {
     noExtraRules: 'Bàn này chơi theo luật truyền thống, không bật luật thêm.',
   },
 
+  wordchain: {
+    yourTurn: 'Tới lượt bạn!',
+    turnOf: (who: string) => `Lượt của ${who}`,
+    mustStart: (link: string) => `Từ tiếp theo phải bắt đầu bằng “${link}”`,
+    mustStartLetter: (letter: string) => `Từ tiếp theo phải bắt đầu bằng chữ “${letter.toUpperCase()}”`,
+    placeholder: (link: string) => `${link} …`,
+    send: 'Gửi',
+    giveUp: 'Chịu',
+    startWord: 'Từ mở đầu',
+    usedCount: (n: number) => `${n} từ đã dùng`,
+    outTag: 'Bị loại',
+    wordCount: (n: number) => `${n} từ`,
+    youOut: 'Bạn đã bị loại, ở lại xem tiếp nhé',
+    spectating: 'Bạn đang xem ván này',
+    feed: 'Chuỗi từ',
+    log: {
+      start: (who: string) => `Từ mở đầu cho ${who}`,
+      out: {
+        timeout: (who: string) => `${who} hết giờ, bị loại`,
+        'gave-up': (who: string) => `${who} chịu, bị loại`,
+        'dead-end': (who: string) => `${who} không còn từ nào nối được, bị loại`,
+        left: (who: string) => `${who} đã rời bàn`,
+      },
+    },
+    resultTitle: 'Kết thúc ván',
+    youWon: 'Bạn thắng rồi!',
+    youPlaced: (place: number) => `Bạn về thứ ${place}`,
+    winnerIs: (who: string) => `${who} trụ lại cuối cùng!`,
+    enRulesTitle: 'Luật chơi Nối từ tiếng Anh',
+    enRulesIntro: 'Lần lượt nối các từ tiếng Anh: từ sau bắt đầu bằng chữ cái cuối của từ trước. Ai bí từ thì bị loại; người còn lại cuối cùng thắng.',
+    enRules: [
+      {
+        title: 'Cách nối',
+        items: [
+          'Mỗi lượt gõ một từ tiếng Anh có từ 3 chữ cái trở lên, bắt đầu bằng chữ cái cuối của từ trước. Ví dụ: apple → eagle → elephant → tiger.',
+          'Từ phải có trong từ điển và chưa được dùng trong ván (dạng số nhiều hay chia động từ được tính là từ khác). Gõ sai thì gõ lại, miễn là còn giờ.',
+        ],
+      },
+      {
+        title: 'Bị loại',
+        items: [
+          'Hết giờ hoặc bấm “Chịu” thì bị loại; người kế tiếp bắt đầu lại với một từ mở đầu mới.',
+          'Người còn lại cuối cùng thắng.',
+        ],
+      },
+      {
+        title: 'Từ điển và máy',
+        items: [
+          'Từ điển là bộ ENABLE với khoảng 172.000 từ (đã bỏ từ tục).',
+          'Máy chỉ dùng từ thông dụng và biết khoảng 60% từ điển.',
+        ],
+      },
+    ],
+    noituRulesTitle: 'Luật chơi Nối từ tiếng Việt',
+    noituRulesIntro: 'Lần lượt nối các từ ghép hai tiếng thành một chuỗi dài. Ai bí từ thì bị loại; người còn lại cuối cùng thắng.',
+    noituRules: [
+      {
+        title: 'Cách nối',
+        items: [
+          'Mỗi lượt gõ một từ ghép hai tiếng, tiếng đầu phải trùng với tiếng cuối của từ trước, kể cả dấu. Ví dụ: hoa hồng → hồng hào → hào hoa.',
+          'Từ phải có trong từ điển và chưa được dùng trong ván. Gõ sai thì gõ lại, miễn là còn giờ. Gõ “hoà” hay “hòa” đều được.',
+        ],
+      },
+      {
+        title: 'Bị loại',
+        items: [
+          'Hết giờ hoặc bấm “Chịu” thì bị loại; người kế tiếp bắt đầu lại với một từ mở đầu mới.',
+          'Đánh một từ mà không còn từ nào nối tiếp được thì người kế tiếp bị loại ngay.',
+          'Người còn lại cuối cùng thắng.',
+        ],
+      },
+      {
+        title: 'Từ điển và máy',
+        items: [
+          'Từ điển có khoảng 18.000 từ ghép, lấy từ Wiktionary; không có tên riêng và từ tục.',
+          'Chủ phòng có thể thêm máy; máy biết khoảng 60% từ điển nên vẫn có lúc bí.',
+        ],
+      },
+    ],
+  },
+
   tienlen: {
     combos: {
       single: 'lẻ',
@@ -889,6 +970,10 @@ export const vi = {
     SERVER_FULL: 'Server đang quá tải, thử lại sau nhé',
     CLAIM_TOO_EARLY: 'Chưa đủ thời gian để nhận thắng',
     DISCONNECTED: 'Mất kết nối tới server',
+    WORD_INVALID: 'Từ không hợp lệ',
+    WORD_LINK: 'Từ này không nối được với từ trước',
+    WORD_UNKNOWN: 'Từ này không có trong từ điển',
+    WORD_USED: 'Từ này đã được dùng rồi',
   } satisfies Record<ErrorCode, string>,
 };
 

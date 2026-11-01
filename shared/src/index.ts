@@ -8,3 +8,4 @@ export * from './games/tienlen';
 export * from './games/typhu';
 export * from './games/caro';
 export * from './games/cangua';
+export * from './games/wordchain';

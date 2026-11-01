@@ -12,6 +12,7 @@ import {
   typhuGame,
   caroGame,
   caNguaGame,
+  createWordChainGame,
   CARO_SIZE_IDS,
   CANGUA_RULES,
   xiangqiGame,
@@ -27,6 +28,7 @@ import {
   type RoomStatus,
   type RoomView,
 } from '@vg/shared';
+import { loadDictionary } from './dictionaries';
 
 // To add a game: write its GameDefinition in shared/src/games and register it here.
 const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
@@ -36,6 +38,8 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   typhu: typhuGame,
   caro: caroGame,
   cangua: caNguaGame,
+  noitu: createWordChainGame('noitu', loadDictionary('vi', 'noitu-words.txt')),
+  wordchain: createWordChainGame('wordchain', loadDictionary('en', 'wordchain-words.txt', 'wordchain-common.txt')),
 };
 
 // Uniform in [0, 1) from the OS CSPRNG, so card deals can't be predicted.
