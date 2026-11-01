@@ -40,8 +40,8 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   masoi: { type: 'masoi', minPlayers: 5, maxPlayers: 12, available: false },
-  baucua: { type: 'baucua', minPlayers: 2, maxPlayers: 10, available: false },
-  xidach: { type: 'xidach', minPlayers: 2, maxPlayers: 8, available: false },
+  baucua: { type: 'baucua', minPlayers: 2, maxPlayers: 10, available: true, bots: true },
+  xidach: { type: 'xidach', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
 };
 
 export type TimeControlId = 'none' | '3+2' | '5+0' | '10+0' | '15+10';
@@ -83,6 +83,15 @@ export type CaNguaRuleId = 'jump' | 'fast-home';
 export const CANGUA_RULES: CaNguaRuleId[] = ['jump', 'fast-home'];
 
 // Settings the host picks before starting a game.
+// How a room keeps score from game to game: points, or a play-money wallet per player (made-up
+// numbers with no real-world value) that wins and losses move by points × the stake per point.
+export type Stakes = 'points' | 'money';
+export const STAKES: Stakes[] = ['points', 'money'];
+export const WALLET_STARTS = [50_000, 100_000, 200_000, 500_000, 1_000_000];
+export const STAKES_PER_POINT = [1_000, 2_000, 5_000, 10_000, 20_000];
+// Games that can be played for play money.
+export const MONEY_GAMES: GameType[] = ['tienlen'];
+
 export interface RoomOptions {
   timeControl: TimeControlId;
   // The host's side in the first game; rematches swap sides.
@@ -94,9 +103,25 @@ export interface RoomOptions {
   // Caro's "blocked at both ends" rule: a five stopped by the opponent at both ends doesn't win.
   caroBlock: boolean;
   caNguaRules: CaNguaRuleId[];
+  stakes: Stakes;
+  // Play money each player's wallet starts with, and how much a point of a game's result is worth.
+  walletStart: number;
+  stakePerPoint: number;
 }
 
-export const DEFAULT_ROOM_OPTIONS: RoomOptions = { timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [] };
+export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
+  timeControl: '10+0',
+  hostColor: 'random',
+  handicap: 'none',
+  turnTimer: '30',
+  houseRules: [],
+  caroSize: '15',
+  caroBlock: true,
+  caNguaRules: [],
+  stakes: 'points',
+  walletStart: 200_000,
+  stakePerPoint: 5_000,
+};
 
 export interface PlayerInfo {
   id: string;
@@ -143,6 +168,9 @@ export interface RoomView {
   rematchVotes: string[];
   // Running scores across the games played in this room, best first.
   tally: TallyEntry[];
+  // Play-money balances, by player, when the room plays for money; null when it keeps points.
+  // A player at 0 is broke and can only watch.
+  wallets: Record<string, number> | null;
   chat: ChatMessage[];
   game: unknown;
 }

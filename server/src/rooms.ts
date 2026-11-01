@@ -12,9 +12,15 @@ import {
   typhuGame,
   caroGame,
   caNguaGame,
+  bauCuaGame,
+  xiDachGame,
   createWordChainGame,
   CARO_SIZE_IDS,
   CANGUA_RULES,
+  MONEY_GAMES,
+  STAKES,
+  STAKES_PER_POINT,
+  WALLET_STARTS,
   xiangqiGame,
   type ChatMessage,
   type TallyEntry,
@@ -38,6 +44,8 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   typhu: typhuGame,
   caro: caroGame,
   cangua: caNguaGame,
+  baucua: bauCuaGame,
+  xidach: xiDachGame,
   noitu: createWordChainGame('noitu', loadDictionary('vi', 'noitu-words.txt')),
   wordchain: createWordChainGame('wordchain', loadDictionary('en', 'wordchain-words.txt', 'wordchain-common.txt')),
 };
@@ -49,6 +57,8 @@ interface Player {
   id: string;
   name: string;
   bot?: boolean;
+  // A spectator who chose to watch: not seated automatically when a seat frees up.
+  watching?: boolean;
 }
 
 // Bot ids contain a colon, which real (base64url) player ids never do.
@@ -66,6 +76,9 @@ export interface Room {
   // Running scoreboard, and whether the current game has been added to it.
   tally: Record<string, TallyEntry>;
   tallied: boolean;
+  // Play-money balances when the room plays for money (see RoomOptions.stakes); filled in for each
+  // player when they first sit down to a game.
+  wallets: Record<string, number>;
   status: RoomStatus;
   options: RoomOptions;
   state: unknown;
@@ -163,6 +176,7 @@ export class RoomManager {
       departed: [],
       tally: {},
       tallied: false,
+      wallets: {},
       status: 'waiting',
       options: { ...DEFAULT_ROOM_OPTIONS },
       state: null,
@@ -175,7 +189,8 @@ export class RoomManager {
     return { ok: true, room, left };
   }
 
-  join(playerId: string, name: string, code: string): Result<{ room: Room; left?: Room }> {
+  // `watch`: join as a spectator even if there's a free seat.
+  join(playerId: string, name: string, code: string, watch = false): Result<{ room: Room; left?: Room }> {
     const room = this.rooms.get(code.trim().toUpperCase());
     if (!room) return { ok: false, error: 'ROOM_NOT_FOUND' };
 
@@ -184,15 +199,47 @@ export class RoomManager {
 
     const cleanName = sanitizeName(name);
     if (!cleanName) return { ok: false, error: 'NAME_REQUIRED' };
-    // Free seat between games: sit down. Otherwise watch.
-    const seatFree = room.status !== 'playing' && room.players.length < GAME_CATALOG[room.gameType].maxPlayers;
+    // Free seat between games: sit down, unless they'd rather watch. Otherwise watch.
+    const seatFree = !watch && room.status !== 'playing' && room.players.length < GAME_CATALOG[room.gameType].maxPlayers;
     if (!seatFree && room.spectators.length >= MAX_SPECTATORS) return { ok: false, error: 'ROOM_FULL' };
 
     const left = this.leave(playerId);
-    (seatFree ? room.players : room.spectators).push({ id: playerId, name: cleanName });
+    if (seatFree) room.players.push({ id: playerId, name: cleanName });
+    else room.spectators.push({ id: playerId, name: cleanName, ...(watch ? { watching: true } : {}) });
     room.lastActivity = Date.now();
     this.playerRoom.set(playerId, room.code);
     return { ok: true, room, left };
+  }
+
+  // A spectator takes a free seat between games (with money left, in a game for money).
+  sit(playerId: string): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    const me = room.spectators.find((p) => p.id === playerId);
+    if (!me) return { ok: false, error: 'INVALID_MOVE' };
+    if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
+    if (room.players.length >= GAME_CATALOG[room.gameType].maxPlayers) return { ok: false, error: 'ROOM_FULL' };
+    if (this.playsForMoney(room) && this.walletOf(room, playerId) <= 0) return { ok: false, error: 'INVALID_MOVE' };
+    room.spectators = room.spectators.filter((p) => p !== me);
+    room.players.push({ id: me.id, name: me.name });
+    room.rematchVotes = room.rematchVotes.filter((id) => id !== playerId);
+    room.lastActivity = Date.now();
+    return { ok: true, room };
+  }
+
+  // A seated player gets up to watch, between games.
+  stand(playerId: string): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    const me = room.players.find((p) => p.id === playerId);
+    if (!me) return { ok: false, error: 'NOT_A_PLAYER' };
+    if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
+    if (room.spectators.length >= MAX_SPECTATORS) return { ok: false, error: 'ROOM_FULL' };
+    room.players = room.players.filter((p) => p !== me);
+    room.spectators.push({ id: me.id, name: me.name, watching: true });
+    room.rematchVotes = room.rematchVotes.filter((id) => id !== playerId);
+    room.lastActivity = Date.now();
+    return { ok: true, room };
   }
 
   // Returns the room that was left (if anyone remains) so the others can be notified.
@@ -247,6 +294,8 @@ export class RoomManager {
     let n = 1;
     while (room.players.some((p) => p.id === `${BOT_PREFIX}${n}`)) n++;
     room.players.push({ id: `${BOT_PREFIX}${n}`, name: `Bot ${n}`, bot: true });
+    // A new bot starts with a full wallet, even if an earlier one with its name went broke.
+    delete room.wallets[`${BOT_PREFIX}${n}`];
     room.rematchVotes = [];
     room.lastActivity = Date.now();
     return { ok: true, room };
@@ -265,18 +314,36 @@ export class RoomManager {
     return { ok: true, room };
   }
 
+  private playsForMoney(room: Room): boolean {
+    return room.options.stakes === 'money' && MONEY_GAMES.includes(room.gameType);
+  }
+
+  // A player's play-money balance; someone who hasn't played yet has the starting amount.
+  private walletOf(room: Room, id: string): number {
+    return room.wallets[id] ?? room.options.walletStart;
+  }
+
   start(playerId: string): Result<{ room: Room }> {
     const room = this.roomOf(playerId);
     if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
     if (room.hostId !== playerId) return { ok: false, error: 'NOT_HOST' };
     if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
     const info = GAME_CATALOG[room.gameType];
+    if (this.playsForMoney(room)) {
+      // Broke players get up from the table and watch.
+      const broke = room.players.filter((p) => this.walletOf(room, p.id) <= 0);
+      if (room.players.length - broke.length < info.minPlayers) return { ok: false, error: 'NOT_ENOUGH_PLAYERS' };
+      room.players = room.players.filter((p) => !broke.includes(p));
+      room.spectators = [...room.spectators, ...broke.filter((p) => !p.bot)];
+      for (const p of room.players) room.wallets[p.id] = this.walletOf(room, p.id);
+    }
     if (room.players.length < info.minPlayers) {
       return { ok: false, error: 'NOT_ENOUGH_PLAYERS' };
     }
 
-    // Host first, so games can honour the host's chosen side.
-    const ids = [room.hostId, ...room.players.map((p) => p.id).filter((id) => id !== room.hostId)];
+    // Host first (if seated: a host may watch), so games can honour the host's chosen side.
+    const seatedHost = room.players.some((p) => p.id === room.hostId);
+    const ids = [...(seatedHost ? [room.hostId] : []), ...room.players.map((p) => p.id).filter((id) => id !== room.hostId)];
     const game = GAMES[room.gameType]!;
     room.state = game.setup(ids, room.options, this.ctx(), room.state);
     room.rematchVotes = [];
@@ -306,6 +373,9 @@ export class RoomManager {
       caroSize = room.options.caroSize,
       caroBlock = room.options.caroBlock,
       caNguaRules = room.options.caNguaRules,
+      stakes = room.options.stakes,
+      walletStart = room.options.walletStart,
+      stakePerPoint = room.options.stakePerPoint,
     } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
@@ -315,6 +385,11 @@ export class RoomManager {
     if (!Array.isArray(houseRules) || !houseRules.every((r) => HOUSE_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
     if (!CARO_SIZE_IDS.includes(caroSize) || typeof caroBlock !== 'boolean') return { ok: false, error: 'INVALID_OPTIONS' };
     if (!Array.isArray(caNguaRules) || !caNguaRules.every((r) => CANGUA_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
+    if (!STAKES.includes(stakes) || !WALLET_STARTS.includes(walletStart) || !STAKES_PER_POINT.includes(stakePerPoint)) return { ok: false, error: 'INVALID_OPTIONS' };
+    if (stakes === 'money' && !MONEY_GAMES.includes(room.gameType)) return { ok: false, error: 'INVALID_OPTIONS' };
+    // New money terms start everyone afresh.
+    const o = room.options;
+    if (stakes !== o.stakes || walletStart !== o.walletStart || stakePerPoint !== o.stakePerPoint) room.wallets = {};
     room.options = {
       ...room.options,
       timeControl,
@@ -325,6 +400,9 @@ export class RoomManager {
       caroSize,
       caroBlock,
       caNguaRules: [...new Set(caNguaRules)],
+      stakes,
+      walletStart,
+      stakePerPoint,
     };
     room.lastActivity = Date.now();
     return { ok: true, room };
@@ -444,6 +522,9 @@ export class RoomManager {
       spectators: room.spectators.map(info),
       departed: room.departed.map(({ id, name }) => ({ id, name })),
       tally: Object.values(room.tally).sort((a, b) => b.points - a.points || b.wins - a.wins),
+      wallets: this.playsForMoney(room)
+        ? Object.fromEntries([...room.players, ...room.spectators].map((p) => [p.id, this.walletOf(room, p.id)]))
+        : null,
       rematchVotes: room.rematchVotes,
       chat: room.chat,
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
@@ -477,14 +558,20 @@ export class RoomManager {
       const name = [...room.players, ...room.departed].find((p) => p.id === id)?.name ?? room.tally[id]?.name ?? '?';
       const prev = room.tally[id] ?? { id, name, games: 0, wins: 0, points: 0 };
       room.tally[id] = { ...prev, name, games: prev.games + 1, wins: prev.wins + (place === 1 ? 1 : 0), points: prev.points + points };
+      // Play money moves by the game's points times the stake; nobody goes below zero.
+      if (this.playsForMoney(room)) room.wallets[id] = Math.max(0, this.walletOf(room, id) + points * room.options.stakePerPoint);
     }
   }
 
   // Spectators take free seats between games, oldest first.
   private fillSeats(room: Room): void {
     const max = GAME_CATALOG[room.gameType].maxPlayers;
-    while (room.status !== 'playing' && room.players.length < max && room.spectators.length > 0) {
-      room.players.push(room.spectators.shift()!);
+    // Spectators who chose to watch stay watching, as do broke ones in a game for money.
+    const waiting = room.spectators.filter((p) => !p.watching && (!this.playsForMoney(room) || this.walletOf(room, p.id) > 0));
+    while (room.status !== 'playing' && room.players.length < max && waiting.length > 0) {
+      const next = waiting.shift()!;
+      room.spectators = room.spectators.filter((p) => p !== next);
+      room.players.push(next);
     }
   }
 

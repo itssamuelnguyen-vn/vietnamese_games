@@ -45,6 +45,7 @@ import { ChevronRightIcon, CloseIcon, ExitIcon, PlayIcon, TrophyIcon } from '../
 import { loadSetting, saveSetting } from '../../settings';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
+import { useSettledView } from '../useSettledView';
 
 interface Props {
   room: RoomView;
@@ -272,6 +273,8 @@ function useStage(view: TyPhuView, t: Strings, name: (id: string) => string) {
     // When the outcome shows: after the dice and the walk, or the flight.
     let landAt = 0;
     if (stepped && move && move.value > 0) {
+      // A new move takes the stage: the last turn's card makes way for the dice.
+      setCard(null);
       const delay = stepped.kind === 'roll' ? ANIM.roll : 0;
       if (stepped.kind === 'roll') {
         setRolling(true);
@@ -351,6 +354,15 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
 
   const stage = useStage(view, t, name);
   const ready = !stage.busy;
+  // The log, money and worth as the screen has shown them: a move's outcome waits for the dice and
+  // the walk.
+  const settled = useSettledView(view, (prev, next) => {
+    const fresh = freshEntries(prev.log, next.log);
+    const stepped = fresh.find((e) => e.kind === 'roll' || e.kind === 'card');
+    if (stepped && next.lastMove) return (stepped.kind === 'roll' ? ANIM.roll : 0) + next.lastMove.value * ANIM.step;
+    return fresh.some((e) => e.kind === 'fly') ? ANIM.fly : 0;
+  });
+  const shownSeat = (id: string) => settled.seats.find((s) => s.id === id) ?? view.seats.find((s) => s.id === id);
   const [selected, setSelected] = useState<number | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
   // The card buttons can disappear under the pointer (e.g. an automatic roll), so clear the preview.
@@ -401,7 +413,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   const logRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
-  }, [view.log.length, logOpen]);
+  }, [settled.log.length, logOpen]);
 
   const here = mySeat ? mySeat.position : 0;
   const hereSquare = BOARD[here];
@@ -449,7 +461,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
           room={room}
           colorOf={color}
           subtitle={(id) => {
-            const seat = view.seats.find((s) => s.id === id);
+            const seat = shownSeat(id);
             if (!seat) return null;
             if (seat.bankrupt) return <span className="tag tag-danger">{T.bankruptTag}</span>;
             return (
@@ -793,15 +805,15 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             <div className="tp-wallet">
               <div className="tp-stat">
                 <span className="muted small">{T.cash}</span>
-                <strong>{money(mySeat!.cash)}</strong>
+                <strong>{money(shownSeat(me)!.cash)}</strong>
               </div>
               <div className="tp-stat">
                 <span className="muted small">{T.debt}</span>
-                <strong className={mySeat!.debt > 0 ? 'down' : ''}>{money(mySeat!.debt)}</strong>
+                <strong className={shownSeat(me)!.debt > 0 ? 'down' : ''}>{money(shownSeat(me)!.debt)}</strong>
               </div>
               <div className="tp-stat">
                 <span className="muted small">{T.worthLong}</span>
-                <strong>{money(mySeat!.worth)}</strong>
+                <strong>{money(shownSeat(me)!.worth)}</strong>
               </div>
               <div className="tp-bank" title={T.interestNote}>
                 <span className="muted small">
@@ -843,11 +855,11 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             <h2>{T.history}</h2>
             <ChevronRightIcon className="panel-chevron" />
           </button>
-          {view.log.length === 0 ? (
+          {settled.log.length === 0 ? (
             <p className="muted small">{T.noHistory}</p>
           ) : logOpen ? (
             <ol className="tl-log" id="tp-log" ref={logRef}>
-              {view.log.map((entry, i) => {
+              {settled.log.map((entry, i) => {
                 const who = logPlayer(entry);
                 return entry.kind === 'month' || !who ? (
                   <li key={i} className="tl-log-round">
@@ -862,7 +874,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
               })}
             </ol>
           ) : (
-            <p className="tl-log-latest muted small">{describe(t, view.log.at(-1)!, name)}</p>
+            <p className="tl-log-latest muted small">{describe(t, settled.log.at(-1)!, name)}</p>
           )}
         </section>
         <ScoreboardPanel room={room} />

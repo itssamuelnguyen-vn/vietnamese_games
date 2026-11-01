@@ -9,3 +9,5 @@ export * from './games/typhu';
 export * from './games/caro';
 export * from './games/cangua';
 export * from './games/wordchain';
+export * from './games/baucua';
+export * from './games/xidach';

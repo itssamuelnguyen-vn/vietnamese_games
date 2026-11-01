@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
+import { CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -123,7 +123,7 @@ export function PlayersCard({ room, subtitle, colorOf }: PlayersCardProps) {
         </button>
       )}
       <p className="spectator-line muted small">
-        {t.room.spectators} · {room.spectators.length ? room.spectators.map((s) => s.name).join(', ') : t.room.noSpectators}
+        {t.room.spectators} · {room.spectators.length ? room.spectators.map((s) => s.name).join(', ') : t.room.noSpectators} <SeatToggle room={room} />
       </p>
     </section>
   );
@@ -205,6 +205,7 @@ export function TienLenOptionsPicker({ room }: { room: RoomView }) {
   return (
     <>
       <TurnTimerPicker room={room} locked={locked} />
+      <StakesPicker room={room} locked={locked} onSet={set} />
       <div className="time-picker">
         <span className="field-label">{t.tienlen.houseRulesLabel}</span>
         <div className="chip-group" role="group" aria-label={t.tienlen.houseRulesLabel}>
@@ -215,6 +216,36 @@ export function TienLenOptionsPicker({ room }: { room: RoomView }) {
           ))}
         </div>
       </div>
+    </>
+  );
+}
+
+// Points or play money, and for play money the starting wallet and the stake per point.
+function StakesPicker({ room, locked, onSet }: { room: RoomView; locked: boolean; onSet: (options: Partial<RoomOptions>) => void }) {
+  const { t } = useI18n();
+  const o = room.options;
+  const amounts = (label: string, values: number[], value: number, key: 'walletStart' | 'stakePerPoint') => (
+    <div className="time-picker">
+      <span className="field-label">{label}</span>
+      <div className="chip-group" role="group" aria-label={label}>
+        {values.map((v) => (
+          <button key={v} className="chip" aria-pressed={value === v} disabled={locked} onClick={() => onSet({ [key]: v })}>
+            {t.typhu.money(v)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <ChipGroup label={t.room.stakesLabel} options={STAKES} value={o.stakes} labelOf={(s) => t.room.stakes[s]} disabled={locked} onPick={(stakes) => onSet({ stakes })} />
+      {o.stakes === 'money' && (
+        <>
+          {amounts(t.room.walletStartLabel, WALLET_STARTS, o.walletStart, 'walletStart')}
+          {amounts(t.room.stakePerPointLabel, STAKES_PER_POINT, o.stakePerPoint, 'stakePerPoint')}
+          <p className="muted small stakes-note">{t.room.moneyNote}</p>
+        </>
+      )}
     </>
   );
 }
@@ -243,6 +274,26 @@ function ChipGroup<T extends string>({ label, options, value, labelOf, disabled,
   );
 }
 
+// Between games: a spectator can take a free seat, and a player can get up to watch.
+export function SeatToggle({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  if (room.status === 'playing') return null;
+  const seated = room.players.some((p) => p.id === room.you);
+  const watching = room.spectators.some((p) => p.id === room.you);
+  const full = room.players.length >= GAME_CATALOG[room.gameType].maxPlayers;
+  const broke = room.wallets !== null && (room.wallets[room.you] ?? 1) <= 0;
+  if (!seated && !(watching && !full && !broke)) return null;
+  async function toggle() {
+    const r = seated ? await api.stand() : await api.sit();
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <button className="btn btn-ghost btn-sm seat-toggle" onClick={toggle}>
+      {seated ? `👀 ${t.room.stand}` : `🪑 ${t.room.sit}`}
+    </button>
+  );
+}
+
 // The chat lives in its own module; re-exported so game screens keep importing it from here.
 export { ChatCard } from './Chat';
 
@@ -255,7 +306,18 @@ export function ScoreboardPanel({ room }: { room: RoomView }) {
     saveSetting('vg:scores', open ? 'closed' : 'open');
     setOpen(!open);
   }
-  if (room.tally.length === 0) return null;
+  // Playing for money, the wallets are the score: everyone at the table, richest first.
+  const wallets = room.wallets;
+  const rows = wallets
+    ? Object.entries(wallets)
+        .map(([id, wallet]) => {
+          const entry = room.tally.find((e) => e.id === id);
+          const name = [...room.players, ...room.spectators].find((p) => p.id === id)?.name ?? entry?.name ?? '?';
+          return { id, name, games: entry?.games ?? 0, wins: entry?.wins ?? 0, points: wallet };
+        })
+        .sort((a, b) => b.points - a.points)
+    : room.tally;
+  if (rows.length === 0 || (!wallets && room.tally.length === 0)) return null;
   return (
     <section className={`card panel tl-score-panel ${open ? 'open' : 'closed'}`}>
       <button className="panel-toggle" aria-expanded={open} onClick={toggle} title={open ? t.room.hideScoreboard : t.room.showScoreboard}>
@@ -270,20 +332,24 @@ export function ScoreboardPanel({ room }: { room: RoomView }) {
               <th />
               <th>{t.room.scoreGames}</th>
               <th>{t.room.scoreWins}</th>
-              <th>{t.room.scorePoints}</th>
+              <th>{wallets ? t.room.wallet : t.room.scorePoints}</th>
             </tr>
           </thead>
           <tbody>
-            {room.tally.map((entry, i) => (
+            {rows.map((entry, i) => (
               <tr key={entry.id} className={entry.id === me ? 'mine' : ''}>
                 <td className="muted">{i + 1}</td>
                 <td className="tl-scores-name">{entry.id === me ? t.room.you : entry.name}</td>
                 <td>{entry.games}</td>
                 <td>{entry.wins}</td>
-                <td className={entry.points > 0 ? 'up' : entry.points < 0 ? 'down' : ''}>
-                  {entry.points > 0 ? '+' : ''}
-                  {entry.points}
-                </td>
+                {wallets ? (
+                  <td className={entry.points === 0 ? 'down' : ''}>{entry.points === 0 ? t.room.broke : t.typhu.money(entry.points)}</td>
+                ) : (
+                  <td className={entry.points > 0 ? 'up' : entry.points < 0 ? 'down' : ''}>
+                    {entry.points > 0 ? '+' : ''}
+                    {entry.points}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

@@ -1,4 +1,4 @@
-import { GAME_CATALOG, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type BauCuaView, type XiDachView, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
@@ -7,10 +7,12 @@ import { TienLenGame } from '../games/tienlen/TienLenGame';
 import { TyPhuGame } from '../games/typhu/TyPhuGame';
 import { CaroGame } from '../games/caro/CaroGame';
 import { CaNguaGame } from '../games/cangua/CaNguaGame';
+import { BauCuaGame } from '../games/baucua/BauCuaGame';
+import { XiDachGame } from '../games/xidach/XiDachGame';
 import { WordChainGame } from '../games/wordchain/WordChainGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, TienLenOptionsPicker, TyPhuOptionsPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
+import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
 import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -37,6 +39,8 @@ export function RoomScreen({ room }: Props) {
   if (room.gameType === 'cangua') return <CaNguaGame room={room} view={room.game as CaNguaView} onLeave={leave} />;
   if (room.gameType === 'caro') return <CaroGame room={room} view={room.game as CaroView} onLeave={leave} />;
   if (room.gameType === 'typhu') return <TyPhuGame room={room} view={room.game as TyPhuView} onLeave={leave} />;
+  if (room.gameType === 'baucua') return <BauCuaGame room={room} view={room.game as BauCuaView} onLeave={leave} />;
+  if (room.gameType === 'xidach') return <XiDachGame room={room} view={room.game as XiDachView} onLeave={leave} />;
   return null;
 }
 
@@ -126,6 +130,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                 <li key={p.id} className={`seat ${p.id === room.you ? 'me' : ''}`}>
                   <Avatar id={p.id} name={p.name} size={52} online={p.connected} />
                   <span className="seat-name">{p.name}</span>
+                  {room.wallets && <span className="seat-wallet">🪙 {t.typhu.money(room.wallets[p.id] ?? room.options.walletStart)}</span>}
                   <span className="seat-tags">
                     {p.id === room.hostId && (
                       <span className="tag tag-gold">
@@ -147,7 +152,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           </ul>
 
           <p className="spectator-line muted small">
-            {t.room.spectators} · {room.spectators.length ? room.spectators.map((p) => p.name).join(', ') : t.room.noSpectators}
+            {t.room.spectators} · {room.spectators.length ? room.spectators.map((p) => p.name).join(', ') : t.room.noSpectators} <SeatToggle room={room} />
           </p>
 
           {(room.gameType === 'chess' || room.gameType === 'xiangqi' || room.gameType === 'caro') && <ChessOptionsPicker room={room} />}

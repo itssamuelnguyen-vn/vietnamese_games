@@ -27,15 +27,50 @@ function useTicker(active: boolean, ms = 250) {
   }, [active, ms]);
 }
 
+// The last seconds of a turn, when the clock turns red and starts to pulse.
+const URGENT_MS = 5000;
+
 // Counts down from `ms` (as of `since`); only this small piece re-renders as time passes.
-function Countdown({ ms, since, limit }: { ms: number; since: number; limit: number | null }) {
+function Countdown({ ms, since, limit, onUrgent }: { ms: number; since: number; limit: number | null; onUrgent?: () => void }) {
   useTicker(true);
   const left = Math.max(0, ms - (performance.now() - since));
+  const urgent = left <= URGENT_MS;
+  const warned = useRef(false);
+  useEffect(() => {
+    if (urgent && !warned.current && left > 0) {
+      warned.current = true;
+      onUrgent?.();
+    }
+  });
   return (
     <>
-      <span className="tl-seconds">{Math.ceil(left / 1000)}s</span>
-      {limit && <div className="tl-bar wc-bar" style={{ '--left': left / limit } as CSSProperties} />}
+      <span className={`tl-seconds ${urgent ? 'wc-urgent' : ''}`}>{Math.ceil(left / 1000)}s</span>
+      {limit && <div className={`tl-bar wc-bar ${urgent ? 'urgent' : ''}`} style={{ '--left': left / limit } as CSSProperties} />}
     </>
+  );
+}
+
+// A player in the row at the top: whoever is up has their time running out round their avatar.
+function Seat({ id, name, out, words, turn, ms, since, limit }: { id: string; name: string; out: boolean; words: number; turn: boolean; ms: number | null; since: number; limit: number | null }) {
+  useTicker(turn && ms !== null);
+  const left = turn && ms !== null ? Math.max(0, ms - (performance.now() - since)) : null;
+  const fraction = left !== null && limit ? left / limit : 1;
+  const r = 25;
+  const length = 2 * Math.PI * r;
+  return (
+    <li className={`wc-seat ${out ? 'out' : ''} ${turn ? 'turn' : ''} ${left !== null && left <= URGENT_MS ? 'urgent' : ''}`}>
+      <span className="wc-seat-avatar">
+        <Avatar id={id} name={name} size={44} />
+        {turn && (
+          <svg className="wc-ring" viewBox="0 0 56 56" aria-hidden="true">
+            <circle cx="28" cy="28" r={r} strokeDasharray={length} strokeDashoffset={length * (1 - fraction)} />
+          </svg>
+        )}
+        {out && <span className="wc-seat-x">✕</span>}
+      </span>
+      <span className="wc-seat-name">{name}</span>
+      <span className="wc-seat-words">{words}</span>
+    </li>
   );
 }
 
@@ -75,6 +110,8 @@ export function WordChainGame({ room, view, onLeave }: Props) {
 
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // Why the last word was refused, shown under the input (with a shake) until the next try.
+  const [refusal, setRefusal] = useState<{ text: string; key: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const receivedAt = useMemo(() => performance.now(), [room]);
 
@@ -90,9 +127,9 @@ export function WordChainGame({ room, view, onLeave }: Props) {
     const r = await api.move(move);
     setBusy(false);
     if (!r.ok) {
-      toast(t.errors[r.error]);
+      setRefusal({ text: t.errors[r.error], key: Date.now() });
       playSound('lowtime');
-    }
+    } else setRefusal(null);
     return r.ok;
   }
 
@@ -107,14 +144,23 @@ export function WordChainGame({ room, view, onLeave }: Props) {
     if (!r.ok) toast(t.errors[r.error]);
   }
 
-  // Sounds: each new word, someone going out, our turn, the end.
+  // Sounds for each new word and anyone going out; a banner for the latter.
+  const [knockout, setKnockout] = useState<{ text: string; key: number } | null>(null);
   const seenLog = useRef(view.log);
   useEffect(() => {
     const fresh = freshEntries(seenLog.current, view.log);
     seenLog.current = view.log;
-    if (fresh.some((e) => e.kind === 'out')) playSound('capture');
-    else if (fresh.some((e) => e.kind === 'word')) playSound('move');
+    const out = fresh.findLast((e) => e.kind === 'out');
+    if (out && out.kind === 'out') {
+      playSound('capture');
+      setKnockout({ text: outText(t, out, name), key: Date.now() });
+    } else if (fresh.some((e) => e.kind === 'word')) playSound('move');
   }, [view.log]);
+  useEffect(() => {
+    if (!knockout) return;
+    const id = setTimeout(() => setKnockout(null), 2200);
+    return () => clearTimeout(id);
+  }, [knockout]);
   useEffect(() => {
     if (myTurn) playSound('notify');
   }, [myTurn]);
@@ -131,9 +177,10 @@ export function WordChainGame({ room, view, onLeave }: Props) {
     };
   }, [myTurn, t]);
 
+  // The train of words scrolls along to its newest end.
   const feedRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: 'smooth' });
+    feedRef.current?.scrollTo({ left: feedRef.current.scrollWidth, top: feedRef.current.scrollHeight, behavior: 'smooth' });
   }, [view.log.length, view.log.at(-1)]);
 
   const lastWordIndex = view.log.map((e) => e.kind).lastIndexOf('word');
@@ -175,36 +222,70 @@ export function WordChainGame({ room, view, onLeave }: Props) {
       </aside>
 
       <section className="tl-main">
-        <div className="card wc-board">
+        <div className={`card wc-board ${view.turnMs !== null && view.turnMs <= URGENT_MS && !view.result ? 'urgent' : ''}`}>
+          <ol className="wc-seats" aria-label={W.players}>
+            {view.seats.map((s) => (
+              <Seat
+                key={s.id}
+                id={s.id}
+                name={name(s.id)}
+                out={s.out}
+                words={s.words}
+                turn={s.id === view.turn && !view.result}
+                ms={s.id === view.turn ? view.turnMs : null}
+                since={receivedAt}
+                limit={view.turnLimitMs}
+              />
+            ))}
+          </ol>
+
+          {/* The word to follow, and what the next one has to start with. */}
+          {lastIndex >= 0 && !view.result && (
+            <div className="wc-now" key={chainWord(lastIndex)}>
+              <span className="wc-current">
+                <LinkedWord word={chainWord(lastIndex)} lang={view.lang} last />
+              </span>
+              <span className="wc-arrow" aria-hidden="true">
+                →
+              </span>
+              <span className="wc-next">
+                <mark>{view.lang === 'en' ? view.link.toUpperCase() : view.link}</mark>
+                <span className="wc-blank">{view.lang === 'en' ? '…' : ' …'}</span>
+              </span>
+            </div>
+          )}
+
           <header className="wc-board-head">
             <h2>{W.feed}</h2>
             <span className="muted small">{W.usedCount(view.used)}</span>
           </header>
+          {/* The chain as a train of words, each coupled to the next by the part they share. */}
           <ol className="wc-feed" ref={feedRef}>
             {view.log.map((e, i) => {
               if (e.kind === 'out') {
                 return (
                   <li key={i} className="wc-out">
-                    {outText(t, e, name)}
+                    💥 {outText(t, e, name)}
                   </li>
                 );
               }
               const by = e.kind === 'word' ? e.player : null;
               return (
                 <li key={i} className={`wc-word ${by === me ? 'mine' : ''} ${by ? '' : 'dealt'} ${i === lastIndex ? 'last' : ''}`}>
-                  {by ? (
-                    <Avatar id={by} name={player(by)?.name ?? '?'} size={28} />
-                  ) : (
-                    <span className="wc-dealt-tag">{W.startWord}</span>
-                  )}
+                  {by ? <Avatar id={by} name={player(by)?.name ?? '?'} size={22} /> : <span className="wc-dealt-tag">{W.startWord}</span>}
                   <span className="wc-bubble">
                     <LinkedWord word={chainWord(i)} lang={view.lang} last={i === lastIndex} />
                   </span>
-                  {e.kind === 'start' && <span className="muted small">{W.log.start(name(e.player))}</span>}
                 </li>
               );
             })}
           </ol>
+
+          {knockout && (
+            <div className="wc-knockout" key={knockout.key} role="status">
+              {knockout.text}
+            </div>
+          )}
 
           {view.result && (
             <div className="tl-result">
@@ -258,20 +339,34 @@ export function WordChainGame({ room, view, onLeave }: Props) {
             <p className="tl-status">
               <Ellipsis text={status} />
             </p>
-            {!view.result && view.turnMs !== null && <Countdown key={`${view.turn}-${view.chain.length}`} ms={view.turnMs} since={receivedAt} limit={view.turnLimitMs} />}
+            {!view.result && view.turnMs !== null && (
+              <Countdown
+                key={`${view.turn}-${view.chain.length}`}
+                ms={view.turnMs}
+                since={receivedAt}
+                limit={view.turnLimitMs}
+                onUrgent={() => myTurn && playSound('lowtime')}
+              />
+            )}
           </div>
           {myTurn && (
             <form className="wc-form" onSubmit={submit}>
               <input
                 ref={inputRef}
-                className="wc-input"
+                key={refusal?.key}
+                className={`wc-input ${refusal ? 'refused' : ''}`}
+                aria-invalid={!!refusal}
+                aria-describedby={refusal ? 'wc-refusal' : undefined}
                 value={text}
                 maxLength={40}
                 autoComplete="off"
                 autoCapitalize="none"
                 spellCheck={false}
                 placeholder={W.placeholder(view.link)}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  setRefusal(null);
+                }}
               />
               <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()}>
                 <SendIcon /> {W.send}
@@ -279,6 +374,11 @@ export function WordChainGame({ room, view, onLeave }: Props) {
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => send({ type: 'give-up' })}>
                 {W.giveUp}
               </button>
+              {refusal && (
+                <p className="wc-refusal" id="wc-refusal" role="alert">
+                  {refusal.text}
+                </p>
+              )}
             </form>
           )}
         </div>

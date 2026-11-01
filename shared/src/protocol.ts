@@ -32,7 +32,11 @@ export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode
 
 export interface ClientToServerEvents {
   'room:create': (p: { gameType: GameType; name: string }, ack: (r: Ack<{ code: string }>) => void) => void;
-  'room:join': (p: { code: string; name: string }, ack: (r: Ack<{ code: string }>) => void) => void;
+  // `watch`: join as a spectator even when a seat is free.
+  'room:join': (p: { code: string; name: string; watch?: boolean }, ack: (r: Ack<{ code: string }>) => void) => void;
+  // Between games: a spectator takes a free seat, or a player gets up to watch.
+  'room:sit': (ack: (r: Ack) => void) => void;
+  'room:stand': (ack: (r: Ack) => void) => void;
   'room:leave': () => void;
   'room:start': (ack: (r: Ack) => void) => void;
   'room:options': (options: Partial<RoomOptions>, ack: (r: Ack) => void) => void;

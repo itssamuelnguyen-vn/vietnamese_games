@@ -11,13 +11,15 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 |---|---|
 | Chess | Playable: clocks, draw offers, takebacks, premoves, promotion picker, move review, opening names, PGN/FEN export, sounds, computer players (bots) |
 | Xiangqi | Playable: own rules engine (perft-verified), Asian rules (no legal moves loses, perpetual check loses, repetition and 60-move draws), Vietnamese and WXF notation, file numbers, opening names, captured pieces, FEN/PGN export, Chinese or letter piece labels, handicap (odds) games, same clocks/draws/takebacks as chess, computer players (bots) |
-| Tiến lên miền Nam | Playable: 2-4 players, house rules shown in-app (Luật chơi), chops, instant wins, full ranking, per-turn timer, optional house rules and scoring, room scoreboard, hints, drag-to-arrange hand, computer players (bots) |
+| Tiến lên miền Nam | Playable: 2-4 players, house rules shown in-app (Luật chơi), chops, instant wins, full ranking, per-turn timer, optional house rules and scoring, room scoreboard or play-money wallets (host sets the starting amount and the stake per point; broke players watch), hints, drag-to-arrange hand, computer players (bots) |
 | Cờ tỉ phú (property-trading game) | Playable: original design on a 28-square loop through 16 Ho Chi Minh City streets, 2-6 players; win by holding three whole routes, or be the last player not bankrupt (3-year limit); auctions for declined slots, takeovers (landmarks are safe), luck and opportunity cards, monthly city events and yearly fee growth, business chains, dice or scarce move cards, credit limits and forced sales, player trades, paced animations, computer players (bots), in-app rules |
 | Caro (gomoku) | Playable: 15×15 or 19×19 board, optional Vietnamese blocked-ends rule, chess-style clocks, draws, takebacks, move review, a bot to play against, in-app rules |
 | Cờ cá ngựa (horse race) | Playable: 2-4 players, traditional Vietnamese rules (a 6 to come out and roll again, no jumping, kicking, exact home gate, numbered home steps), optional jumping and fast climb home, bots, in-app rules |
 | Nối từ tiếng Việt (word chain) | Playable: 2-8 players, two-syllable words linked by syllable (either tone-mark placement, hoà or hòa, is accepted), turn timer, knock-outs, bots that know part of the dictionary. Word list: about 18,000 words from Wiktionary via kaikki.org, CC BY-SA 4.0 (server/data/noitu-words.txt) |
 | English word chain | Playable: 2-8 players, each word starts with the previous word's last letter, same knock-out rules as nối từ; ENABLE word list (public domain, server/data/wordchain-words.txt) with rude words removed; bots prefer everyday words |
-| Mậu binh, Sâm lốc, Color Switch (original colour-matching card game), Ma sói (werewolf), Bầu cua, Xì dách | Planned, listed in the lobby as coming soon |
+| Bầu cua | Playable: 2-10 players, bets of play chips on six animals over 10 rounds against the house, shaken bowl that lifts to show three dice, computer players (bots), in-app rules |
+| Xì dách | Playable: 2-8 players against the house over 10 rounds, play-chip stakes, Vietnamese hands (xì bàn, xì dách, ngũ linh, quắc), 16 to stand, dealer draws to 16, others' cards hidden until the reveal, computer players (bots), in-app rules |
+| Mậu binh, Sâm lốc, Color Switch (original colour-matching card game), Ma sói (werewolf) | Planned, listed in the lobby as coming soon |
 
 ## Running locally
 

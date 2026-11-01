@@ -22,6 +22,8 @@ function rulesFor(t: Strings, gameType: GameType, houseRules: HouseRuleId[], caN
   if (gameType === 'noitu') return { title: t.wordchain.noituRulesTitle, intro: t.wordchain.noituRulesIntro, sections: t.wordchain.noituRules };
   if (gameType === 'caro') return { title: t.caro.rulesTitle, intro: t.caro.rulesIntro, sections: t.caro.rules };
   if (gameType === 'typhu') return { title: t.typhu.rulesTitle, intro: t.typhu.rulesIntro, sections: t.typhu.rules };
+  if (gameType === 'baucua') return { title: t.baucua.rulesTitle, intro: t.baucua.rulesIntro, sections: t.baucua.rules };
+  if (gameType === 'xidach') return { title: t.xidach.rulesTitle, intro: t.xidach.rulesIntro, sections: t.xidach.rules };
   if (gameType !== 'tienlen') return null;
   // The table's switched-on house rules are listed after the standard ones.
   const extra = {
