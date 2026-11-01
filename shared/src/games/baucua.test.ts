@@ -89,4 +89,38 @@ describe('bau cua', () => {
     expect(s.result.ranking).toHaveLength(3);
     expect(bauCuaGame.points!(s)).toMatchObject({ [s.result.ranking[0]]: { place: 1 } });
   });
+  describe('a seated banker', () => {
+    const banked = (ids = ['d', 'a', 'b']) => bauCuaGame.setup(ids, { ...options, dealer: 'd' }, { now: 0 }, null);
+
+    it("doesn't bet, and the dice roll once the players are ready", () => {
+      let s = banked();
+      expect(s.dealerId).toBe('d');
+      expect(() => act(s, 'd', { type: 'bet', symbol: 'cua', amount: 10 })).toThrow('INVALID_MOVE');
+      expect(bauCuaGame.botMove!(s, 'd', { now: 0 })).toBeNull();
+      s = act(act(s, 'a', { type: 'bet', symbol: 'cua', amount: 100 }), 'a', { type: 'ready' });
+      s = act(act(s, 'b', { type: 'bet', symbol: 'ga', amount: 50 }), 'b', { type: 'ready' }, faces(4, 4, 0));
+      expect(s.phase).toBe('reveal');
+      // a wins 200 on two crabs, b loses 50: the banker pays 150 net.
+      expect(s.chips).toEqual({ d: BC_START_CHIPS - 150, a: BC_START_CHIPS + 200, b: BC_START_CHIPS - 50 });
+      expect(s.log).toContainEqual({ kind: 'bank', player: 'd', net: -150 });
+    });
+
+    it('a short bank shares what it has among the winners, and the game ends', () => {
+      let s: BauCuaState = { ...banked(), chips: { d: 100, a: BC_START_CHIPS, b: BC_START_CHIPS } };
+      s = act(act(s, 'a', { type: 'bet', symbol: 'cua', amount: 100 }), 'a', { type: 'ready' });
+      s = act(act(s, 'b', { type: 'bet', symbol: 'cua', amount: 100 }), 'b', { type: 'ready' }, faces(4, 4, 4));
+      // Each is owed 300 but the bank holds 100.
+      expect(s.chips).toEqual({ d: 0, a: BC_START_CHIPS + 50, b: BC_START_CHIPS + 50 });
+      expect(s.log.some((e) => e.kind === 'bank-broke')).toBe(true);
+      expect(bauCuaGame.timeout!(s, { now: s.deadline }).result).not.toBeNull();
+    });
+
+    it('stakes of a player who leaves go to the banker; a banker who leaves hands over to the house', () => {
+      let s = act(banked(), 'a', { type: 'bet', symbol: 'cua', amount: 100 });
+      s = bauCuaGame.forfeit(s, 'a', { now: 0 }, 'left');
+      expect(s.chips.d).toBe(BC_START_CHIPS + 100);
+      const t = bauCuaGame.forfeit(banked(['d', 'a', 'b', 'c']), 'd', { now: 0 }, 'left');
+      expect(t.dealerId).toBeNull();
+    });
+  });
 });

@@ -4,8 +4,13 @@ import { TURN_TIMERS, type GameDefinition, type GameType } from '../types';
 // can't (out of time, or gives up) is out, and the last player standing wins.
 // - Vietnamese (noi tu): two-syllable words; each starts with the previous word's last syllable.
 // - English: single words of three or more letters; each starts with the previous word's last letter.
-// After someone is knocked out, play goes on from a fresh starting word. Playing a word that
-// nothing in the dictionary can follow knocks the next player out straight away.
+// After someone is knocked out, play goes on from a fresh starting word.
+// A word that nothing can follow (no unused word in the dictionary starts with its last syllable
+// or letter) is refused with WORD_DEAD_END. The dictionary is only part of the language, so a
+// word that is a dead end here usually isn't one in real life; letting it knock the next player
+// out would reward a gap in the list rather than skill. So nobody is ever knocked out by the
+// word before them: players go out only by running out of time, giving up or leaving. A player
+// whose every answer would be a dead end is stuck, just like one who can't find any answer.
 // The dictionary lives on the server; games are built with createWordChainGame.
 
 export type WordChainLang = 'vi' | 'en';
@@ -73,7 +78,9 @@ export interface ChainLink {
 export type WordChainLogEntry =
   | { kind: 'start'; word: string; player: string }
   | { kind: 'word'; player: string; word: string }
-  | { kind: 'out'; player: string; reason: 'timeout' | 'gave-up' | 'dead-end' | 'left' };
+  | { kind: 'out'; player: string; reason: WordChainOutReason };
+
+export type WordChainOutReason = 'timeout' | 'gave-up' | 'left';
 
 export interface WordChainResult {
   // The last player standing first, then everyone else in reverse order of going out.
@@ -129,8 +136,13 @@ function nextAlive(s: WordChainState, from: string): string {
 }
 
 // Unused words that could follow `key`.
-function followers(dict: WordChainDictionary, s: Pick<WordChainState, 'used'>, key: string): string[] {
-  return (dict.byStart.get(lastLink(dict.lang, key)) ?? []).filter((k) => !s.used.includes(k));
+function followers(dict: WordChainDictionary, used: readonly string[], key: string): string[] {
+  return (dict.byStart.get(lastLink(dict.lang, key)) ?? []).filter((k) => !used.includes(k));
+}
+
+// Whether some unused word could follow `key` once `key` itself has been played as well.
+function canFollow(dict: WordChainDictionary, used: ReadonlySet<string>, key: string): boolean {
+  return (dict.byStart.get(lastLink(dict.lang, key)) ?? []).some((k) => k !== key && !used.has(k));
 }
 
 const startTurn = (s: WordChainState, turn: string, now: number): WordChainState => ({
@@ -143,8 +155,12 @@ const startTurn = (s: WordChainState, turn: string, now: number): WordChainState
 function deal(dict: WordChainDictionary, s: WordChainState, player: string, now: number, random: () => number): WordChainState {
   const keys = [...(dict.common ?? dict.words.keys())];
   let key = keys[Math.floor(random() * keys.length)];
-  for (let tries = 0; tries < 200 && (s.used.includes(key) || followers(dict, s, key).length < 3); tries++) {
+  for (let tries = 0; tries < 200 && (s.used.includes(key) || followers(dict, s.used, key).length < 3); tries++) {
     key = keys[Math.floor(random() * keys.length)];
+  }
+  // Unlucky draws, or a game that has used up most words: take any word that can be answered.
+  if (s.used.includes(key) || followers(dict, s.used, key).length === 0) {
+    key = [...dict.words.keys()].find((k) => !s.used.includes(k) && followers(dict, s.used, k).length > 0) ?? key;
   }
   const word = dict.words.get(key)!;
   const next = { ...s, chain: [...s.chain, { word, by: null }], used: [...s.used, key] };
@@ -160,7 +176,7 @@ function knockOut(
   dict: WordChainDictionary,
   s: WordChainState,
   player: string,
-  reason: 'timeout' | 'gave-up' | 'dead-end' | 'left',
+  reason: WordChainOutReason,
   now: number,
   random: () => number,
 ): WordChainState {
@@ -209,14 +225,11 @@ export function createWordChainGame(type: GameType, dict: WordChainDictionary): 
       if (firstLink(dict.lang, key) !== lastLink(dict.lang, previous)) return { ok: false, error: 'WORD_LINK' };
       if (!dict.words.has(key)) return { ok: false, error: 'WORD_UNKNOWN' };
       if (state.used.includes(key)) return { ok: false, error: 'WORD_USED' };
+      if (!canFollow(dict, new Set(state.used), key)) return { ok: false, error: 'WORD_DEAD_END' };
 
       const word = dict.words.get(key)!;
-      let next: WordChainState = withLog({ ...state, chain: [...state.chain, { word, by: playerId }], used: [...state.used, key] }, { kind: 'word', player: playerId, word });
-      const following = nextAlive(next, playerId);
-      next = startTurn(next, following, now);
-      // Nothing can follow this word: the next player can't answer.
-      if (followers(dict, next, key).length === 0) next = knockOut(dict, next, following, 'dead-end', now, random);
-      return { ok: true, state: next };
+      const next: WordChainState = withLog({ ...state, chain: [...state.chain, { word, by: playerId }], used: [...state.used, key] }, { kind: 'word', player: playerId, word });
+      return { ok: true, state: startTurn(next, nextAlive(next, playerId), now) };
     },
 
     forfeit(state, playerId, { now }) {
@@ -259,11 +272,12 @@ export function createWordChainGame(type: GameType, dict: WordChainDictionary): 
       return Object.fromEntries(state.result.ranking.map((id, i) => [id, { place: i + 1, points: n - 1 - 2 * i }]));
     },
 
-    // Bots answer with a word they know, or give up.
+    // Bots answer with a word they know that something can still follow, or give up.
     botMove(state, playerId, { random = Math.random }) {
       if (state.result || state.turn !== playerId) return null;
       const last = wordKey(dict.lang, state.chain.at(-1)!.word)!;
-      const known = followers(dict, state, last).filter((k) => botKnows(playerId, k));
+      const used = new Set(state.used);
+      const known = followers(dict, state.used, last).filter((k) => botKnows(playerId, k) && canFollow(dict, used, k));
       // Prefer everyday words, so bots don't play obscure ones.
       const everyday = dict.common ? known.filter((k) => dict.common!.has(k)) : [];
       const options = everyday.length ? everyday : known;

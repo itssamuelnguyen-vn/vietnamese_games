@@ -11,6 +11,7 @@ import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
 import { useSettledView } from '../useSettledView';
+import { shortAmount } from '../chips';
 
 interface Props {
   room: RoomView;
@@ -52,6 +53,10 @@ function describe(t: Strings, e: BauCuaLogEntry, name: (id: string) => string): 
       return e.net === 0 ? L.even(name(e.player)) : L.result(name(e.player), t.typhu.money(Math.abs(e.net)), e.net > 0);
     case 'left':
       return L.left(name(e.player));
+    case 'bank':
+      return e.net === 0 ? L.bankEven(name(e.player)) : L.bank(name(e.player), t.typhu.money(Math.abs(e.net)), e.net > 0);
+    case 'bank-broke':
+      return L.bankBroke(name(e.player));
   }
 }
 
@@ -62,11 +67,14 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
   const me = room.you;
   const mySeat = view.seats.find((s) => s.id === me);
   const isHost = room.hostId === me;
+  const iBank = view.dealerId === me;
   const name = (id: string) => (id === me ? t.room.you : ([...room.players, ...room.departed].find((p) => p.id === id)?.name ?? '…'));
   const player = (id: string) => room.players.find((p) => p.id === id);
   const color = (id: string) => SEAT_COLORS[Math.max(0, view.seats.findIndex((s) => s.id === id)) % SEAT_COLORS.length];
   const receivedAt = useMemo(() => performance.now(), [room]);
-  const [chip, setChip] = useState(BC_CHIP_VALUES[1]);
+  // The chip picked, by position: the values themselves grow when the room plays for money.
+  const [chipIndex, setChipIndex] = useState(1);
+  const chip = view.chipValues[chipIndex] ?? view.chipValues[0];
   // Chip counts, history and log as the screen has shown them: nothing of a roll until the bowl lifts.
   const settled = useSettledView(view, (prev, next) => (freshEntries(prev.log, next.log).some((e) => e.kind === 'roll') ? BC_SHAKE_MS : 0));
 
@@ -84,7 +92,8 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
     if (!fresh.some((e) => e.kind === 'roll')) return;
     setShaking(true);
     playSound('move');
-    const results = fresh.filter((e): e is Extract<BauCuaLogEntry, { kind: 'result' }> => e.kind === 'result');
+    // Players' results and the banker's, for the floating +/− and the sound.
+    const results = fresh.flatMap((e) => (e.kind === 'result' || e.kind === 'bank' ? [{ player: e.player, net: e.net }] : []));
     timers.current.push(
       setTimeout(() => {
         setShaking(false);
@@ -105,7 +114,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
     if (!r.ok) toast(t.errors[r.error]);
   }
 
-  const betting = view.phase === 'bet' && !view.result && !!mySeat && !mySeat.out && !mySeat.ready;
+  const betting = view.phase === 'bet' && !view.result && !!mySeat && !mySeat.out && !mySeat.ready && !iBank;
   const shown = view.phase === 'reveal' && !shaking ? view.dice : null;
   const hitsOf = (s: BauCuaSymbol) => (shown ? shown.filter((d) => d === s).length : 0);
   const myBets = view.bets[me] ?? {};
@@ -115,6 +124,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
   if (view.result) status = B.resultTitle;
   else if (view.phase === 'reveal') status = shaking ? B.shaking : B.revealed;
   else if (!mySeat || mySeat.out) status = B.round(view.round, view.rounds);
+  else if (iBank) status = B.youBank;
   else if (mySeat.chips + mySeat.staked === 0) status = B.noChips;
   else if (mySeat.ready) status = B.waitingOthers;
   else status = B.betPrompt;
@@ -133,6 +143,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
             return (
               <>
                 🪙 {money(seat.chips)}
+                {id === view.dealerId && <span className="tag tag-gold bc-ready">🎩 {B.bankerTag}</span>}
                 {seat.staked > 0 && view.phase === 'bet' && ` · ${B.staked} ${money(seat.staked)}`}
                 {seat.ready && view.phase === 'bet' && <span className="tag tag-gold bc-ready">{B.readyTag}</span>}
                 {float && (
@@ -258,12 +269,12 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
             {view.phase === 'bet' && !view.result && <Countdown key={view.round} ms={view.msLeft} since={receivedAt} total={20_000} />}
           </div>
           <AbsentPlayersNote room={room} />
-          {mySeat && !mySeat.out && !view.result && (
+          {mySeat && !mySeat.out && !view.result && !iBank && (
             <div className="bc-controls">
               <div className="chip-group" role="group" aria-label={B.chipValue}>
-                {BC_CHIP_VALUES.map((v) => (
-                  <button key={v} className={`bc-chip v${v}`} aria-pressed={chip === v} disabled={!betting || mySeat.chips < v} onClick={() => setChip(v)}>
-                    {v}
+                {view.chipValues.map((v, i) => (
+                  <button key={v} className={`bc-chip v${BC_CHIP_VALUES[i]}`} aria-pressed={chip === v} disabled={!betting || mySeat.chips < v} onClick={() => setChipIndex(i)}>
+                    {shortAmount(v)}
                   </button>
                 ))}
               </div>

@@ -120,6 +120,8 @@ export const vi = {
     walletStartLabel: 'Tiền ban đầu mỗi người',
     stakePerPointLabel: 'Mức cược mỗi điểm',
     moneyNote: 'Tiền ảo chỉ là con số trong game, không có giá trị quy đổi thực tế. Mỗi ván, ví được cộng hoặc trừ bằng điểm × mức cược; hết tiền thì ra ngoài xem.',
+    minBetLabel: 'Cược nhỏ nhất',
+    chipMoneyNote: 'Tiền ảo chỉ là con số trong game, không có giá trị quy đổi thực tế. Mỗi người chơi bằng chính số tiền trong ví; hết game, còn bao nhiêu thì ví còn bấy nhiêu. Hết tiền thì ra ngoài xem.',
     wallet: 'Ví',
     broke: 'Hết tiền',
     moneyChange: (amount: string, up: boolean) => `${up ? '+' : '−'}${amount}`,
@@ -147,6 +149,8 @@ export const vi = {
     hostColors: { random: 'Ngẫu nhiên', white: 'Trắng', black: 'Đen' } satisfies Record<HostColor, string>,
     requestRematch: 'Xin chơi lại',
     rematchRequested: 'Đã xin chơi lại',
+    dealerLabel: 'Nhà cái',
+    houseDealer: 'Máy làm cái',
     roomGone: 'Phòng đã đóng (máy chủ vừa khởi động lại hoặc phòng bỏ trống lâu). Hãy tạo phòng mới nhé.',
     reconnecting: 'Mất kết nối, đang kết nối lại…',
     absent: (names: string) => `${names} đã mất kết nối`,
@@ -324,6 +328,7 @@ export const vi = {
       checkmate: 'Chiếu bí',
       stalemate: 'Hết nước đi',
       'perpetual-check': 'Chiếu dai',
+      'perpetual-chase': 'Đuổi dai',
       repetition: 'Lặp lại thế cờ',
       'no-capture': '60 nước không ăn quân',
       insufficient: 'Hai bên không còn quân tấn công',
@@ -410,10 +415,11 @@ export const vi = {
     home: 'Về đích',
     homeCount: (n: number) => `${n}/4 lên chuồng`,
     rulesLabel: 'Luật thêm (bấm để bật/tắt)',
-    rules: { jump: 'Được nhảy qua đầu ngựa', 'fast-home': 'Lên chuồng nhanh' } satisfies Record<CaNguaRuleId, string>,
+    rules: { jump: 'Được nhảy qua đầu ngựa', 'fast-home': 'Lên chuồng nhanh', 'one-out': 'Ra quân bằng 1 hoặc 6' } satisfies Record<CaNguaRuleId, string>,
     ruleDetails: {
       jump: 'Được nhảy qua đầu ngựa: ngựa đi qua được ô có ngựa khác, chỉ không được dừng trên ngựa của mình.',
       'fast-home': 'Lên chuồng nhanh: trong dãy về chuồng, gieo bao nhiêu thì leo bấy nhiêu bậc (miễn là không vượt quá bậc 6 và không nhảy qua ngựa mình).',
+      'one-out': 'Ra quân bằng 1 hoặc 6: gieo được 1 cũng được đưa một ngựa ra chuồng. Chỉ gieo 6 mới được gieo thêm lượt.',
     } satisfies Record<CaNguaRuleId, string>,
     resultTitle: 'Kết thúc ván',
     youWon: 'Bạn thắng rồi!',
@@ -488,6 +494,9 @@ export const vi = {
     ready: 'Xong, lắc đi!',
     clear: 'Huỷ cược',
     readyTag: 'Xong',
+    bankerTag: 'Cái',
+    youBank: 'Bạn làm cái: chờ mọi người đặt cược…',
+    dealerNote: 'Người làm cái không đặt cược: họ ăn tiền đặt của con vật không ra và tự trả cho người thắng bằng xu của mình.',
     plate: 'Đĩa bầu cua',
     history: 'Các ván trước',
     hits: (n: number) => `×${n}`,
@@ -502,6 +511,9 @@ export const vi = {
       result: (who: string, net: string, won: boolean) => (won ? `${who} thắng ${net}` : `${who} thua ${net}`),
       even: (who: string) => `${who} hoà vốn`,
       left: (who: string) => `${who} đã rời bàn`,
+      bank: (who: string, net: string, won: boolean) => (won ? `Nhà cái ${who} ăn ${net}` : `Nhà cái ${who} chung ${net}`),
+      bankEven: (who: string) => `Nhà cái ${who} hoà vốn`,
+      bankBroke: (who: string) => `${who} hết xu làm cái: người thắng chia nhau phần còn lại`,
     },
     rulesTitle: 'Luật chơi Bầu cua',
     rulesIntro: 'Trò lắc xúc xắc ngày Tết với 6 con vật: nai, bầu, gà, cá, cua, tôm. Mỗi người có 1.000 xu ảo (không phải tiền thật); sau 10 ván ai nhiều xu nhất thắng.',
@@ -521,6 +533,14 @@ export const vi = {
           'Hết xu thì ngồi xem; hết 10 ván (hoặc cả bàn hết xu) thì xếp hạng theo số xu.',
         ],
       },
+      {
+        title: 'Người làm cái',
+        items: [
+          'Chủ phòng có thể để máy làm cái, hoặc chỉ định một người ngồi bàn (kể cả bot) làm cái.',
+          'Người làm cái không đặt cược. Họ ăn tiền đặt của những con không ra và tự trả tiền thắng bằng xu của mình.',
+          'Không đủ xu để trả thì người thắng chia nhau theo tỉ lệ phần còn lại, và cuộc chơi kết thúc. Người làm cái rời bàn thì máy làm cái tiếp.',
+        ],
+      },
     ],
   },
 
@@ -529,8 +549,6 @@ export const vi = {
     points: (n: number) => `${n} điểm`,
     round: (n: number, of: number) => `Ván ${n}/${of}`,
     dealer: 'Nhà cái',
-    dealerLabel: 'Nhà cái',
-    houseDealer: 'Máy làm cái',
     dealerNote: 'Người làm cái không đặt cược: họ lật bài sau cùng, ăn tiền người thua và tự trả cho người thắng bằng xu của mình.',
     dealerTag: 'Cái',
     youDeal: 'Bạn làm nhà cái, chờ mọi người đặt cược…',
@@ -547,6 +565,8 @@ export const vi = {
     needSixteen: 'Cần ít nhất 16 điểm mới được dằn',
     yourTurn: 'Tới lượt bạn: rút thêm hay dằn?',
     bustHide: 'Quắc rồi! Bấm Dằn để giấu bài, không ai biết cho tới lúc lật.',
+    check: 'Xét',
+    checkHint: 'Đủ 16 điểm: bấm Xét để lật bài từng người, rồi rút thêm hoặc dằn với những người còn lại.',
     turnOf: (who: string) => `${who} đang rút bài…`,
     dealerTurn: 'Nhà cái lật bài…',
     sitOut: 'Ván này bạn không cược',
@@ -564,6 +584,7 @@ export const vi = {
       hit: (who: string) => `${who} rút thêm`,
       stand: (who: string, auto: boolean) => (auto ? `${who} hết giờ, tự dằn` : `${who} dằn bài`),
       dealer: (hand: string, who: string | null) => (who ? `Nhà cái ${who}: ${hand}` : `Nhà cái: ${hand}`),
+      check: (dealer: string, who: string) => `Nhà cái ${dealer} xét bài ${who}`,
       bankBroke: (who: string) => `${who} hết xu làm cái: người thắng chia nhau phần còn lại`,
       result: (who: string, hand: string, outcome: string) => `${who} (${hand}): ${outcome}`,
       left: (who: string) => `${who} đã rời bàn`,
@@ -594,6 +615,8 @@ export const vi = {
         items: [
           'Chủ phòng có thể để máy làm cái, hoặc chỉ định một người ngồi bàn (kể cả bot) làm cái.',
           'Người làm cái không đặt cược. Họ rút bài sau cùng, khi mọi người đã xong; cũng phải đủ 16 điểm mới được dằn.',
+          'Xét bài: khi đã đủ 16 điểm, nhà cái được lật bài từng người để ăn thua ngay, rồi rút thêm hoặc dằn với những người còn lại.',
+          'Bài nhà cái úp cả hai lá cho tới lúc lật.',
           'Nhà cái ăn tiền người thua và trả cho người thắng bằng xu của mình. Không đủ xu để trả thì người thắng chia nhau theo tỉ lệ phần còn lại, và cuộc chơi kết thúc.',
           'Người làm cái rời bàn giữa chừng thì máy làm cái tiếp.',
         ],
@@ -630,7 +653,6 @@ export const vi = {
       out: {
         timeout: (who: string) => `${who} hết giờ, bị loại`,
         'gave-up': (who: string) => `${who} chịu, bị loại`,
-        'dead-end': (who: string) => `${who} không còn từ nào nối được, bị loại`,
         left: (who: string) => `${who} đã rời bàn`,
       },
     },
@@ -646,6 +668,7 @@ export const vi = {
         items: [
           'Mỗi lượt gõ một từ tiếng Anh có từ 3 chữ cái trở lên, bắt đầu bằng chữ cái cuối của từ trước. Ví dụ: apple → eagle → elephant → tiger.',
           'Từ phải có trong từ điển và chưa được dùng trong ván (dạng số nhiều hay chia động từ được tính là từ khác). Gõ sai thì gõ lại, miễn là còn giờ.',
+          'Không được đánh từ mà không còn từ nào chưa dùng bắt đầu bằng chữ cái cuối của nó.',
         ],
       },
       {
@@ -658,7 +681,7 @@ export const vi = {
       {
         title: 'Từ điển và máy',
         items: [
-          'Từ điển là bộ ENABLE với khoảng 172.000 từ (đã bỏ từ tục).',
+          'Từ điển là bộ ENABLE với khoảng 172.000 từ (đã bỏ từ tục), thêm khoảng 100 từ mới thông dụng như internet, email, website.',
           'Máy chỉ dùng từ thông dụng và biết khoảng 60% từ điển.',
         ],
       },
@@ -671,21 +694,21 @@ export const vi = {
         items: [
           'Mỗi lượt gõ một từ ghép hai tiếng, tiếng đầu phải trùng với tiếng cuối của từ trước, kể cả dấu. Ví dụ: hoa hồng → hồng hào → hào hoa.',
           'Từ phải có trong từ điển và chưa được dùng trong ván. Gõ sai thì gõ lại, miễn là còn giờ. Gõ “hoà” hay “hòa” đều được.',
+          'Không được đánh từ mà không còn từ nào chưa dùng nối tiếp được (ví dụ khi trong từ điển không có từ nào bắt đầu bằng tiếng cuối của nó). Từ điển chưa đủ hết tiếng Việt, nên không ai bị loại chỉ vì từ của người trước.',
         ],
       },
       {
         title: 'Bị loại',
         items: [
           'Hết giờ hoặc bấm “Chịu” thì bị loại; người kế tiếp bắt đầu lại với một từ mở đầu mới.',
-          'Đánh một từ mà không còn từ nào nối tiếp được thì người kế tiếp bị loại ngay.',
           'Người còn lại cuối cùng thắng.',
         ],
       },
       {
         title: 'Từ điển và máy',
         items: [
-          'Từ điển có khoảng 18.000 từ ghép, lấy từ Wiktionary; không có tên riêng và từ tục.',
-          'Chủ phòng có thể thêm máy; máy biết khoảng 60% từ điển nên vẫn có lúc bí.',
+          'Từ điển có khoảng 18.500 từ ghép, lấy từ Wiktionary và bổ sung thêm từ thông dụng; không có tên riêng và từ tục.',
+          'Chủ phòng có thể thêm máy; máy ưu tiên từ thông dụng và biết khoảng 60% từ điển nên vẫn có lúc bí.',
         ],
       },
     ],
@@ -738,7 +761,7 @@ export const vi = {
       'no-two-finish': 'Không được về bằng heo',
       'no-stack-chop': 'Không chặt chồng',
       'four-pairs-anytime': '4 đôi thông chặt không cần lượt',
-      penalties: 'Tính điểm: thối heo, thối hàng, cóng',
+      penalties: 'Tính điểm: chặt heo, thối heo, thối hàng, cóng',
     } satisfies Record<HouseRuleId, string>,
     houseRuleDetails: {
       'no-two-finish':
@@ -746,7 +769,7 @@ export const vi = {
       'no-stack-chop': 'Không chặt chồng: bộ vừa dùng để chặt thì không ai chặt lại được nữa.',
       'four-pairs-anytime': '4 đôi thông chặt được heo hoặc hàng bất cứ lúc nào, kể cả khi chưa tới lượt hay đã bỏ lượt.',
       penalties:
-        'Tính điểm: người về bét bị thối heo (heo đen −1, heo đỏ −2) và thối hàng (tứ quý, đôi thông −3). Ai chưa đánh được lá nào khi có người về nhất thì bị cóng (−2) và xếp bét.',
+        'Tính điểm: người về bét bị thối heo (heo đen −1, heo đỏ −2) và thối hàng (tứ quý, đôi thông −3). Ai chưa đánh được lá nào khi có người về nhất thì bị cóng (−2), xếp bét và cũng bị thối heo, thối hàng trên tay. Bị chặt heo thì trả cho người chặt (heo đen 1, heo đỏ 2); bị chặt chồng thì người bị chặt sau cùng trả hết, cộng thêm 3 cho mỗi lần hàng bị chặt. Tới trắng: mỗi người còn lại trả như về bét.',
     } satisfies Record<HouseRuleId, string>,
     extraRulesTitle: 'Luật thêm của bàn này',
     noExtraRules: 'Bàn này không bật luật thêm nào.',
@@ -761,6 +784,8 @@ export const vi = {
       'red-two': 'Thối heo đỏ',
       quad: 'Thối tứ quý',
       'pair-run': 'Thối đôi thông',
+      chopped: 'Bị chặt',
+      chop: 'Chặt được',
     } satisfies Record<PenaltyKind, string>,
     points: (n: number) => `${n > 0 ? '+' : ''}${n} điểm`,
     play: 'Đánh',
@@ -1215,6 +1240,7 @@ export const vi = {
     WORD_LINK: 'Từ này không nối được với từ trước',
     WORD_UNKNOWN: 'Từ này không có trong từ điển',
     WORD_USED: 'Từ này đã được dùng rồi',
+    WORD_DEAD_END: 'Không có từ nào nối tiếp được từ này, hãy chọn từ khác',
   } satisfies Record<ErrorCode, string>,
 };
 

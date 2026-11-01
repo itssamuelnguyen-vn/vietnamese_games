@@ -23,6 +23,7 @@ import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
 import { useSettledView } from '../useSettledView';
+import { shortAmount } from '../chips';
 
 interface Props {
   room: RoomView;
@@ -94,6 +95,8 @@ function describe(t: Strings, e: XiDachLogEntry, name: (id: string) => string): 
       return L.result(name(e.player), valueLabel(t, e.hand), e.net > 0 ? X.win(t.typhu.money(e.net)) : e.net < 0 ? X.lose(t.typhu.money(-e.net)) : X.push);
     case 'left':
       return L.left(name(e.player));
+    case 'check':
+      return L.check(name(e.dealer), name(e.player));
   }
 }
 
@@ -126,7 +129,7 @@ export function XiDachGame({ room, view, onLeave }: Props) {
     const fresh = freshEntries(seenLog.current, view.log);
     seenLog.current = view.log;
     if (fresh.some((e) => e.kind === 'round')) setDealerShown(1);
-    if (fresh.some((e) => e.kind === 'hit')) playSound('move');
+    if (fresh.some((e) => e.kind === 'hit' || e.kind === 'check')) playSound('move');
     const dealer = fresh.find((e) => e.kind === 'dealer');
     if (dealer && dealer.kind === 'dealer') {
       // The dealer has seen their own cards already; everyone else watches them turn over.
@@ -157,15 +160,18 @@ export function XiDachGame({ room, view, onLeave }: Props) {
   const dealerDone = revealing && dealerShown >= view.dealer.length;
   const lastDealer = view.log.findLast((e) => e.kind === 'dealer');
   const dealerNet = dealerDone && lastDealer?.kind === 'dealer' && lastDealer.player ? lastDealer.net : null;
+  // This round's results: players the dealer checked early, then everyone at the reveal.
   const results = new Map(
     view.log
-      .slice(view.log.map((e) => e.kind).lastIndexOf('dealer'))
+      .slice(view.log.map((e) => e.kind).lastIndexOf('round'))
       .flatMap((e) => (e.kind === 'result' ? [[e.player, e] as const] : [])),
   );
   const myHand = (iDeal ? view.dealer : view.hands[me]) ?? [];
   const myValue = myHand.length ? xdHandValue(myHand) : null;
   // Only you hear your own bust: the others find out at the reveal.
   const myBust = myValue?.kind === 'bust';
+  // A seated dealer on 16 or more may turn over any player's hand now (xét bài).
+  const canCheck = iDeal && view.phase === 'play' && view.turn === me && !!myValue && (myValue.kind !== 'points' || myValue.total >= XD_MIN_STAND);
   useEffect(() => {
     if (myBust) playSound('capture');
   }, [myBust]);
@@ -179,7 +185,8 @@ export function XiDachGame({ room, view, onLeave }: Props) {
     status = !mySeat || mySeat.out ? X.round(view.round, view.rounds) : iDeal ? X.youDeal : mySeat.chips === 0 ? X.noChips : mySeat.ready ? X.waitingOthers : X.betPrompt;
   else if (view.phase === 'reveal')
     status = dealerDone && iDeal && dealerNet !== null ? X.dealerResult(dealerNet, money(Math.abs(dealerNet))) : dealerDone && mySeat && results.get(me) ? describe(t, results.get(me)!, name) : X.dealerTurn;
-  else if (myTurn) status = myValue?.kind === 'bust' ? X.bustHide : X.yourTurn;
+  else if (results.get(me)) status = describe(t, results.get(me)!, name);
+  else if (myTurn) status = myValue?.kind === 'bust' ? X.bustHide : canCheck ? X.checkHint : X.yourTurn;
   else if (dealerId && view.turn === dealerId) status = X.dealerDrawing(name(dealerId));
   else if (mySeat && !mySeat.cards && !iDeal) status = X.sitOut;
   else status = view.turn ? X.turnOf(name(view.turn)) : '';
@@ -241,7 +248,7 @@ export function XiDachGame({ room, view, onLeave }: Props) {
           <ol className="xd-seats">
             {(inRound.length ? inRound : punters).map((seat) => {
               const cards = view.hands[seat.id];
-              const result = dealerDone ? results.get(seat.id) : undefined;
+              const result = !revealing || dealerDone ? results.get(seat.id) : undefined;
               const value = cards ? xdHandValue(cards) : null;
               return (
                 <li
@@ -257,8 +264,13 @@ export function XiDachGame({ room, view, onLeave }: Props) {
                   <span className="xd-cards">
                     {cards ? cards.map((c, i) => <Card key={c} card={c} index={i} />) : Array.from({ length: seat.cards }, (_, i) => <Back key={i} index={i} />)}
                   </span>
-                  {value && (seat.id === me || revealing) && <span className={`xd-value ${value.kind}`}>{valueLabel(t, value)}</span>}
-                  {seat.stood && !revealing && seat.cards > 0 && <span className="xd-tag">{X.stood}</span>}
+                  {value && (seat.id === me || revealing || results.has(seat.id)) && <span className={`xd-value ${value.kind}`}>{valueLabel(t, value)}</span>}
+                  {seat.stood && !revealing && seat.cards > 0 && !results.has(seat.id) && <span className="xd-tag">{X.stood}</span>}
+                  {canCheck && seat.cards > 0 && !results.has(seat.id) && (
+                    <button className="btn btn-secondary btn-sm" onClick={() => send({ type: 'check', player: seat.id })}>
+                      🔍 {X.check}
+                    </button>
+                  )}
                   {result && (
                     <span className={`xd-result ${result.net > 0 ? 'win' : result.net < 0 ? 'lose' : 'push'}`}>
                       {result.net > 0 ? X.win(money(result.net)) : result.net < 0 ? X.lose(money(-result.net)) : X.push}
@@ -326,9 +338,9 @@ export function XiDachGame({ room, view, onLeave }: Props) {
           {betting && (
             <div className="bc-controls">
               <div className="chip-group" role="group" aria-label={X.bet}>
-                {XD_BET_VALUES.map((v) => (
-                  <button key={v} className={`bc-chip v${v}`} aria-pressed={mySeat!.bet === v} disabled={mySeat!.chips < v} onClick={() => send({ type: 'bet', amount: v })}>
-                    {v}
+                {view.betValues.map((v, i) => (
+                  <button key={v} className={`bc-chip v${XD_BET_VALUES[i]}`} aria-pressed={mySeat!.bet === v} disabled={mySeat!.chips < v} onClick={() => send({ type: 'bet', amount: v })}>
+                    {shortAmount(v)}
                   </button>
                 ))}
               </div>

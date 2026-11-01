@@ -65,7 +65,9 @@ describe('xi dach', () => {
     expect(s.chips.a).toBe(XD_START_CHIPS - 100);
     const view = xiDachGame.playerView(s, 'a', { now: 0 });
     expect(Object.keys(view.hands)).toEqual(['a']);
-    expect(view.dealer).toHaveLength(1);
+    // The dealer's cards are all face down, as at a Vietnamese table.
+    expect(view.dealer).toEqual([]);
+    expect(view.dealerCards).toBe(2);
   });
 
   it('needs 16 to stand; a bust stays hidden until the player stands', () => {
@@ -123,7 +125,7 @@ describe('xi dach', () => {
     for (const id of s.seats) expect(s.chips[id] % 10).toBe(0);
   });
   describe('a seated dealer', () => {
-    const dealt = (dealer = 'd') => ({ ...options, xiDachDealer: dealer });
+    const dealt = (dealer = 'd') => ({ ...options, dealer: dealer });
     // d deals to a and b, with fixed hands and deck.
     function dealerTable(hands: Record<string, XdCard[]>, dealerCards: XdCard[], deck: XdCard[], chips = XD_START_CHIPS): XiDachState {
       const ids = Object.keys(hands);
@@ -154,7 +156,7 @@ describe('xi dach', () => {
       expect(s.hands.d).toBeUndefined();
       // The dealer sees their whole hand; the others only its first card.
       expect(xiDachGame.playerView(s, 'd', { now: 0 }).dealer).toHaveLength(2);
-      expect(xiDachGame.playerView(s, 'a', { now: 0 }).dealer).toHaveLength(1);
+      expect(xiDachGame.playerView(s, 'a', { now: 0 }).dealer).toEqual([]);
     });
 
     it('plays last, needs 16 to stand, and pays and collects from their own chips', () => {
@@ -170,6 +172,33 @@ describe('xi dach', () => {
       expect(s.phase).toBe('reveal');
       expect(s.chips).toEqual({ d: XD_START_CHIPS, a: XD_START_CHIPS + 100, b: XD_START_CHIPS - 100 });
       expect(s.log).toContainEqual(expect.objectContaining({ kind: 'dealer', player: 'd', net: 0 }));
+    });
+
+    it('with 16 or more, checks a player early (xét bài), then plays on against the rest', () => {
+      // a stands on 19, b on 16. The dealer has 17: checks b and wins, then draws a 3 for 20 and beats a.
+      let s = dealerTable({ a: hand(10, 9), b: hand(10, 6) }, hand(10, 7), [c(3)]);
+      s = act(act(s, 'a', { type: 'stand' }), 'b', { type: 'stand' });
+      expect(() => act(s, 'a', { type: 'check', player: 'b' })).toThrow('NOT_YOUR_TURN');
+      s = act(s, 'd', { type: 'check', player: 'b' });
+      expect(s).toMatchObject({ phase: 'play', turn: 'd', paid: { b: -100 } });
+      expect(s.chips).toMatchObject({ d: XD_START_CHIPS + 100, b: XD_START_CHIPS - 100 });
+      // Everyone now sees b's hand, but not a's.
+      expect(Object.keys(xiDachGame.playerView(s, 'a', { now: 0 }).hands).toSorted()).toEqual(['a', 'b']);
+      expect(() => act(s, 'd', { type: 'check', player: 'b' })).toThrow('INVALID_MOVE');
+      s = act(act(s, 'd', { type: 'hit' }), 'd', { type: 'stand' });
+      expect(s.phase).toBe('reveal');
+      expect(s.chips).toMatchObject({ d: XD_START_CHIPS + 200, a: XD_START_CHIPS - 100 });
+      expect(s.log).toContainEqual(expect.objectContaining({ kind: 'dealer', net: 200 }));
+    });
+
+    it("can't check below 16, and checking the last player ends the round", () => {
+      let s = dealerTable({ a: hand(10, 9) }, hand(10, 5), [c(5)]);
+      s = act(s, 'a', { type: 'stand' });
+      expect(() => act(s, 'd', { type: 'check', player: 'a' })).toThrow('INVALID_MOVE');
+      s = act(s, 'd', { type: 'hit' });
+      s = act(s, 'd', { type: 'check', player: 'a' });
+      expect(s.phase).toBe('reveal');
+      expect(s.paid).toEqual({ a: -100 });
     });
 
     it('still plays when every player has gone bust, since busts stay hidden', () => {

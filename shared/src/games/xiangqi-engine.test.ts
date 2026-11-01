@@ -98,6 +98,18 @@ describe('Xiangqi engine', () => {
     expect(game.hasAttackers('b')).toBe(false);
   });
 
+  it('finds the pieces a side threatens to win, for the chase rule', () => {
+    // a7: a defended chariot, attacked by a chariot (equal, no threat) and a horse (cheaper: threat).
+    // e6: an undefended soldier still on its own half, which can't be chased. i4: one across the river.
+    const game = new Xiangqi('r3k4/9/r8/4p4/1N7/8p/R8/4R4/9/3K4R w');
+    expect([...game.threatened('r')].sort()).toEqual(['a7', 'i4']);
+    // A pinned attacker threatens nothing: the e1 horse shields its general from the e5 chariot.
+    const pinned = new Xiangqi('3k5/9/9/9/4r4/9/3c5/9/4N4/4K4 w');
+    expect([...pinned.threatened('r')]).toEqual([]);
+    pinned.remove('e5');
+    expect([...pinned.threatened('r')]).toEqual(['d3']);
+  });
+
   it('only accepts real squares', () => {
     expect(parseSquare('a0')).toEqual([0, 0]);
     expect(parseSquare('a ')).toBeNull();

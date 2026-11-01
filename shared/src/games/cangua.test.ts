@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CaNguaRuleId, RoomOptions } from '../types';
 import { GATE, STABLE, caNguaBotChoice, caNguaGame, choicesFor, squareOf, type CaNguaMove, type CaNguaState } from './cangua';
 
-const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, xiDachDealer: null };
+const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null };
 const die = (...values: number[]) => () => (values.length ? (values.shift()! - 0.5) / 6 : 0);
 const seeded = (seed: number) => () => {
   seed = (seed + 0x6d2b79f5) | 0;
@@ -56,6 +56,12 @@ describe('co ca ngua', () => {
     s = act(s, 'a', { type: 'roll' }, die(6));
     expect(s.turn).toBe('b');
     expect(s.log.at(-1)).toEqual({ kind: 'sixes', player: 'a' });
+  });
+
+  it('only a 6 brings a horse out, or a 1 too under one-out', () => {
+    const s = table(all(STABLE), all(STABLE));
+    expect(choicesFor(s, 'a', 1)).toEqual([]);
+    expect(choicesFor({ ...s, rules: ['one-out'] }, 'a', 1).map((c) => c.to)).toEqual([0, 0, 0, 0]);
   });
 
   it('horses move by the roll but cannot jump over another horse', () => {

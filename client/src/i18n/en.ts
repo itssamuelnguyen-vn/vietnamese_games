@@ -107,6 +107,8 @@ export const en: Strings = {
     walletStartLabel: 'Starting money per player',
     stakePerPointLabel: 'Stake per point',
     moneyNote: 'Play money is just a number in the game, with no real-world value. After each game wallets go up or down by points × the stake; a player who runs out watches.',
+    minBetLabel: 'Smallest bet',
+    chipMoneyNote: 'Play money is just a number in the game, with no real-world value. Everyone plays with what is in their wallet, and keeps what they end the game with; a player who runs out watches.',
     wallet: 'Wallet',
     broke: 'Broke',
     moneyChange: (amount: string, up: boolean) => `${up ? '+' : '−'}${amount}`,
@@ -134,6 +136,8 @@ export const en: Strings = {
     hostColors: { random: 'Random', white: 'White', black: 'Black' },
     requestRematch: 'Ask for a rematch',
     rematchRequested: 'Rematch requested',
+    dealerLabel: 'Dealer',
+    houseDealer: 'The house',
     roomGone: 'The room has closed (the server restarted, or it sat idle too long). Start a new one.',
     reconnecting: 'Connection lost, reconnecting…',
     absent: (names: string) => `${names} lost connection`,
@@ -316,6 +320,7 @@ export const en: Strings = {
       checkmate: 'Checkmate',
       stalemate: 'No legal moves',
       'perpetual-check': 'Perpetual check',
+      'perpetual-chase': 'Perpetual chase',
       repetition: 'Repetition',
       'no-capture': '60 moves without a capture',
       insufficient: 'No attacking pieces left',
@@ -402,10 +407,11 @@ export const en: Strings = {
     home: 'Home',
     homeCount: (n: number) => `${n}/4 home`,
     rulesLabel: 'House rules (tap to toggle)',
-    rules: { jump: 'Horses may jump', 'fast-home': 'Fast climb home' },
+    rules: { jump: 'Horses may jump', 'fast-home': 'Fast climb home', 'one-out': 'Out on a 1 or a 6' },
     ruleDetails: {
       jump: 'Horses may jump: a horse can pass squares with other horses on them; it just can’t stop on one of its own.',
       'fast-home': 'Fast climb home: in the home column a horse climbs as many steps as the roll (without going past step 6 or over its own horses).',
+      'one-out': 'Out on a 1 or a 6: rolling a 1 also brings a horse out of the stable. Only a 6 rolls again.',
     },
     resultTitle: 'Game over',
     youWon: 'You won!',
@@ -477,6 +483,9 @@ export const en: Strings = {
     ready: 'Done, roll!',
     clear: 'Take bets back',
     readyTag: 'Done',
+    bankerTag: 'Banker',
+    youBank: 'You’re the banker; waiting for bets…',
+    dealerNote: 'A seated banker doesn’t bet: they take the stakes on animals that don’t come up and pay the winners from their own chips.',
     plate: 'Bau cua plate',
     history: 'Earlier rounds',
     hits: (n: number) => `×${n}`,
@@ -491,6 +500,9 @@ export const en: Strings = {
       result: (who: string, net: string, won: boolean) => (won ? `${who} won ${net}` : `${who} lost ${net}`),
       even: (who: string) => `${who} broke even`,
       left: (who: string) => `${who} left the table`,
+      bank: (who: string, net: string, won: boolean) => (won ? `Banker ${who} takes ${net}` : `Banker ${who} pays out ${net}`),
+      bankEven: (who: string) => `Banker ${who} breaks even`,
+      bankBroke: (who: string) => `${who} ran out of chips to pay: the winners shared what was left`,
     },
     rulesTitle: 'Bau cua rules',
     rulesIntro: 'The Lunar New Year dice game with six animals: deer, gourd, rooster, fish, crab and shrimp. Everyone starts with 1,000 play chips (not real money); after 10 rounds the most chips wins.',
@@ -510,6 +522,14 @@ export const en: Strings = {
           'Out of chips, you watch; after 10 rounds (or when nobody has chips left) players rank by chips.',
         ],
       },
+      {
+        title: 'A player as banker',
+        items: [
+          'The host can leave the bank to the house, or seat one player (a bot too) as the banker.',
+          'The banker doesn’t bet. They take the stakes on animals that don’t come up and pay the winners from their own chips.',
+          'If they can’t pay in full, the winners share what is left in proportion and the game ends. If the banker leaves, the house takes over.',
+        ],
+      },
     ],
   },
 
@@ -518,8 +538,6 @@ export const en: Strings = {
     points: (n: number) => `${n} points`,
     round: (n: number, of: number) => `Round ${n}/${of}`,
     dealer: 'Dealer',
-    dealerLabel: 'Dealer',
-    houseDealer: 'The house',
     dealerNote: 'A seated dealer doesn’t stake: they play their hand last, collect from the losers and pay the winners from their own chips.',
     dealerTag: 'Dealer',
     youDeal: 'You’re the dealer; waiting for bets…',
@@ -536,6 +554,8 @@ export const en: Strings = {
     needSixteen: 'You need at least 16 to stand',
     yourTurn: 'Your turn: draw or stand?',
     bustHide: 'Bust! Tap Stand to keep it quiet: nobody knows until the reveal.',
+    check: 'Check',
+    checkHint: 'You have 16: tap Check to turn over a player’s hand now, then draw or stand against the rest.',
     turnOf: (who: string) => `${who} is drawing…`,
     dealerTurn: 'The dealer turns over…',
     sitOut: 'You sit this round out',
@@ -553,6 +573,7 @@ export const en: Strings = {
       hit: (who: string) => `${who} drew a card`,
       stand: (who: string, auto: boolean) => (auto ? `${who} ran out of time and stood` : `${who} stood`),
       dealer: (hand: string, who: string | null) => (who ? `Dealer ${who}: ${hand}` : `Dealer: ${hand}`),
+      check: (dealer: string, who: string) => `Dealer ${dealer} checks ${who}’s hand`,
       bankBroke: (who: string) => `${who} ran out of chips to pay: the winners shared what was left`,
       result: (who: string, hand: string, outcome: string) => `${who} (${hand}): ${outcome}`,
       left: (who: string) => `${who} left the table`,
@@ -582,7 +603,7 @@ export const en: Strings = {
         title: 'A player as dealer',
         items: [
           'The host can leave the dealing to the house, or seat one player (a bot too) as the dealer.',
-          'The dealer doesn’t stake. They draw last, once everyone is done, and also need 16 to stand.',
+          'The dealer doesn’t stake. They draw last, once everyone is done, and also need 16 to stand. With 16 or more they may check players one by one (xét bài), settling each at once, then draw or stand against the rest. The dealer’s cards stay face down until the reveal.',
           'The dealer collects from the losers and pays the winners from their own chips. If they can’t pay in full, the winners share what is left in proportion, and the game ends.',
           'If the dealer leaves mid-game, the house takes over.',
         ],
@@ -619,7 +640,6 @@ export const en: Strings = {
       out: {
         timeout: (who: string) => `${who} ran out of time and is out`,
         'gave-up': (who: string) => `${who} gave up and is out`,
-        'dead-end': (who: string) => `${who} had nothing to follow with and is out`,
         left: (who: string) => `${who} left the table`,
       },
     },
@@ -635,6 +655,7 @@ export const en: Strings = {
         items: [
           'On your turn, type an English word of three or more letters that starts with the last letter of the previous word. For example: apple → eagle → elephant → tiger.',
           'The word must be in the dictionary and not used yet this game (plurals and other forms count as different words). A wrong word can be retyped while time remains.',
+          'You can’t play a word that no unused word can follow from its last letter.',
         ],
       },
       {
@@ -647,7 +668,7 @@ export const en: Strings = {
       {
         title: 'Dictionary and bots',
         items: [
-          'The dictionary is the ENABLE word list, about 172,000 words (rude words removed).',
+          'The dictionary is the ENABLE word list, about 172,000 words (rude words removed), plus about 100 newer everyday words such as internet, email and website.',
           'Bots stick to everyday words and know about 60% of the dictionary.',
         ],
       },
@@ -660,21 +681,21 @@ export const en: Strings = {
         items: [
           'On your turn, type a two-syllable word whose first syllable matches the last syllable of the previous word, tone marks included. For example: hoa hồng → hồng hào → hào hoa.',
           'The word must be in the dictionary and not used yet this game. A wrong word can be retyped while time remains. “hoà” and “hòa” both work.',
+          'You can’t play a word that no unused word can follow (for example when no word in the dictionary starts with its last syllable). The dictionary doesn’t hold all of Vietnamese, so nobody is knocked out just by the word before them.',
         ],
       },
       {
         title: 'Getting knocked out',
         items: [
           'Run out of time or press “Give up” and you’re out; the next player starts again from a fresh word.',
-          'Play a word that nothing can follow and the next player is out at once.',
           'The last player left wins.',
         ],
       },
       {
         title: 'Dictionary and bots',
         items: [
-          'The dictionary has about 18,000 two-syllable words from Wiktionary, without proper names or rude words.',
-          'The host can add bots; a bot knows about 60% of the dictionary, so it gets stuck sometimes.',
+          'The dictionary has about 18,500 two-syllable words from Wiktionary plus a hand-picked list of everyday words, without proper names or rude words.',
+          'The host can add bots; bots prefer everyday words and know about 60% of the dictionary, so they get stuck sometimes.',
         ],
       },
     ],
@@ -725,7 +746,7 @@ export const en: Strings = {
       'no-two-finish': 'No going out on a 2',
       'no-stack-chop': 'No chopping a chop',
       'four-pairs-anytime': '4-pair runs chop anytime',
-      penalties: 'Scoring: 2s, bombs and "frozen" penalties',
+      penalties: 'Scoring: chops, 2s, bombs and "frozen" penalties',
     },
     houseRuleDetails: {
       'no-two-finish':
@@ -733,7 +754,7 @@ export const en: Strings = {
       'no-stack-chop': 'No chopping a chop: once a bomb has chopped, nobody can chop it back.',
       'four-pairs-anytime': 'A run of 4 pairs can chop a 2 or a bomb at any time, even out of turn or after passing.',
       penalties:
-        'Scoring: the last player is penalised for 2s left in hand (black −1, red −2) and bombs (four of a kind, pair runs −3). Anyone who hasn’t played a card when someone goes out first is "frozen" (−2) and ranks last.',
+        'Scoring: the last player is penalised for 2s left in hand (black −1, red −2) and bombs (four of a kind, pair runs −3). Anyone who hasn’t played a card when someone goes out first is "frozen" (−2), ranks last and also pays for the 2s and bombs in hand. A chopped 2 is paid to the chopper (black 1, red 2); in a chain of chops the last player chopped pays it all, plus 3 for each bomb chopped. An instant win makes every other player pay as if they finished last.',
     },
     extraRulesTitle: 'House rules at this table',
     noExtraRules: 'No extra house rules at this table.',
@@ -748,6 +769,8 @@ export const en: Strings = {
       'red-two': 'Red 2 left',
       quad: 'Four of a kind left',
       'pair-run': 'Pair run left',
+      chopped: 'Chopped',
+      chop: 'Chopped someone',
     },
     points: (n: number) => `${n > 0 ? '+' : ''}${n} pts`,
     play: 'Play',
@@ -1190,5 +1213,6 @@ export const en: Strings = {
     WORD_LINK: 'That word doesn’t link to the last one',
     WORD_UNKNOWN: 'That word isn’t in the dictionary',
     WORD_USED: 'That word has already been used',
+    WORD_DEAD_END: 'Nothing can follow that word, pick another one',
   },
 };
