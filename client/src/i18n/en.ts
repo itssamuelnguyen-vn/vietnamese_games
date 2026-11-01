@@ -394,6 +394,7 @@ export const en: Strings = {
     pickHorse: 'Pick a horse: tap a glowing one or a button below.',
     rolling: 'Rolling…',
     keysHint: 'Shortcuts: Space to roll, keys 1–4 to pick a horse.',
+    autoMove: 'Only one move: playing it for you…',
     turnOf: (who: string) => `${who}’s turn`,
     rollAgain: 'You rolled a 6: roll again!',
     spectating: 'You are watching this game',

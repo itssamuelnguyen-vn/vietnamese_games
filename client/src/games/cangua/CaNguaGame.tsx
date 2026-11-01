@@ -89,6 +89,8 @@ function useTicker(active: boolean, ms = 250) {
 
 // How long the die tumbles; move choices stay hidden until it lands.
 const ROLL_MS = 1400;
+// With only one possible move, it's played for you after this pause.
+const AUTO_MOVE_MS = 900;
 
 type Shown = Record<string, number[]>;
 const STEP_MS = 260;
@@ -233,6 +235,16 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
 
   const choices = rolling ? [] : view.choices;
   const movable = new Set(choices.map((c) => c.horse));
+  // Bringing out any of several stabled horses is the same move: offer it once.
+  const distinct = choices.filter(
+    (c, i) => !mySeat || mySeat.horses[c.horse] !== STABLE || choices.findIndex((o) => mySeat.horses[o.horse] === STABLE && o.to === c.to) === i,
+  );
+  const forced = myTurn && view.phase === 'move' && distinct.length === 1 ? distinct[0].horse : null;
+  useEffect(() => {
+    if (forced === null) return;
+    const id = setTimeout(() => send({ type: 'move', horse: forced }), AUTO_MOVE_MS);
+    return () => clearTimeout(id);
+  }, [forced, view.log.length]);
   const hovered = hover === null ? null : choices.find((c) => c.horse === hover);
   const targetCell = hovered && mySeat ? cellOf(mySeat.color, hovered.to, hovered.horse) : null;
   const pathPreview = hovered && mySeat ? pathCells(mySeat.color, mySeat.horses[hovered.horse], hovered.to, hovered.horse) : [];
@@ -468,7 +480,8 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
           )}
           {myTurn && view.phase === 'move' && (
             <div className="cn-actions">
-              {choices.map((c) => (
+              {forced !== null && <p className="muted small">{C.autoMove}</p>}
+              {distinct.map((c) => (
                 <button
                   key={c.horse}
                   type="button"

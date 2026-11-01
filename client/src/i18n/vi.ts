@@ -402,6 +402,7 @@ export const vi = {
     pickHorse: 'Chọn ngựa để đi: bấm vào ngựa đang sáng hoặc nút bên dưới.',
     rolling: 'Đang gieo…',
     keysHint: 'Phím tắt: Space để gieo, phím 1–4 để chọn ngựa.',
+    autoMove: 'Chỉ có một nước đi, tự đi ngay…',
     turnOf: (who: string) => `Lượt của ${who}`,
     rollAgain: 'Gieo được 6, bạn được gieo thêm!',
     spectating: 'Bạn đang xem ván này',
