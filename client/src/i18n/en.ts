@@ -640,7 +640,6 @@ export const en: Strings = {
       out: {
         timeout: (who: string) => `${who} ran out of time and is out`,
         'gave-up': (who: string) => `${who} gave up and is out`,
-        'dead-end': (who: string) => `${who} had nothing to follow with and is out`,
         left: (who: string) => `${who} left the table`,
       },
     },
@@ -656,6 +655,7 @@ export const en: Strings = {
         items: [
           'On your turn, type an English word of three or more letters that starts with the last letter of the previous word. For example: apple → eagle → elephant → tiger.',
           'The word must be in the dictionary and not used yet this game (plurals and other forms count as different words). A wrong word can be retyped while time remains.',
+          'You can’t play a word that no unused word can follow from its last letter.',
         ],
       },
       {
@@ -668,7 +668,7 @@ export const en: Strings = {
       {
         title: 'Dictionary and bots',
         items: [
-          'The dictionary is the ENABLE word list, about 172,000 words (rude words removed).',
+          'The dictionary is the ENABLE word list, about 172,000 words (rude words removed), plus about 100 newer everyday words such as internet, email and website.',
           'Bots stick to everyday words and know about 60% of the dictionary.',
         ],
       },
@@ -681,21 +681,21 @@ export const en: Strings = {
         items: [
           'On your turn, type a two-syllable word whose first syllable matches the last syllable of the previous word, tone marks included. For example: hoa hồng → hồng hào → hào hoa.',
           'The word must be in the dictionary and not used yet this game. A wrong word can be retyped while time remains. “hoà” and “hòa” both work.',
+          'You can’t play a word that no unused word can follow (for example when no word in the dictionary starts with its last syllable). The dictionary doesn’t hold all of Vietnamese, so nobody is knocked out just by the word before them.',
         ],
       },
       {
         title: 'Getting knocked out',
         items: [
           'Run out of time or press “Give up” and you’re out; the next player starts again from a fresh word.',
-          'Play a word that nothing can follow and the next player is out at once.',
           'The last player left wins.',
         ],
       },
       {
         title: 'Dictionary and bots',
         items: [
-          'The dictionary has about 18,000 two-syllable words from Wiktionary, without proper names or rude words.',
-          'The host can add bots; a bot knows about 60% of the dictionary, so it gets stuck sometimes.',
+          'The dictionary has about 18,500 two-syllable words from Wiktionary plus a hand-picked list of everyday words, without proper names or rude words.',
+          'The host can add bots; bots prefer everyday words and know about 60% of the dictionary, so they get stuck sometimes.',
         ],
       },
     ],
@@ -1213,5 +1213,6 @@ export const en: Strings = {
     WORD_LINK: 'That word doesn’t link to the last one',
     WORD_UNKNOWN: 'That word isn’t in the dictionary',
     WORD_USED: 'That word has already been used',
+    WORD_DEAD_END: 'Nothing can follow that word, pick another one',
   },
 };

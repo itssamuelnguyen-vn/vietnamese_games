@@ -26,7 +26,8 @@ export type ErrorCode =
   | 'WORD_INVALID'
   | 'WORD_LINK'
   | 'WORD_UNKNOWN'
-  | 'WORD_USED';
+  | 'WORD_USED'
+  | 'WORD_DEAD_END';
 
 export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
 

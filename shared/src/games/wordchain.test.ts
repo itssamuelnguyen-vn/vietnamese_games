@@ -73,12 +73,45 @@ describe('word chain', () => {
     expect(game.points!(timedOut)).toEqual({ c: { place: 1, points: 2 }, b: { place: 2, points: 0 }, a: { place: 3, points: -2 } });
   });
 
-  it('a word nothing can follow knocks the next player out at once', () => {
+  it('refuses a word that nothing unused can follow, and nobody is knocked out', () => {
     // Nothing starts with "hè".
-    const s = act(from('trang trại', ['a', 'b', 'c']), 'a', word('trại hè'));
-    expect(s.out).toEqual(['b']);
-    expect(s.log.at(-2)).toEqual({ kind: 'out', player: 'b', reason: 'dead-end' });
-    expect(s.turn).toBe('c');
+    const s = from('trang trại', ['a', 'b', 'c']);
+    expect(game.applyMove(s, 'a', word('trại hè'), ctx)).toEqual({ ok: false, error: 'WORD_DEAD_END' });
+    // Only "hào hoa" follows "hồng hào"; once it has been used, "hồng hào" is a dead end too.
+    const rose = from('hoa hồng');
+    expect(game.applyMove(rose, 'a', word('hồng hào'), ctx).ok).toBe(true);
+    const hoaUsed = { ...rose, used: [...rose.used, wordKey('vi', 'hào hoa')!] };
+    expect(game.applyMove(hoaUsed, 'a', word('hồng hào'), ctx)).toEqual({ ok: false, error: 'WORD_DEAD_END' });
+    // A word can't follow itself: "ba ba" is a dead end when it is the only word starting with "ba".
+    const turtle = createWordChainGame('noitu', buildDictionary('vi', ['ngã ba', 'ba ba', 'trang trại']));
+    const fork = { ...from('trang trại'), chain: [{ word: 'ngã ba', by: null }], used: [wordKey('vi', 'ngã ba')!] };
+    expect(turtle.applyMove(fork, 'a', word('ba ba'), ctx)).toEqual({ ok: false, error: 'WORD_DEAD_END' });
+    // English dead ends count used words the same way.
+    const en = createWordChainGame('wordchain', buildDictionary('en', ['apple', 'eagle', 'egg', 'goat', 'east']));
+    const s0 = en.setup(['a', 'b'], options, ctx, null);
+    const apple = { ...s0, chain: [{ word: 'apple', by: null }], used: ['apple'], turn: 'a' };
+    expect(en.applyMove(apple, 'a', word('egg'), ctx).ok).toBe(true);
+    expect(en.applyMove({ ...apple, used: ['apple', 'goat'] }, 'a', word('egg'), ctx)).toEqual({ ok: false, error: 'WORD_DEAD_END' });
+    // Nothing starts with "t".
+    expect(en.applyMove(apple, 'a', word('east'), ctx)).toEqual({ ok: false, error: 'WORD_DEAD_END' });
+  });
+
+  it('bots never play a word nothing can follow', () => {
+    // From "trang trại" the only answer, "trại hè", is a dead end: bots give up.
+    for (const bot of ['bot:1', 'bot:2', 'bot:3', 'bot:4']) {
+      expect(game.botMove!({ ...from('trang trại', [bot, 'b']) }, bot, ctx)).toEqual({ type: 'give-up' });
+    }
+    const list = ['trang trại', 'trại hè', 'trại lính', 'lính gác', 'trại giam', 'giam giữ', 'trại hồ', 'trại cá'];
+    const camp = createWordChainGame('noitu', buildDictionary('vi', list));
+    const played = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      const bot = `bot:${i}`;
+      const s0 = camp.setup([bot, 'b'], options, ctx, null);
+      const s = { ...s0, chain: [{ word: 'trang trại', by: null }], used: [wordKey('vi', 'trang trại')!], turn: bot };
+      const move = camp.botMove!(s, bot, { now: 0, random: () => (i % 10) / 10 });
+      if (move?.type === 'word') played.add(move.text);
+    }
+    expect([...played].sort()).toEqual(['trại giam', 'trại lính']);
   });
 
   it('players who leave are out', () => {

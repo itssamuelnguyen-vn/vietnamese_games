@@ -34,7 +34,7 @@ import {
   type RoomStatus,
   type RoomView,
 } from '@vg/shared';
-import { loadDictionary } from './dictionaries';
+import { loadDictionary, NOITU_FILES, WORDCHAIN_FILES } from './dictionaries';
 import { pickBotMove, type BotThinker } from './botThinker';
 
 // To add a game: write its GameDefinition in shared/src/games and register it here.
@@ -47,8 +47,8 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   cangua: caNguaGame,
   baucua: bauCuaGame,
   xidach: xiDachGame,
-  noitu: createWordChainGame('noitu', loadDictionary('vi', 'noitu-words.txt')),
-  wordchain: createWordChainGame('wordchain', loadDictionary('en', 'wordchain-words.txt', 'wordchain-common.txt')),
+  noitu: createWordChainGame('noitu', loadDictionary('vi', NOITU_FILES, 'noitu-common.txt')),
+  wordchain: createWordChainGame('wordchain', loadDictionary('en', WORDCHAIN_FILES, 'wordchain-common.txt')),
 };
 
 // Uniform in [0, 1) from the OS CSPRNG, so card deals can't be predicted.
