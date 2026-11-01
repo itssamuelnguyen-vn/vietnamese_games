@@ -282,7 +282,8 @@ function FloatingChat({ room, children }: { room: RoomView; children: ReactNode 
         <button
           ref={fabRef}
           type="button"
-          className={`chat-fab ${dragAt ? 'dragging' : ''} ${spot.side}`}
+          // With nothing new to read it tucks into the edge, out of the way of the game.
+          className={`chat-fab ${dragAt ? 'dragging' : ''} ${spot.side} ${!unread && !preview && !dragAt ? 'tucked' : ''}`}
           style={{ left: at.x, top: at.y } as CSSProperties}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaNguaView, CaroView, ChessView, WordChainView, TienLenView, TyPhuView } from '@vg/shared';
-import { caNguaGame } from '@vg/shared';
+import { caNguaGame, tienlenGame, type TienLenState } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -509,6 +509,26 @@ describe('RoomManager', () => {
       // Bots always agree to a rematch.
       expect(rooms.requestRematch(A).ok).toBe(true);
       expect(room.status).toBe('playing');
+    });
+
+    it('tien len: bots play a game with a person to the end', () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      expect(rooms.addBot(A).ok).toBe(true);
+      expect(rooms.addBot(A).ok).toBe(true);
+      expect(rooms.start(A).ok).toBe(true);
+      // The person plays what a bot would in their seat; the bots answer on their own.
+      for (let i = 0; i < 5000 && room.status === 'playing'; i++) {
+        const state = room.state as TienLenState;
+        if (state.turn === A) rooms.move(A, tienlenGame.botMove!(state, A, { now: 0 })!);
+        else vi.advanceTimersByTime(10);
+      }
+      expect(room.status).toBe('finished');
+      const result = (rooms.view(room, A, allOnline).game as TienLenView).result!;
+      expect(result.ranking.toSorted()).toEqual([A, 'bot:1', 'bot:2'].toSorted());
     });
 
     it('people keep sending moves, yet bots still get to act', () => {

@@ -1206,6 +1206,22 @@ main {
   transform: scale(0.94);
 }
 
+/* Idle, the button tucks into the screen edge and shows only a tab; tapping or dragging it still
+   works, and a new message brings it back out. */
+.chat-fab.tucked {
+  --tuck: 40px;
+  opacity: 0.85;
+}
+
+.chat-fab.tucked.right { transform: translateX(var(--tuck)); }
+.chat-fab.tucked.left { transform: translateX(calc(-1 * var(--tuck))); }
+
+.chat-fab.tucked:hover,
+.chat-fab.tucked:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+
 .chat-fab.dragging {
   cursor: grabbing;
   transition: none;

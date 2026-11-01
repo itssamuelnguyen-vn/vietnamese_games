@@ -30,7 +30,7 @@ export interface GameInfo {
 export const GAME_CATALOG: Record<GameType, GameInfo> = {
   chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true },
   xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true },
-  tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true },
+  tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
   caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
   cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: true, bots: true },

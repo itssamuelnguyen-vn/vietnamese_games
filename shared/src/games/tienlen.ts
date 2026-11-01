@@ -385,6 +385,90 @@ function play(s: TienLenState, player: string, cards: Card[], now: number, auto:
   return next.result ? next : advance(next, player, now);
 }
 
+// ---- Bots ----
+
+// The fewest plays it would take to shed a hand, ignoring what others hold: each rank on its own
+// (single, pair, triple, four of a kind), or straights and pair runs pulled out first. Bots favour
+// plays that leave the rest of the hand easy to get rid of.
+export function planSize(hand: Card[]): number {
+  const counts = Array<number>(13).fill(0);
+  for (const c of hand) counts[rankOf(c)]++;
+  const memo = new Map<string, number>();
+  const solve = (n: number[]): number => {
+    const key = n.join('');
+    const known = memo.get(key);
+    if (known !== undefined) return known;
+    let best = n.filter((x) => x > 0).length;
+    // Runs of 3+ consecutive ranks below 2: a straight takes one card a rank, a pair run two.
+    for (const width of [1, 2]) {
+      for (let lo = 0; lo < TWO; lo++) {
+        for (let hi = lo; hi < TWO && n[hi] >= width; hi++) {
+          if (hi - lo < 2) continue;
+          const rest = n.map((x, r) => (r >= lo && r <= hi ? x - width : x));
+          best = Math.min(best, 1 + solve(rest));
+        }
+      }
+    }
+    memo.set(key, best);
+    return best;
+  };
+  return solve(counts);
+}
+
+const isStrong = (cards: Card[]) => {
+  const combo = classify(cards)!;
+  return cards.some((c) => rankOf(c) === TWO) || combo.type === 'quad' || pairRunOf(combo) >= 3;
+};
+
+// What a bot plays on its turn: leading, the lowest combination its plan would play anyway (2s and
+// bombs last); following, the cheapest beat that doesn't break up its hand, holding 2s and bombs
+// back unless someone is about to go out, the hand is nearly done, or there's a 2 to chop.
+export function tienlenBotMove(s: TienLenState, id: string): TienLenMove | null {
+  if (s.result || s.turn !== id) return null;
+  const hand = s.hands[id];
+  const allowed = (cards: Card[]) => playProblem(s, hand, cards) === null;
+  const rest = (cards: Card[]) => hand.filter((c) => !cards.includes(c));
+  const before = planSize(hand);
+  const lowest = (cards: Card[]) => Math.min(...cards);
+  // Under 'no-two-finish' a hand of nothing but 2s can't go out: shed 2s before it comes to that.
+  const noTwoFinish = s.rules.includes('no-two-finish');
+  const deadEnd = (cards: Card[]) => noTwoFinish && rest(cards).length > 0 && rest(cards).every((c) => rankOf(c) === TWO);
+  const shedTwos = noTwoFinish && hand.length <= 6 && hand.some((c) => rankOf(c) === TWO);
+
+  if (!s.trick) {
+    let options = hintPlays(hand, null, s.mustPlay).filter(allowed);
+    // Only bombs left to lead with, say.
+    if (options.length === 0) options = combosIn(hand).filter((c) => classify(c) && allowed(c) && (s.mustPlay === null || c.includes(s.mustPlay)));
+    if (options.length === 0) return null;
+    const all = options.find((c) => c.length === hand.length);
+    if (all) return { type: 'play', cards: all };
+    const best = options
+      .map((cards) => ({ cards, plan: planSize(rest(cards)) + (deadEnd(cards) ? 100 : 0), strong: isStrong(cards) && !shedTwos }))
+      .sort((a, b) => a.plan - b.plan || Number(a.strong) - Number(b.strong) || lowest(a.cards) - lowest(b.cards) || b.cards.length - a.cards.length)[0];
+    return { type: 'play', cards: best.cards };
+  }
+
+  const options = hintPlays(hand, s.trick.combo, null).filter(allowed);
+  if (options.length === 0) return { type: 'pass' };
+  const finishing = options.find((c) => c.length === hand.length);
+  if (finishing) return { type: 'play', cards: finishing };
+  // Someone close to going out, or this hand close to done: no holding back.
+  const danger = s.seats.some((p) => p !== id && active(s, p) && s.hands[p].length <= 3) || hand.length <= 4;
+  const twoOnTable = isTwos(s.trick.combo, 1) || isTwos(s.trick.combo, 2);
+  // A hand that's almost sorted out: worth spending a 2 or a bomb to take the lead and run it out.
+  const closing = before <= 3;
+  const scored = options
+    .map((cards) => ({ cards, delta: planSize(rest(cards)) - before, strong: isStrong(cards), top: Math.max(...cards) }))
+    .filter((o) => {
+      if (deadEnd(o.cards)) return false;
+      const chop = isChop(classify(o.cards)!, s.trick!.combo) && twoOnTable;
+      if (o.strong && !danger && !chop && !shedTwos && !closing) return false;
+      return o.delta <= 0 || danger || shedTwos;
+    })
+    .sort((a, b) => a.delta - b.delta || Number(a.strong) - Number(b.strong) || a.top - b.top);
+  return scored.length ? { type: 'play', cards: scored[0].cards } : { type: 'pass' };
+}
+
 export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView> = {
   type: 'tienlen',
 
@@ -501,6 +585,10 @@ export const tienlenGame: GameDefinition<TienLenState, TienLenMove, TienLenView>
 
   points(state) {
     return state.result?.scores ?? null;
+  },
+
+  botMove(state, playerId) {
+    return tienlenBotMove(state, playerId);
   },
 
   playerView(state, playerId, { now }) {
