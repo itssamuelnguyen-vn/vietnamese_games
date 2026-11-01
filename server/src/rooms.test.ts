@@ -854,13 +854,14 @@ describe('RoomManager', () => {
       rooms.addBot(A);
       rooms.addBot(A);
       expect(rooms.start(A).ok).toBe(true);
-      expect(rooms.move(A, { type: 'buy', count: 2 }).ok).toBe(true);
+      expect(rooms.move(A, { type: 'pick', tickets: [0, 1] }).ok).toBe(true);
       expect(rooms.move(A, { type: 'ready' }).ok).toBe(true);
       // The person shouts as soon as a row of theirs is complete.
       for (let i = 0; i < 2000 && room.status === 'playing'; i++) {
         const v = rooms.view(room, A, allOnline).game as LotoView;
         const mine = v.seats.find((p) => p.id === A)!;
-        if (v.phase !== 'buy' && !mine.won && !mine.busted && fullRow(v.tickets, v.called)) rooms.move(A, { type: 'kinh' });
+        const tickets = v.mine.map((t) => v.set[t]);
+        if (v.phase !== 'buy' && !mine.won && !mine.busted && fullRow(tickets, v.called)) rooms.move(A, { type: 'kinh' });
         else vi.advanceTimersByTime(250);
       }
       expect(room.status).toBe('finished');

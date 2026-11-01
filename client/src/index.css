@@ -5649,20 +5649,105 @@ main {
 }
 
 .lt-ticket {
+  --lt-color: #e4c88a;
   display: grid;
   align-content: start;
   gap: 6px;
   padding: 8px;
   border-radius: 12px;
-  background: #fff8e8;
-  border: 2px solid #e4c88a;
+  background: color-mix(in srgb, var(--lt-color) 10%, #fffaf0);
+  border: 3px solid var(--lt-color);
   color: #3a2408;
 }
 
 .lt-ticket-head {
+  justify-self: start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--lt-color);
+  color: #fff;
   font-weight: 800;
   font-size: 0.85rem;
-  color: #8a5a12;
+}
+
+.lt-ticket .lt-cell.blank {
+  background: color-mix(in srgb, var(--lt-color) 22%, #fff3d6);
+}
+
+/* Picking tickets from the table set: eight colours, two tickets each. */
+.lt-pick {
+  display: grid;
+  gap: 10px;
+}
+
+.lt-colors {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 560px) {
+  .lt-colors {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.lt-color {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 2px solid var(--lt-color);
+  background: color-mix(in srgb, var(--lt-color) 12%, var(--surface));
+}
+
+.lt-color strong {
+  color: var(--lt-color);
+}
+
+.lt-color-tickets {
+  display: flex;
+  gap: 6px;
+}
+
+.lt-pick-ticket {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 52px;
+  padding: 0;
+  border-radius: 6px;
+  border: 2px solid var(--lt-color);
+  background: #fffaf0;
+  color: var(--lt-color);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.lt-pick-ticket.mine {
+  background: var(--lt-color);
+  color: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lt-color) 35%, transparent);
+}
+
+.lt-pick-ticket:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Which colours each player holds, next to their name. */
+.lt-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 3px;
+  border-radius: 3px;
+  vertical-align: -1px;
 }
 
 .lt-grid {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { LOTO_BUY_MS, LOTO_KINH_MS, LOTO_MAX, LOTO_MAX_TICKETS, rowNumbers, type LotoLogEntry, type LotoMove, type LotoTicket, type LotoView, type RoomView } from '@vg/shared';
+import { LOTO_BUY_MS, LOTO_COLORS, LOTO_KINH_MS, LOTO_MAX, lotoColor, rowNumbers, type LotoLogEntry, type LotoMove, type LotoTicket, type LotoView, type RoomView } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
@@ -18,6 +18,9 @@ interface Props {
   view: LotoView;
   onLeave: () => void;
 }
+
+// The table set's eight ticket colours, in set order (tickets 2k and 2k + 1 are colour k).
+export const TICKET_COLORS = ['#d64541', '#e67e22', '#d4a017', '#27ae60', '#2e86de', '#8e44ad', '#e84393', '#8d6e63'];
 
 const SEAT_COLORS = ['#d64541', '#2e86de', '#27ae60', '#e67e22', '#8e44ad', '#16a085', '#c0392b', '#2c3e50'];
 const DIGITS = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
@@ -48,7 +51,7 @@ function describe(t: Strings, e: LotoLogEntry, name: (id: string) => string): st
   const L = t.loto.log;
   switch (e.kind) {
     case 'buy':
-      return L.buy(name(e.player), e.tickets);
+      return L.buy(name(e.player), e.tickets.map((tk) => t.loto.ticketName(t.loto.colors[lotoColor(tk)], (tk % 2) + 1)).join(', '));
     case 'call':
       return L.call(e.number, e.count);
     case 'kinh':
@@ -60,11 +63,13 @@ function describe(t: Strings, e: LotoLogEntry, name: (id: string) => string): st
   }
 }
 
-function Ticket({ ticket, index, marked, onMark, highlight }: { ticket: LotoTicket; index: number; marked: (n: number) => boolean; onMark: (n: number) => void; highlight: Set<number> | null }) {
+// A ticket of the set, in its colour: "Đỏ 1" and "Đỏ 2" are the red pair.
+function Ticket({ ticket, id, marked, onMark, highlight }: { ticket: LotoTicket; id: number; marked: (n: number) => boolean; onMark: (n: number) => void; highlight: Set<number> | null }) {
   const { t } = useI18n();
+  const label = t.loto.ticketName(t.loto.colors[lotoColor(id)], (id % 2) + 1);
   return (
-    <section className="lt-ticket" aria-label={t.loto.ticket(index + 1)}>
-      <header className="lt-ticket-head">{t.loto.ticket(index + 1)}</header>
+    <section className="lt-ticket" style={{ '--lt-color': TICKET_COLORS[lotoColor(id)] } as CSSProperties} aria-label={label}>
+      <header className="lt-ticket-head">{label}</header>
       <div className="lt-grid">
         {ticket.map((row, r) => {
           const full = rowNumbers(ticket, r).every(marked);
@@ -114,7 +119,9 @@ export function LotoGame({ room, view, onLeave }: Props) {
     };
   }, []);
   const [marks, setMarks] = useState<Set<number>>(new Set());
-  const ticketsKey = view.tickets.map((tk) => tk.flat().join(',')).join('|');
+  // Your tickets this game; new tickets (or a new game) start unmarked.
+  const myTickets = view.mine.map((id) => view.set[id]);
+  const ticketsKey = `${view.mine.join(',')}|${view.set[0]?.flat().join(',')}`;
   useEffect(() => setMarks(new Set()), [ticketsKey]);
   const called = useMemo(() => new Set(view.called), [view.called]);
   const marked = (n: number) => (auto ? called.has(n) : marks.has(n));
@@ -158,8 +165,9 @@ export function LotoGame({ room, view, onLeave }: Props) {
     if (!r.ok) toast(t.errors[r.error]);
     return r.ok;
   }
-  async function buy(count: number) {
-    if (await send({ type: 'buy', count })) await send({ type: 'ready' });
+  // Picking: tap a ticket to take it (or put it back), or take both of a colour.
+  function pick(tickets: number[]) {
+    void send({ type: 'pick', tickets });
   }
   async function rematch() {
     const r = isHost ? await api.start() : await api.rematch();
@@ -168,8 +176,9 @@ export function LotoGame({ room, view, onLeave }: Props) {
 
   const wallet = room.wallets ? (room.wallets[me] ?? room.options.walletStart) : null;
   const buying = view.phase === 'buy' && !view.result && !!mySeat && !mySeat.out && !mySeat.ready;
-  const playing = view.phase !== 'buy' && !view.result && !!mySeat && view.tickets.length > 0 && !mySeat.busted && !mySeat.won;
-  const rowReady = view.tickets.some((tk) => tk.some((_, r) => rowNumbers(tk, r).every(marked)));
+  const playing = view.phase !== 'buy' && !view.result && !!mySeat && view.mine.length > 0 && !mySeat.busted && !mySeat.won;
+  const rowReady = myTickets.some((tk) => tk.some((_, r) => rowNumbers(tk, r).every(marked)));
+  const canAfford = (n: number) => wallet === null || wallet >= n * view.price;
   const last = view.called.at(-1);
   const winRows = new Set(view.winners.filter((w) => w.player === me).flatMap((w) => w.numbers));
   const myResult = view.result?.nets[me];
@@ -179,7 +188,7 @@ export function LotoGame({ room, view, onLeave }: Props) {
   else if (view.phase === 'buy') status = !mySeat || mySeat.out ? T.buyingOthers : mySeat.ready ? T.waitingOthers : T.buyPrompt;
   else if (view.phase === 'kinh') status = T.kinhCalled(view.winners.map((w) => name(w.player)).join(', '));
   else if (mySeat?.busted) status = T.busted;
-  else if (!view.tickets.length) status = T.watching;
+  else if (!view.mine.length) status = T.watching;
   else status = auto ? T.autoHint : T.markHint;
 
   return (
@@ -195,7 +204,9 @@ export function LotoGame({ room, view, onLeave }: Props) {
             if (!seat) return null;
             return (
               <>
-                {seat.tickets > 0 && `🎫 ${T.ticketCount(seat.tickets)}`}
+                {seat.tickets.map((tk) => (
+                  <span key={tk} className="lt-dot" style={{ background: TICKET_COLORS[lotoColor(tk)] }} title={T.ticketName(T.colors[lotoColor(tk)], (tk % 2) + 1)} />
+                ))}
                 {seat.ready && view.phase === 'buy' && <span className="tag tag-gold bc-ready">{t.baucua.readyTag}</span>}
                 {seat.won && <span className="tag tag-gold bc-ready">🎉 {T.kinhTag}</span>}
                 {seat.busted && <span className="tag tag-danger bc-ready">{T.bustTag}</span>}
@@ -269,13 +280,47 @@ export function LotoGame({ room, view, onLeave }: Props) {
           </div>
           <AbsentPlayersNote room={room} />
           {buying && (
-            <div className="bc-controls lt-buy">
-              {Array.from({ length: LOTO_MAX_TICKETS }, (_, i) => i + 1).map((n) => (
-                <button key={n} className="btn btn-secondary" disabled={wallet !== null && wallet < n * view.price} onClick={() => buy(n)}>
-                  🎫 {T.buy(n)}
-                  {room.wallets && <span className="muted small"> · {money(n * view.price)}</span>}
+            <div className="lt-pick">
+              <ol className="lt-colors">
+                {Array.from({ length: LOTO_COLORS }, (_, k) => {
+                  const pair = [2 * k, 2 * k + 1];
+                  const pairFree = pair.every((tk) => view.holders[tk] === undefined || view.holders[tk] === me);
+                  const minePair = pair.every((tk) => view.mine.includes(tk));
+                  return (
+                    <li key={k} className="lt-color" style={{ '--lt-color': TICKET_COLORS[k] } as CSSProperties}>
+                      <strong>{T.colors[k]}</strong>
+                      <div className="lt-color-tickets">
+                        {pair.map((tk) => {
+                          const holder = view.holders[tk];
+                          const mineNow = holder === me;
+                          return (
+                            <button
+                              key={tk}
+                              type="button"
+                              className={`lt-pick-ticket ${mineNow ? 'mine' : ''}`}
+                              aria-pressed={mineNow}
+                              disabled={(holder !== undefined && !mineNow) || (!mineNow && !canAfford(1))}
+                              onClick={() => pick(mineNow ? view.mine.filter((x) => x !== tk) : [tk])}
+                              title={holder && !mineNow ? name(holder) : undefined}
+                            >
+                              {holder && !mineNow ? <Avatar id={holder} name={player(holder)?.name ?? name(holder)} size={20} color={color(holder)} /> : `${(tk % 2) + 1}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button type="button" className="btn btn-ghost btn-sm" disabled={!pairFree || minePair || !canAfford(2)} onClick={() => pick(pair)}>
+                        {T.takePair}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+              <div className="bc-controls">
+                <span className="muted small">{view.mine.length ? T.picked(view.mine.length, room.wallets ? money(view.mine.length * view.price) : null) : T.pickHint}</span>
+                <button className="btn btn-primary" disabled={!view.mine.length} onClick={() => send({ type: 'ready' })}>
+                  🎫 {T.done}
                 </button>
-              ))}
+              </div>
             </div>
           )}
           {playing && (
@@ -283,10 +328,10 @@ export function LotoGame({ room, view, onLeave }: Props) {
               📣 {T.kinh}
             </button>
           )}
-          {view.tickets.length > 0 && (
-            <div className={`lt-tickets count-${view.tickets.length}`}>
-              {view.tickets.map((ticket, i) => (
-                <Ticket key={i} ticket={ticket} index={i} marked={marked} onMark={toggleMark} highlight={winRows.size ? winRows : null} />
+          {view.mine.length > 0 && (
+            <div className={`lt-tickets count-${view.mine.length}`}>
+              {view.mine.map((id) => (
+                <Ticket key={id} ticket={view.set[id]} id={id} marked={marked} onMark={toggleMark} highlight={winRows.size ? winRows : null} />
               ))}
             </div>
           )}

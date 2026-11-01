@@ -595,12 +595,16 @@ export const en: Strings = {
   },
 
   loto: {
-    buyTitle: 'Get your tickets!',
-    buyPrompt: 'Pick how many tickets to play this round (up to 2).',
+    buyTitle: 'Pick your tickets!',
+    buyPrompt: 'Take one ticket, or both tickets of a colour, then tap Done.',
     buyingOthers: 'Everyone is buying tickets…',
     waitingOthers: 'Tickets bought, waiting for the others…',
-    buy: (n: number) => (n === 1 ? '1 ticket' : `${n} tickets`),
-    ticket: (n: number) => `Ticket ${n}`,
+    colors: ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'Brown'],
+    ticketName: (color: string, n: number) => `${color} ${n}`,
+    takePair: 'Take both',
+    pickHint: 'Tap a ticket to take it (a colour’s two tickets share out all 90 numbers).',
+    picked: (n: number, price: string | null) => `You have ${n === 1 ? '1 ticket' : `${n} tickets`}${price ? ` · ${price}` : ''}`,
+    done: 'Done',
     ticketCount: (n: number) => (n === 1 ? '1 ticket' : `${n} tickets`),
     firstSoon: 'The first number is coming…',
     callCount: (n: number, of: number) => `Number ${n} of ${of}`,
@@ -625,7 +629,7 @@ export const en: Strings = {
     showLog: 'Show the log',
     hideLog: 'Hide the log',
     log: {
-      buy: (who: string, n: number) => `${who} bought ${n === 1 ? '1 ticket' : `${n} tickets`}`,
+      buy: (who: string, tickets: string) => `${who} took ${tickets}`,
       call: (number: number, count: number) => `${number} (call ${count})`,
       kinh: (who: string, row: string) => `${who}: kinh! ${row}`,
       bust: (who: string) => `${who} shouted kinh wrongly and is out`,
@@ -640,8 +644,9 @@ export const en: Strings = {
       {
         title: 'Tickets',
         items: [
-          'Each round, everyone buys 1 or 2 tickets. A ticket has 9 rows of 5 numbers.',
-          'The first column holds 1–9, the next 10–19… the last 80–90. No number appears twice on a ticket.',
+          'The table has a set of 16 tickets in 8 colours, two of each. A colour’s two tickets share out all 90 numbers: a number on one is never on the other.',
+          'A ticket has 9 rows of 5 numbers. The first column holds 1–9, the next 10–19… the last 80–90.',
+          'Each player takes any one free ticket, or both tickets of a colour. A ticket someone has taken can’t be taken again; once they’re gone, the rest watch.',
         ],
       },
       {

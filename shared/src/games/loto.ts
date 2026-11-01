@@ -1,9 +1,11 @@
 import type { GameDefinition, LotoSpeed } from '../types';
 
-// Lô tô, the Vietnamese fairground and Tết number game. Everyone buys one or two tickets; the
-// house calls the numbers 1 to 90 one by one, and players mark (dò) them on their tickets. The
-// first to have all five numbers of a row called shouts "Kinh!" and takes the pot; several who
-// shout on the same number share it. A wrong shout (kinh sai) puts that player out of the game.
+// Lô tô, the Vietnamese fairground and Tết number game, played with a table set of 16 tickets in
+// 8 colours. The two tickets of a colour share out the 90 numbers between them: every number is on
+// one or the other, never both. Each player picks one ticket, or both of a colour (so no number is
+// on two of their tickets); the house calls the numbers 1 to 90 one by one and players mark (dò)
+// them. The first to have all five numbers of a row called shouts "Kinh!" and takes the pot;
+// several who shout on the same number share it. A wrong shout (kinh sai) puts that player out.
 //
 // A ticket is a 9 × 9 grid: each row holds five numbers, and each column its own tens (1–9,
 // 10–19, … 80–90), smallest at the top.
@@ -12,8 +14,11 @@ export const LOTO_MAX = 90;
 export const LOTO_ROWS = 9;
 export const LOTO_COLS = 9;
 export const LOTO_PER_ROW = 5;
+export const LOTO_COLORS = 8;
+// Tickets in the table set: two of each colour.
+export const LOTO_SET = LOTO_COLORS * 2;
 export const LOTO_MAX_TICKETS = 2;
-export const LOTO_BUY_MS = 15_000;
+export const LOTO_BUY_MS = 20_000;
 // After a valid kinh, others who also have a full row get this long to shout too.
 export const LOTO_KINH_MS = 3_000;
 export const LOTO_CALL_MS: Record<LotoSpeed, number> = { slow: 6_000, normal: 4_000, fast: 2_500 };
@@ -22,8 +27,12 @@ const LOG_LIMIT = 40;
 // rows[r][c] is a number or null for a blank cell.
 export type LotoTicket = (number | null)[][];
 
+// Ticket i of the set is colour Math.floor(i / 2); tickets 2k and 2k + 1 are a colour's pair.
+export const lotoColor = (ticket: number) => Math.floor(ticket / 2);
+export const lotoPartner = (ticket: number) => ticket ^ 1;
+
 export type LotoLogEntry =
-  | { kind: 'buy'; player: string; tickets: number }
+  | { kind: 'buy'; player: string; tickets: number[] }
   | { kind: 'call'; number: number; count: number }
   | { kind: 'kinh'; player: string; row: number[] }
   | { kind: 'bust'; player: string }
@@ -31,6 +40,7 @@ export type LotoLogEntry =
 
 export interface LotoWinner {
   player: string;
+  // Index of the ticket in the table set.
   ticket: number;
   row: number;
 }
@@ -48,9 +58,10 @@ export interface LotoState {
   price: number;
   // Wallets at the start, when the room plays for money.
   wallets: Record<string, number> | null;
-  // Tickets each player chose to buy (buy phase), then the tickets themselves.
-  buying: Record<string, number>;
-  tickets: Record<string, LotoTicket[]>;
+  // This game's table set of 16 tickets.
+  set: LotoTicket[];
+  // The tickets (indices into the set) each player has picked, then plays with.
+  picks: Record<string, number[]>;
   ready: string[];
   out: string[];
   // Shouted kinh without a full row: out of this game.
@@ -66,13 +77,16 @@ export interface LotoState {
   result: LotoResult | null;
 }
 
-export type LotoMove = { type: 'buy'; count: number } | { type: 'ready' } | { type: 'kinh' };
+// `pick`: the tickets to hold, replacing any earlier pick: none, any one free ticket, or both of a
+// colour (both free).
+export type LotoMove = { type: 'pick'; tickets: number[] } | { type: 'ready' } | { type: 'kinh' };
 
 export interface LotoView {
-  seats: { id: string; tickets: number; ready: boolean; out: boolean; busted: boolean; won: boolean }[];
-  // Your own tickets; everyone's winning rows show in `winners`.
-  tickets: LotoTicket[];
-  buying: number;
+  seats: { id: string; tickets: number[]; ready: boolean; out: boolean; busted: boolean; won: boolean }[];
+  // The table set (everyone can see the tickets on the table) and who holds which.
+  set: LotoTicket[];
+  holders: Record<number, string>;
+  mine: number[];
   price: number;
   phase: LotoState['phase'];
   called: number[];
@@ -85,50 +99,129 @@ export interface LotoView {
 
 const withLog = (s: LotoState, ...entries: LotoLogEntry[]): LotoState => ({ ...s, log: [...s.log, ...entries].slice(-LOG_LIMIT) });
 const active = (s: LotoState) => s.seats.filter((id) => !s.out.includes(id));
-const playing = (s: LotoState) => active(s).filter((id) => (s.tickets[id]?.length ?? 0) > 0 && !s.busted.includes(id));
+const held = (s: LotoState, id: string) => s.picks[id] ?? [];
+const playing = (s: LotoState) => active(s).filter((id) => held(s, id).length > 0 && !s.busted.includes(id));
+// Who holds each ticket of the set.
+const holdersOf = (s: LotoState): Record<number, string> => Object.fromEntries(Object.entries(s.picks).flatMap(([id, ts]) => ts.map((t) => [t, id])));
 
-// The numbers a column of the ticket draws from.
+// The numbers a column of a ticket draws from.
 const columnRange = (c: number): [number, number] => (c === 0 ? [1, 9] : c === LOTO_COLS - 1 ? [80, 90] : [c * 10, c * 10 + 9]);
 
-function pick<T>(items: T[], n: number, random: () => number): T[] {
+function shuffle<T>(items: T[], random: () => number): T[] {
   const pool = [...items];
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  return pool.slice(0, n);
+  return pool;
 }
 
-export function lotoTicket(random: () => number): LotoTicket {
-  const columns = Array.from({ length: LOTO_COLS }, (_, c) => c);
-  const rowCols = Array.from({ length: LOTO_ROWS }, () => pick(columns, LOTO_PER_ROW, random));
-  const rows: LotoTicket = Array.from({ length: LOTO_ROWS }, () => Array<number | null>(LOTO_COLS).fill(null));
-  for (const c of columns) {
-    const usedIn = rowCols.flatMap((cols, r) => (cols.includes(c) ? [r] : []));
-    const [lo, hi] = columnRange(c);
-    const numbers = pick(
-      Array.from({ length: hi - lo + 1 }, (_, i) => lo + i),
-      usedIn.length,
+// Which columns each of the nine rows uses, five per row, given how many numbers each column holds.
+// Each row takes the columns with the most left to place (ties at random), which always works out
+// when every row needs the same count.
+function rowLayout(counts: number[], random: () => number): number[][] {
+  const left = [...counts];
+  return Array.from({ length: LOTO_ROWS }, () => {
+    const cols = shuffle(
+      left.map((_, c) => c),
       random,
-    ).sort((a, b) => a - b);
-    usedIn.forEach((r, i) => (rows[r][c] = numbers[i]));
+    )
+      .sort((a, b) => left[b] - left[a])
+      .slice(0, LOTO_PER_ROW);
+    for (const c of cols) left[c]--;
+    return cols;
+  });
+}
+
+// Fills a ticket from its row layout and each column's numbers, smallest at the top.
+function fillTicket(layout: number[][], numbers: number[][]): LotoTicket {
+  const rows: LotoTicket = Array.from({ length: LOTO_ROWS }, () => Array<number | null>(LOTO_COLS).fill(null));
+  for (let c = 0; c < LOTO_COLS; c++) {
+    const sorted = [...numbers[c]].sort((a, b) => a - b);
+    let k = 0;
+    layout.forEach((cols, r) => {
+      if (cols.includes(c)) rows[r][c] = sorted[k++];
+    });
   }
   return rows;
 }
 
+// One colour's two tickets, sharing out all 90 numbers between them.
+export function lotoPair(random: () => number): [LotoTicket, LotoTicket] {
+  const sizes = Array.from({ length: LOTO_COLS }, (_, c) => columnRange(c)[1] - columnRange(c)[0] + 1);
+  // How many of each column's numbers go to the first ticket: about half, at most nine on either
+  // ticket (one per row), 45 in all (nine rows of five).
+  const fits = (c: number, k: number) => k >= Math.max(0, sizes[c] - LOTO_ROWS) && k <= Math.min(LOTO_ROWS, sizes[c]);
+  const first = sizes.map((n) => Math.floor(n / 2));
+  for (let total = first.reduce((a, b) => a + b, 0); total < 45; total++) {
+    const c = shuffle(
+      first.map((_, i) => i),
+      random,
+    ).find((i) => fits(i, first[i] + 1))!;
+    first[c]++;
+  }
+  // A few random swaps of one number's worth between columns, so the colours don't all look alike.
+  for (let i = 0; i < 6; i++) {
+    const [a, b] = shuffle(
+      first.map((_, c) => c),
+      random,
+    );
+    if (fits(a, first[a] + 1) && fits(b, first[b] - 1)) {
+      first[a]++;
+      first[b]--;
+    }
+  }
+  const split = sizes.map((_, c) => {
+    const [lo, hi] = columnRange(c);
+    const all = shuffle(
+      Array.from({ length: hi - lo + 1 }, (_, i) => lo + i),
+      random,
+    );
+    return [all.slice(0, first[c]), all.slice(first[c])];
+  });
+  return [
+    fillTicket(
+      rowLayout(first, random),
+      split.map(([a]) => a),
+    ),
+    fillTicket(
+      rowLayout(
+        sizes.map((n, c) => n - first[c]),
+        random,
+      ),
+      split.map(([, b]) => b),
+    ),
+  ];
+}
+
+export function lotoSet(random: () => number): LotoTicket[] {
+  return Array.from({ length: LOTO_COLORS }, () => lotoPair(random)).flat();
+}
+
 export const rowNumbers = (ticket: LotoTicket, row: number) => ticket[row].filter((n): n is number => n !== null);
 
-// The first row (on any of the tickets) whose five numbers have all been called.
-export function fullRow(tickets: LotoTicket[], called: number[]): { ticket: number; row: number } | null {
+// The first row, on any of the given tickets, whose five numbers have all been called.
+export function fullRow(tickets: LotoTicket[], called: number[]): { index: number; row: number } | null {
   const seen = new Set(called);
   for (let t = 0; t < tickets.length; t++) {
-    for (let r = 0; r < LOTO_ROWS; r++) if (rowNumbers(tickets[t], r).every((n) => seen.has(n))) return { ticket: t, row: r };
+    for (let r = 0; r < LOTO_ROWS; r++) if (rowNumbers(tickets[t], r).every((n) => seen.has(n))) return { index: t, row: r };
   }
   return null;
 }
 
+// What's wrong with a pick, if anything. A pick is nothing, one free ticket, or both (free)
+// tickets of a colour, and must be affordable.
+function pickProblem(s: LotoState, id: string, tickets: unknown): boolean {
+  if (!Array.isArray(tickets) || tickets.length > LOTO_MAX_TICKETS || !tickets.every((t) => Number.isInteger(t) && t >= 0 && t < LOTO_SET)) return true;
+  if (new Set(tickets).size !== tickets.length) return true;
+  if (tickets.length === 2 && lotoPartner(tickets[0]) !== tickets[1]) return true;
+  const holders = holdersOf(s);
+  if (tickets.some((t) => holders[t] !== undefined && holders[t] !== id)) return true;
+  return s.wallets !== null && tickets.length * s.price > s.wallets[id];
+}
+
 function finish(s: LotoState): LotoState {
-  const paid = (id: string) => (s.tickets[id]?.length ?? 0) * s.price;
+  const paid = (id: string) => held(s, id).length * s.price;
   const pot = s.seats.reduce((sum, id) => sum + paid(id), 0);
   const winnerIds = [...new Set(s.winners.map((w) => w.player))];
   const nets: Record<string, number> = {};
@@ -139,17 +232,15 @@ function finish(s: LotoState): LotoState {
   return { ...s, deadline: 0, result: { winners: s.winners, nets, ranking } };
 }
 
-// Tickets are dealt and the calling starts; with nobody buying, there is no game.
+// The calling starts with those who picked tickets; with nobody playing, there is no game.
 function startCalling(s: LotoState, now: number, random: () => number): LotoState {
-  const buyers = active(s).filter((id) => (s.buying[id] ?? 0) > 0);
-  if (buyers.length === 0) return finish(s);
-  const tickets = Object.fromEntries(buyers.map((id) => [id, Array.from({ length: s.buying[id] }, () => lotoTicket(random))]));
-  const deck = pick(
+  const picks: Record<string, number[]> = Object.fromEntries(active(s).flatMap((id) => (held(s, id).length ? [[id, held(s, id)]] : [])));
+  if (Object.keys(picks).length === 0) return finish({ ...s, picks: {} });
+  const deck = shuffle(
     Array.from({ length: LOTO_MAX }, (_, i) => i + 1),
-    LOTO_MAX,
     random,
   );
-  return withLog({ ...s, tickets, deck, called: [], phase: 'call', deadline: now + s.callMs }, ...buyers.map((id) => ({ kind: 'buy' as const, player: id, tickets: s.buying[id] })));
+  return withLog({ ...s, picks, deck, called: [], phase: 'call', deadline: now + s.callMs }, ...Object.entries(picks).map(([id, tickets]) => ({ kind: 'buy' as const, player: id, tickets })));
 }
 
 function callNext(s: LotoState, now: number): LotoState {
@@ -160,7 +251,12 @@ function callNext(s: LotoState, now: number): LotoState {
   return withLog({ ...s, deck, called, deadline: now + s.callMs }, { kind: 'call', number, count: called.length });
 }
 
-const waitingOn = (s: LotoState) => active(s).filter((id) => !s.ready.includes(id) && (s.wallets === null || s.wallets[id] >= s.price));
+// Everyone who could still play and hasn't said they're done: not broke, and holding a ticket or
+// with one still free on the table (once all 16 are taken, the rest just watch).
+const waitingOn = (s: LotoState) => {
+  const taken = Object.keys(holdersOf(s)).length;
+  return active(s).filter((id) => !s.ready.includes(id) && (s.wallets === null || s.wallets[id] >= s.price) && (held(s, id).length > 0 || taken < LOTO_SET));
+};
 
 const fail = { ok: false as const, error: 'INVALID_MOVE' as const };
 
@@ -171,13 +267,13 @@ const BOT_QUICK = 0.4;
 export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
   type: 'loto',
 
-  setup(playerIds, options, { now }, _previous, wallets) {
+  setup(playerIds, options, { now, random = Math.random }, _previous, wallets) {
     return {
       seats: [...playerIds],
       price: wallets ? options.stakePerPoint : 1,
       wallets: wallets ? Object.fromEntries(playerIds.map((id) => [id, wallets[id] ?? 0])) : null,
-      buying: {},
-      tickets: {},
+      set: lotoSet(random),
+      picks: {},
       ready: [],
       out: [],
       busted: [],
@@ -197,30 +293,32 @@ export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
     if (!state.seats.includes(playerId) || state.out.includes(playerId)) return { ok: false, error: 'NOT_A_PLAYER' };
     if (typeof move !== 'object' || move === null) return fail;
     switch (move.type) {
-      case 'buy': {
-        const count = move.count;
-        const affordable = state.wallets === null || count * state.price <= state.wallets[playerId];
-        if (state.phase !== 'buy' || state.ready.includes(playerId) || !Number.isInteger(count) || count < 0 || count > LOTO_MAX_TICKETS || !affordable) return fail;
-        return { ok: true, state: { ...state, buying: { ...state.buying, [playerId]: count } } };
+      case 'pick': {
+        if (state.phase !== 'buy' || state.ready.includes(playerId) || pickProblem(state, playerId, move.tickets)) return fail;
+        return { ok: true, state: { ...state, picks: { ...state.picks, [playerId]: [...move.tickets].sort((a, b) => a - b) } } };
       }
       case 'ready': {
-        if (state.phase !== 'buy' || state.ready.includes(playerId) || !(state.buying[playerId] > 0)) return fail;
+        if (state.phase !== 'buy' || state.ready.includes(playerId) || held(state, playerId).length === 0) return fail;
         const next = { ...state, ready: [...state.ready, playerId] };
         return { ok: true, state: waitingOn(next).length === 0 ? startCalling(next, now, random) : next };
       }
       case 'kinh': {
         if (state.phase === 'buy' || !playing(state).includes(playerId) || state.winners.some((w) => w.player === playerId)) return fail;
-        const row = fullRow(state.tickets[playerId], state.called);
-        if (!row) {
+        const mine = held(state, playerId);
+        const full = fullRow(
+          mine.map((t) => state.set[t]),
+          state.called,
+        );
+        if (!full) {
           // Kinh sai: out of this game. If nobody is left to shout, the game ends without a winner.
           const next = withLog({ ...state, busted: [...state.busted, playerId] }, { kind: 'bust', player: playerId });
           return { ok: true, state: playing(next).length === 0 && next.winners.length === 0 ? finish(next) : next };
         }
-        const winners = [...state.winners, { player: playerId, ...row }];
-        const shout: LotoLogEntry = { kind: 'kinh', player: playerId, row: rowNumbers(state.tickets[playerId][row.ticket], row.row) };
+        const ticket = mine[full.index];
+        const winners = [...state.winners, { player: playerId, ticket, row: full.row }];
+        const shout: LotoLogEntry = { kind: 'kinh', player: playerId, row: rowNumbers(state.set[ticket], full.row) };
         // The first kinh stops the calling; others with a full row may still shout for a moment.
-        const next = withLog({ ...state, winners, ...(state.phase === 'call' ? { phase: 'kinh' as const, deadline: now + LOTO_KINH_MS } : {}) }, shout);
-        return { ok: true, state: next };
+        return { ok: true, state: withLog({ ...state, winners, ...(state.phase === 'call' ? { phase: 'kinh' as const, deadline: now + LOTO_KINH_MS } : {}) }, shout) };
       }
     }
     return fail;
@@ -228,10 +326,11 @@ export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
 
   forfeit(state, playerId, { now, random = Math.random }) {
     if (state.result || !state.seats.includes(playerId) || state.out.includes(playerId)) return state;
-    // Tickets already bought stay in the pot.
-    let next = withLog({ ...state, out: [...state.out, playerId] }, { kind: 'left', player: playerId });
+    // While picking, their tickets go back on the table; once dealt, they stay paid for in the pot.
+    const picks = state.phase === 'buy' ? Object.fromEntries(Object.entries(state.picks).filter(([id]) => id !== playerId)) : state.picks;
+    let next = withLog({ ...state, picks, out: [...state.out, playerId] }, { kind: 'left', player: playerId });
     if (active(next).length === 0) return finish(next);
-    if (next.phase === 'buy' && waitingOn(next).length === 0 && active(next).some((id) => next.buying[id] > 0)) next = startCalling(next, now, random);
+    if (next.phase === 'buy' && waitingOn(next).length === 0 && active(next).some((id) => held(next, id).length > 0)) next = startCalling(next, now, random);
     else if (next.phase !== 'buy' && playing(next).length === 0 && next.winners.length === 0) next = finish(next);
     return next;
   },
@@ -244,20 +343,21 @@ export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
     return {
       seats: state.seats.map((id) => ({
         id,
-        tickets: state.phase === 'buy' ? (state.buying[id] ?? 0) : (state.tickets[id]?.length ?? 0),
+        tickets: held(state, id),
         ready: state.ready.includes(id),
         out: state.out.includes(id),
         busted: state.busted.includes(id),
         won: state.winners.some((w) => w.player === id),
       })),
-      tickets: state.tickets[playerId] ?? [],
-      buying: state.buying[playerId] ?? 0,
+      set: state.set,
+      holders: holdersOf(state),
+      mine: held(state, playerId),
       price: state.price,
       phase: state.phase,
       called: state.called,
       callMs: state.callMs,
       msLeft: state.result ? 0 : Math.max(0, state.deadline - now),
-      winners: state.winners.map((w) => ({ ...w, numbers: rowNumbers(state.tickets[w.player][w.ticket], w.row) })),
+      winners: state.winners.map((w) => ({ ...w, numbers: rowNumbers(state.set[w.ticket], w.row) })),
       log: state.log,
       result: state.result,
     };
@@ -267,7 +367,7 @@ export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
     return state.result ? null : state.deadline;
   },
 
-  // Buying time is up: deal to those who bought. Calling: the next number. After a kinh: the end.
+  // Picking time is up: those with tickets play. Calling: the next number. After a kinh: the end.
   timeout(state, { now, random = Math.random }) {
     if (state.result || now < state.deadline) return state;
     if (state.phase === 'buy') return startCalling(state, now, random);
@@ -287,21 +387,25 @@ export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
     return Object.fromEntries(state.seats.map((id) => [id, state.wallets![id] + state.result!.nets[id]]));
   },
 
-  // Bots buy a ticket or two and shout kinh when they have a row.
+  // Bots take a free ticket, or now and then a whole free colour, and shout kinh when they have a row.
   botMove(state, playerId, { random = Math.random }) {
     if (state.result || state.out.includes(playerId)) return null;
     if (state.phase === 'buy') {
       if (state.ready.includes(playerId)) return null;
-      if (state.buying[playerId] > 0) return { type: 'ready' };
-      const count = random() < 0.5 ? 1 : 2;
-      const affordable = state.wallets === null ? count : Math.min(count, Math.floor(state.wallets[playerId] / state.price));
-      return affordable > 0 ? { type: 'buy', count: affordable } : null;
+      if (held(state, playerId).length > 0) return { type: 'ready' };
+      const holders = holdersOf(state);
+      const free = Array.from({ length: LOTO_SET }, (_, t) => t).filter((t) => holders[t] === undefined);
+      const pairs = free.filter((t) => t % 2 === 0 && free.includes(t + 1));
+      const pair = pairs.length && random() < 0.4 ? pairs[Math.floor(random() * pairs.length)] : null;
+      const tickets = pair !== null ? [pair, pair + 1] : free.length ? [free[Math.floor(random() * free.length)]] : [];
+      if (tickets.length === 2 && pickProblem(state, playerId, tickets)) tickets.pop();
+      return tickets.length && !pickProblem(state, playerId, tickets) ? { type: 'pick', tickets } : null;
     }
     if (!playing(state).includes(playerId) || state.winners.some((w) => w.player === playerId)) return null;
-    const row = fullRow(state.tickets[playerId], state.called);
-    if (!row) return null;
+    const mine = held(state, playerId).map((t) => state.set[t]);
+    if (!fullRow(mine, state.called)) return null;
     // Had the row before the latest number: shout now. Just got it: only sometimes this quickly.
-    const before = fullRow(state.tickets[playerId], state.called.slice(0, -1));
+    const before = fullRow(mine, state.called.slice(0, -1));
     return before || state.phase === 'kinh' || random() < BOT_QUICK ? { type: 'kinh' } : null;
   },
 };

@@ -606,12 +606,16 @@ export const vi = {
   },
 
   loto: {
-    buyTitle: 'Mua vé đi nào!',
-    buyPrompt: 'Chọn số tờ vé cho ván này (tối đa 2).',
+    buyTitle: 'Chọn tờ đi nào!',
+    buyPrompt: 'Chọn 1 tờ, hoặc lấy trọn cặp 2 tờ cùng màu, rồi bấm Xong.',
     buyingOthers: 'Mọi người đang mua vé…',
     waitingOthers: 'Đã mua vé, chờ mọi người…',
-    buy: (n: number) => `${n} tờ`,
-    ticket: (n: number) => `Tờ ${n}`,
+    colors: ['Đỏ', 'Cam', 'Vàng', 'Lục', 'Lam', 'Tím', 'Hồng', 'Nâu'],
+    ticketName: (color: string, n: number) => `${color} ${n}`,
+    takePair: 'Lấy cả cặp',
+    pickHint: 'Chạm vào tờ muốn lấy (2 tờ cùng màu chia nhau đủ 90 số).',
+    picked: (n: number, price: string | null) => `Bạn lấy ${n} tờ${price ? ` · ${price}` : ''}`,
+    done: 'Xong',
     ticketCount: (n: number) => `${n} vé`,
     firstSoon: 'Sắp xướng số đầu tiên…',
     callCount: (n: number, of: number) => `Số thứ ${n}/${of}`,
@@ -636,7 +640,7 @@ export const vi = {
     showLog: 'Hiện diễn biến',
     hideLog: 'Ẩn diễn biến',
     log: {
-      buy: (who: string, n: number) => `${who} mua ${n} tờ`,
+      buy: (who: string, tickets: string) => `${who} lấy tờ ${tickets}`,
       call: (number: number, count: number) => `Số ${number} (thứ ${count})`,
       kinh: (who: string, row: string) => `${who} kinh: ${row}`,
       bust: (who: string) => `${who} kinh sai, bị loại`,
@@ -651,8 +655,9 @@ export const vi = {
       {
         title: 'Vé',
         items: [
-          'Mỗi ván, mỗi người mua 1 hoặc 2 tờ vé. Mỗi tờ có 9 hàng, mỗi hàng 5 số.',
-          'Cột đầu là các số 1–9, cột kế là 10–19… cột cuối là 80–90. Mỗi tờ không có số nào trùng nhau.',
+          'Bàn có bộ 16 tờ, 8 màu, mỗi màu 2 tờ. Hai tờ cùng màu chia nhau đủ 90 số: số có ở tờ này thì không có ở tờ kia.',
+          'Mỗi tờ có 9 hàng, mỗi hàng 5 số. Cột đầu là các số 1–9, cột kế là 10–19… cột cuối là 80–90.',
+          'Mỗi người lấy 1 tờ bất kỳ còn trống, hoặc trọn cặp 2 tờ cùng màu. Tờ đã có người lấy thì không lấy được nữa; hết tờ thì ngồi xem.',
         ],
       },
       {
