@@ -133,6 +133,18 @@ export function WordChainGame({ room, view, onLeave }: Props) {
     return r.ok;
   }
 
+  // Each refusal shakes the input again and keeps it focused. (Remounting it with a new key would
+  // replay the shake too, but then the first keystroke after a refusal, clearing it, remounted the
+  // input once more and lost focus mid-word.)
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el || !refusal) return;
+    el.classList.remove('refused');
+    void el.offsetWidth; // restart the CSS animation
+    el.classList.add('refused');
+    el.focus();
+  }, [refusal?.key]);
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!text.trim() || busy) return;
@@ -354,7 +366,6 @@ export function WordChainGame({ room, view, onLeave }: Props) {
             <form className="wc-form" onSubmit={submit}>
               <input
                 ref={inputRef}
-                key={refusal?.key}
                 className={`wc-input ${refusal ? 'refused' : ''}`}
                 aria-invalid={!!refusal}
                 aria-describedby={refusal ? 'wc-refusal' : undefined}
