@@ -5,5 +5,11 @@ services:
     runtime: node
     plan: free
     buildCommand: npm ci --include=dev && npm run build
-    startCommand: npm start
+    # Node runs the TypeScript server itself (through tsx's loader), without npm and the tsx CLI
+    # as extra processes in between: about 150 MB less memory on a 512 MB plan.
+    startCommand: node --import tsx server/src/index.ts
     healthCheckPath: /healthz
+    envVars:
+      # The free plan has a tenth of a CPU for the whole process: one bot worker is plenty.
+      - key: BOT_WORKERS
+        value: "1"

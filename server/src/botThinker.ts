@@ -52,7 +52,14 @@ export function answerBotRequest(
 
 // A small pool of worker threads, started on first use. A worker that crashes fails its pending
 // requests (the caller then thinks on the main thread) and is replaced on the next request.
-export function createWorkerThinker(size = Math.max(1, Math.min(2, availableParallelism() - 1))): BotThinker & { close(): Promise<void> } {
+// How many bot workers to run: BOT_WORKERS if set (a small hosting plan shares one CPU quota across
+// the whole process, so a second worker adds memory but no speed), else one per spare core, up to 2.
+export function botWorkerCount(env: string | undefined = process.env.BOT_WORKERS): number {
+  const n = Number(env);
+  return Number.isInteger(n) && n >= 1 ? Math.min(n, 8) : Math.max(1, Math.min(2, availableParallelism() - 1));
+}
+
+export function createWorkerThinker(size = botWorkerCount()): BotThinker & { close(): Promise<void> } {
   const workers: (Worker | null)[] = Array.from({ length: size }, () => null);
   const load = new Array<number>(size).fill(0);
   const pending = new Map<number, { slot: number; resolve: (pick: BotPick | null) => void; reject: (e: Error) => void }>();

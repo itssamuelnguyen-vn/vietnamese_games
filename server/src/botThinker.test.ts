@@ -23,7 +23,7 @@ vi.mock('node:worker_threads', async () => {
   return { Worker: FakeWorker };
 });
 
-const { answerBotRequest, createWorkerThinker, pickBotMove } = await import('./botThinker');
+const { answerBotRequest, botWorkerCount, createWorkerThinker, pickBotMove } = await import('./botThinker');
 
 // A game whose bots report the level they were asked to play at.
 const levelGame = {
@@ -53,5 +53,11 @@ describe('bot thinker', () => {
     worker.emit('message', { id: 1, pick: { botId: 'bot:1', move: { type: 'move', from: 'e7', to: 'e5' } } });
     await expect(pending).resolves.toEqual({ botId: 'bot:1', move: { type: 'move', from: 'e7', to: 'e5' } });
     await think.close();
+  });
+  it('runs as many workers as BOT_WORKERS says, within reason', () => {
+    expect(botWorkerCount('1')).toBe(1);
+    expect(botWorkerCount('3')).toBe(3);
+    expect(botWorkerCount('99')).toBe(8);
+    for (const bad of [undefined, '', '0', 'two', '1.5']) expect(botWorkerCount(bad)).toBeGreaterThanOrEqual(1);
   });
 });
