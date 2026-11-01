@@ -16,6 +16,10 @@ interface Props {
 }
 
 export function Lobby({ initialCode, connected }: Props) {
+  // Playable games first, then those coming soon. On phones coming-soon cards pair up two to a row;
+  // an odd one out at the end ('soon-alone') takes the whole row instead of leaving half of it empty.
+  const lobbyGames = [...Object.values(GAME_CATALOG).filter((g) => g.available), ...Object.values(GAME_CATALOG).filter((g) => !g.available)];
+  const soonCount = lobbyGames.filter((g) => !g.available).length;
   const { t } = useI18n();
   const [name, setName] = useState(() => loadSetting('vg:name') ?? '');
   const [code, setCode] = useState(initialCode.slice(0, CODE_LENGTH));
@@ -130,8 +134,8 @@ export function Lobby({ initialCode, connected }: Props) {
           <p>{t.lobby.chooseGameSubtitle}</p>
         </header>
         <div className="game-grid">
-          {Object.values(GAME_CATALOG).map((g) => (
-            <article key={g.type} className={`game-card art-${g.type} ${g.available ? '' : 'soon'}`}>
+          {lobbyGames.map((g, i) => (
+            <article key={g.type} className={`game-card art-${g.type} ${g.available ? '' : 'soon'} ${!g.available && i === lobbyGames.length - 1 && soonCount % 2 === 1 ? 'soon-alone' : ''}`}>
               <div className="game-art">
                 <GameArt type={g.type} />
                 {!g.available && <span className="ribbon">{t.lobby.comingSoon}</span>}
