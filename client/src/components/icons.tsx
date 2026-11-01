@@ -381,6 +381,22 @@ function BlackjackArt() {
   );
 }
 
+// A corner of a lô tô ticket, with a called number's ball rolling in front.
+function LotoArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="6" y="8" width="40" height="34" rx="4" fill="currentColor" opacity="0.6" transform="rotate(-8 26 25)" />
+      <g fill="var(--art-ink)" opacity="0.55" transform="rotate(-8 26 25)">
+        {[0, 1, 2].map((r) => [0, 1, 2, 3].map((c) => ((r + c) % 2 === 0 ? <rect key={`${r}${c}`} x={10 + c * 9} y={12 + r * 9} width="6" height="6" rx="1" /> : null)))}
+      </g>
+      <circle cx="42" cy="42" r="17" fill="currentColor" stroke="var(--art-ink)" strokeWidth="2" />
+      <text x="42" y="48.5" fill="var(--art-ink)" fontFamily="inherit" fontWeight="800" fontSize="18" textAnchor="middle">
+        25
+      </text>
+    </svg>
+  );
+}
+
 const ART: Record<GameType, () => ReactElement> = {
   chess: ChessArt,
   xiangqi: XiangqiArt,
@@ -393,6 +409,7 @@ const ART: Record<GameType, () => ReactElement> = {
   masoi: WolfArt,
   baucua: CrabArt,
   xidach: BlackjackArt,
+  loto: LotoArt,
 };
 
 export function GameArt({ type }: { type: GameType }) {

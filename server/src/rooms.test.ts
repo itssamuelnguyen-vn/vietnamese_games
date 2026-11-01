@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaNguaView, CaroView, ChessView, WordChainView, TienLenView, TyPhuView } from '@vg/shared';
-import { caNguaGame, caroGame, tienlenGame, xdHandValue, type BauCuaView, type TienLenState, type XiDachView } from '@vg/shared';
+import { caNguaGame, caroGame, fullRow, tienlenGame, xdHandValue, type LotoView, type BauCuaView, type TienLenState, type XiDachView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -341,7 +341,7 @@ describe('RoomManager', () => {
     expect(rooms.setOptions(A, { turnTimer: '15' }).ok).toBe(true);
     expect(rooms.start(A).ok).toBe(true);
     expect((rooms.view(room, A, allOnline).game as XiDachView).dealerId).toBeNull();
-    expect(rooms.setOptions(A, { dealer: null })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
+    expect(rooms.setOptions(A, { dealer: null, callSpeed: 'normal' })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
   });
 
   describe('play money', () => {
@@ -579,14 +579,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
@@ -841,6 +841,32 @@ describe('RoomManager', () => {
         const result = (rooms.view(room, A, allOnline).game as BauCuaView).result!;
         expect(result.ranking.toSorted()).toEqual([A, 'bot:1', 'bot:2'].toSorted());
       }
+    });
+
+    it('lô tô: the host sets the calling speed; a person and two bots play a game to the end', () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'loto');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      expect(rooms.setOptions(A, { callSpeed: 'warp' as never })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(rooms.setOptions(A, { callSpeed: 'fast' }).ok).toBe(true);
+      rooms.addBot(A);
+      rooms.addBot(A);
+      expect(rooms.start(A).ok).toBe(true);
+      expect(rooms.move(A, { type: 'buy', count: 2 }).ok).toBe(true);
+      expect(rooms.move(A, { type: 'ready' }).ok).toBe(true);
+      // The person shouts as soon as a row of theirs is complete.
+      for (let i = 0; i < 2000 && room.status === 'playing'; i++) {
+        const v = rooms.view(room, A, allOnline).game as LotoView;
+        const mine = v.seats.find((p) => p.id === A)!;
+        if (v.phase !== 'buy' && !mine.won && !mine.busted && fullRow(v.tickets, v.called)) rooms.move(A, { type: 'kinh' });
+        else vi.advanceTimersByTime(250);
+      }
+      expect(room.status).toBe('finished');
+      const result = (rooms.view(room, A, allOnline).game as LotoView).result!;
+      expect(result.winners.length).toBeGreaterThan(0);
+      expect(Object.values(result.nets).reduce((a, b) => a + b, 0)).toBe(0);
     });
 
     it('people keep sending moves, yet bots still get to act', () => {

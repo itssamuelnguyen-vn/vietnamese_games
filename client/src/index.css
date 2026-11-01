@@ -74,6 +74,7 @@
 .art-masoi { --art-a: #1c1f33; --art-b: #4a4f7a; --art-fg: #eceefc; --art-ink: #1c1f33; }
 .art-baucua { --art-a: #a2261f; --art-b: #e2603b; --art-fg: #fff2e8; --art-ink: #a2261f; }
 .art-xidach { --art-a: #14432d; --art-b: #2f7d55; --art-fg: #fffaf2; --art-ink: #14432d; }
+.art-loto { --art-a: #6a2c91; --art-b: #d4417a; --art-fg: #fff6e0; --art-ink: #6a2c91; }
 
 *,
 *::before,
@@ -712,11 +713,19 @@ main {
 
 .game-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   margin-top: 12px;
   min-height: 38px;
+}
+
+/* When the player count and the button don't fit side by side (narrow cards, longer English
+   labels), the button wraps under it, still on the right, instead of spilling past the edge. */
+.game-foot .btn {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .meta {
@@ -5491,4 +5500,204 @@ main {
 
 .stakes-note {
   max-width: 52ch;
+}
+
+/* ---- Lô tô ---- */
+
+.lt-layout .tl-main {
+  position: relative;
+}
+
+.lt-caller {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.lt-ball-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.lt-ball {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0 12%, #f5c542 13% 60%, #d48a12 100%);
+  color: #3a2408;
+  font-size: 2rem;
+  font-weight: 900;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25), inset 0 -4px 8px rgba(0, 0, 0, 0.15);
+  animation: lt-roll-in 0.45s ease;
+}
+
+.lt-ball.empty {
+  background: var(--surface-2);
+  color: var(--muted);
+  animation: none;
+}
+
+@keyframes lt-roll-in {
+  from { transform: translateX(-30px) rotate(-180deg) scale(0.6); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.lt-caller-text {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.lt-caller-text strong {
+  font-size: 1.1rem;
+}
+
+.lt-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lt-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lt-board {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lt-board li {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1.4;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.lt-board li.called {
+  background: #f5c542;
+  color: #3a2408;
+}
+
+.lt-board li.last {
+  background: #d4417a;
+  color: #fff;
+  transform: scale(1.12);
+}
+
+.lt-buy {
+  flex-wrap: wrap;
+}
+
+.lt-kinh {
+  justify-self: center;
+  min-width: 200px;
+  font-size: 1.3rem;
+  letter-spacing: 0.06em;
+}
+
+.lt-kinh.ready {
+  animation: lt-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes lt-pulse {
+  from { box-shadow: 0 0 0 0 rgba(212, 65, 122, 0.6); transform: scale(1); }
+  to { box-shadow: 0 0 0 10px rgba(212, 65, 122, 0); transform: scale(1.05); }
+}
+
+.lt-tickets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.lt-ticket {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff8e8;
+  border: 2px solid #e4c88a;
+  color: #3a2408;
+}
+
+.lt-ticket-head {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #8a5a12;
+}
+
+.lt-grid {
+  display: grid;
+  gap: 2px;
+}
+
+.lt-row {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 2px;
+  border-radius: 6px;
+}
+
+.lt-row.block-end:not(:last-child) {
+  margin-bottom: 6px;
+}
+
+.lt-row.full {
+  box-shadow: 0 0 0 2px #d4417a;
+}
+
+.lt-cell {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid #e9d6a8;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: clamp(0.7rem, 2.6vw, 0.9rem);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lt-cell.blank {
+  border-color: transparent;
+  background: #f3e2b8;
+  cursor: default;
+}
+
+.lt-cell.marked {
+  background: #d4417a;
+  border-color: #b02d61;
+  color: #fff;
+}
+
+.lt-cell.win {
+  background: #27ae60;
+  border-color: #1e8449;
+  color: #fff;
 }

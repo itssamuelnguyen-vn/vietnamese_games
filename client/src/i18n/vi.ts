@@ -1,4 +1,4 @@
-import type { BizType, BotLevel, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, SpecialKind, StreetId, Area, Deck, FortuneId, BauCuaSymbol, HandKind, Stakes, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { BizType, BotLevel, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, SpecialKind, StreetId, Area, Deck, FortuneId, BauCuaSymbol, HandKind, LotoSpeed, Stakes, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -42,6 +42,7 @@ export const vi = {
     masoi: 'Ma sói',
     baucua: 'Bầu cua',
     xidach: 'Xì dách',
+    loto: 'Lô tô',
   } satisfies Record<GameType, string>,
   gameBlurbs: {
     chess: 'Đấu trí kinh điển trên 64 ô cờ.',
@@ -55,6 +56,7 @@ export const vi = {
     masoi: 'Dân làng tìm sói, sói săn dân làng mỗi đêm.',
     baucua: 'Đặt cược bầu, cua, tôm, cá, gà, nai rồi lắc.',
     xidach: 'Rút bài cho gần 21 điểm nhất mà không quắc.',
+    loto: 'Mua vé, dò số, đủ 5 số một hàng thì hô Kinh!',
   } satisfies Record<GameType, string>,
   timeControls: {
     none: 'Không giới hạn',
@@ -598,6 +600,74 @@ export const vi = {
           'Chủ phòng có thể để máy làm cái, hoặc chỉ định một người ngồi bàn (kể cả bot) làm cái.',
           'Người làm cái không đặt cược. Họ ăn tiền đặt của những con không ra và tự trả tiền thắng bằng xu của mình.',
           'Không đủ xu để trả thì người thắng chia nhau theo tỉ lệ phần còn lại, và cuộc chơi kết thúc. Người làm cái rời bàn thì máy làm cái tiếp.',
+        ],
+      },
+    ],
+  },
+
+  loto: {
+    buyTitle: 'Mua vé đi nào!',
+    buyPrompt: 'Chọn số tờ vé cho ván này (tối đa 3).',
+    buyingOthers: 'Mọi người đang mua vé…',
+    waitingOthers: 'Đã mua vé, chờ mọi người…',
+    buy: (n: number) => `${n} tờ`,
+    ticket: (n: number) => `Tờ ${n}`,
+    ticketCount: (n: number) => `${n} vé`,
+    firstSoon: 'Sắp xướng số đầu tiên…',
+    callCount: (n: number, of: number) => `Số thứ ${n}/${of}`,
+    say: (number: string) => `Số ${number}`,
+    board: 'Các số đã xướng',
+    voice: 'Đọc số',
+    noVoice: 'Trình duyệt không có giọng đọc tiếng Việt',
+    auto: 'Tự dò',
+    markHint: 'Chạm vào số trên vé để dò. Đủ 5 số một hàng thì hô Kinh!',
+    autoHint: 'Máy đang dò giúp bạn. Hàng nào đủ 5 số thì hô Kinh!',
+    kinh: 'KINH!',
+    kinhTag: 'Kinh',
+    bustTag: 'Kinh sai',
+    busted: 'Bạn kinh sai, ván này bị loại. Ở lại xem tiếp nhé',
+    watching: 'Ván này bạn không mua vé',
+    kinhCalled: (who: string) => `${who} hô Kinh! Ai cũng đủ hàng thì hô nhanh lên…`,
+    winnersAre: (who: string) => `${who} kinh!`,
+    noWinner: 'Không ai kinh, trả lại tiền vé',
+    youWon: 'Kinh rồi! Bạn thắng!',
+    resultTitle: 'Hết ván',
+    youPaid: (amount: string) => `Bạn mất ${amount}`,
+    logTitle: 'Diễn biến',
+    log: {
+      buy: (who: string, n: number) => `${who} mua ${n} tờ`,
+      call: (number: number, count: number) => `Số ${number} (thứ ${count})`,
+      kinh: (who: string, row: string) => `${who} kinh: ${row}`,
+      bust: (who: string) => `${who} kinh sai, bị loại`,
+      left: (who: string) => `${who} đã rời bàn`,
+    },
+    speeds: { slow: 'Chậm (6 giây)', normal: 'Vừa (4 giây)', fast: 'Nhanh (2,5 giây)' } satisfies Record<LotoSpeed, string>,
+    speedLabel: 'Tốc độ xướng số',
+    priceLabel: 'Giá mỗi tờ vé',
+    rulesTitle: 'Luật chơi Lô tô',
+    rulesIntro: 'Trò chơi hội chợ, ngày Tết quen thuộc: máy làm cái xướng lần lượt các số từ 1 đến 90, ai dò đủ 5 số trên một hàng ngang trước thì hô Kinh và thắng.',
+    rules: [
+      {
+        title: 'Vé',
+        items: [
+          'Mỗi ván, mỗi người mua 1 đến 3 tờ vé. Mỗi tờ có 9 hàng, mỗi hàng 5 số.',
+          'Cột đầu là các số 1–9, cột kế là 10–19… cột cuối là 80–90. Mỗi tờ không có số nào trùng nhau.',
+        ],
+      },
+      {
+        title: 'Dò số',
+        items: [
+          'Máy xướng từng số một, theo tốc độ chủ phòng chọn. Bật Đọc số để nghe đọc (nếu trình duyệt có giọng tiếng Việt).',
+          'Chạm vào số trên vé để dò. Ai muốn nhàn thì bật Tự dò.',
+        ],
+      },
+      {
+        title: 'Kinh',
+        items: [
+          'Hàng ngang nào đủ 5 số đã xướng thì bấm KINH! Người hô đúng đầu tiên thắng cả tiền vé.',
+          'Sau tiếng kinh đầu tiên, máy ngừng xướng 3 giây: ai cũng có đủ hàng mà hô kịp thì chia nhau tiền vé.',
+          'Kinh sai (hàng chưa đủ số) thì bị loại khỏi ván, tiền vé vẫn mất.',
+          'Chơi bằng điểm: mỗi tờ vé là 1 điểm. Chơi bằng tiền ảo: giá vé do chủ phòng chọn.',
         ],
       },
     ],

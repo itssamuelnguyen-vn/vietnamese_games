@@ -1,4 +1,4 @@
-import { GAME_CATALOG, type BauCuaView, type XiDachView, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type BauCuaView, type XiDachView, type LotoView, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
@@ -9,10 +9,11 @@ import { CaroGame } from '../games/caro/CaroGame';
 import { CaNguaGame } from '../games/cangua/CaNguaGame';
 import { BauCuaGame } from '../games/baucua/BauCuaGame';
 import { XiDachGame } from '../games/xidach/XiDachGame';
+import { LotoGame } from '../games/loto/LotoGame';
 import { WordChainGame } from '../games/wordchain/WordChainGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, AddBotButton, BotTag, copyInvite, inviteLink, removeBot } from './RoomPanels';
+import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, LotoOptionsPicker, AddBotButton, BotTag, copyInvite, inviteLink, removeBot } from './RoomPanels';
 import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -41,6 +42,7 @@ export function RoomScreen({ room }: Props) {
   if (room.gameType === 'typhu') return <TyPhuGame room={room} view={room.game as TyPhuView} onLeave={leave} />;
   if (room.gameType === 'baucua') return <BauCuaGame room={room} view={room.game as BauCuaView} onLeave={leave} />;
   if (room.gameType === 'xidach') return <XiDachGame room={room} view={room.game as XiDachView} onLeave={leave} />;
+  if (room.gameType === 'loto') return <LotoGame room={room} view={room.game as LotoView} onLeave={leave} />;
   return null;
 }
 
@@ -157,6 +159,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           {room.gameType === 'cangua' && <CaNguaOptionsPicker room={room} />}
           {room.gameType === 'xidach' && <ChipGameOptionsPicker room={room} dealerNote={t.xidach.dealerNote} />}
           {room.gameType === 'baucua' && <ChipGameOptionsPicker room={room} dealerNote={t.baucua.dealerNote} />}
+          {room.gameType === 'loto' && <LotoOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>
