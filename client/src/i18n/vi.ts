@@ -103,6 +103,9 @@ export const vi = {
     placeholderTo: (name: string) => `Nhắn cho ${name}…`,
     send: 'Gửi',
     empty: 'Chưa có tin nhắn nào. Chào nhau một câu đi!',
+    open: 'Mở trò chuyện',
+    close: 'Đóng trò chuyện',
+    unread: (n: number) => `${n} tin nhắn mới`,
   },
 
   room: {

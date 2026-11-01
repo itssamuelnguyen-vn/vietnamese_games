@@ -90,6 +90,9 @@ export const en: Strings = {
     placeholderTo: (name: string) => `Message ${name}…`,
     send: 'Send',
     empty: 'No messages yet. Say hi!',
+    open: 'Open chat',
+    close: 'Close chat',
+    unread: (n: number) => (n === 1 ? '1 new message' : `${n} new messages`),
   },
 
   room: {

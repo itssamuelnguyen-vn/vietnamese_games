@@ -130,6 +130,13 @@ export const QrIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const ChatIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 20.5l1.4-5.1A8.5 8.5 0 1 1 21 11.5z" />
+    <path d="M8.5 11.5h.01M12.5 11.5h.01M16.5 11.5h.01" strokeWidth={3} />
+  </Svg>
+);
+
 export const SendIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z" />
