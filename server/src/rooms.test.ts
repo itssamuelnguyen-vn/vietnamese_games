@@ -490,11 +490,15 @@ describe('RoomManager', () => {
       rooms.addBot(A);
       rooms.addBot(A);
       expect(rooms.start(A).ok).toBe(true);
-      // Whenever it's the person's turn, they roll and skip buying.
-      for (let i = 0; i < 2000 && room.status === 'playing'; i++) {
+      // Whenever it's the person's turn, they roll and skip buying; they stay out of auctions (once
+      // bankrupt they have no say). Bots also wait for each turn's animation, scaled down with the pause.
+      for (let i = 0; i < 10_000 && room.status === 'playing'; i++) {
         const view = rooms.view(room, A, allOnline).game as TyPhuView;
-        if (view.turn === A) rooms.move(A, view.phase === 'move' ? { type: 'roll' } : view.phase === 'fly' ? { type: 'stay' } : { type: 'end' });
-        else vi.advanceTimersByTime(10);
+        const a = view.auction;
+        const playing = !view.seats.find((s) => s.id === A)!.out;
+        if (playing && a && a.from !== A && !a.passed.includes(A)) rooms.move(A, { type: 'pass' });
+        else if (playing && view.turn === A && view.phase !== 'auction') rooms.move(A, view.phase === 'move' ? { type: 'roll' } : view.phase === 'fly' ? { type: 'stay' } : { type: 'end' });
+        else vi.advanceTimersByTime(20);
       }
       expect(room.status).toBe('finished');
       expect(updates.length).toBeGreaterThan(10);
@@ -514,14 +518,21 @@ describe('RoomManager', () => {
       rooms.addBot(A);
       rooms.start(A);
       const turnOf = () => (rooms.view(room, A, allOnline).game as TyPhuView).turn;
-      // Play the people's turns until it's the bot's.
-      for (let i = 0; i < 20 && turnOf() !== 'bot:1'; i++) {
+      // Play the people's turns until it's the bot's. In auctions the people pass, and the bot
+      // gets time to answer.
+      for (let i = 0; i < 40 && turnOf() !== 'bot:1'; i++) {
         const view = rooms.view(room, A, allOnline).game as TyPhuView;
-        rooms.move(view.turn!, view.phase === 'move' ? { type: 'roll' } : view.phase === 'fly' ? { type: 'stay' } : { type: 'end' });
+        const a = view.auction;
+        const bidder = a && [A, B].find((id) => id !== a.from && !a.passed.includes(id));
+        if (a) {
+          if (bidder) rooms.move(bidder, { type: 'pass' });
+          else vi.advanceTimersByTime(1000);
+        } else rooms.move(view.turn!, view.phase === 'move' ? { type: 'roll' } : view.phase === 'fly' ? { type: 'stay' } : { type: 'end' });
       }
       expect(turnOf()).toBe('bot:1');
-      // Borrowing and repaying every half second must not keep postponing the bot.
-      for (let i = 0; i < 4 && turnOf() === 'bot:1'; i++) {
+      // Borrowing and repaying every half second must not keep postponing the bot (which first waits
+      // for the last move's animation to finish).
+      for (let i = 0; i < 10 && turnOf() === 'bot:1'; i++) {
         rooms.move(B, { type: 'borrow', amount: 50 });
         vi.advanceTimersByTime(500);
         rooms.move(B, { type: 'repay', amount: 50 });
