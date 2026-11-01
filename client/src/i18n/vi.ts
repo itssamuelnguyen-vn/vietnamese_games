@@ -151,6 +151,7 @@ export const vi = {
     hostColors: { random: 'Ngẫu nhiên', white: 'Trắng', black: 'Đen' } satisfies Record<HostColor, string>,
     requestRematch: 'Xin chơi lại',
     rematchRequested: 'Đã xin chơi lại',
+    loadingGame: 'Đang tải trò chơi…',
     dealerLabel: 'Nhà cái',
     houseDealer: 'Máy làm cái',
     roomGone: 'Phòng đã đóng (máy chủ vừa khởi động lại hoặc phòng bỏ trống lâu). Hãy tạo phòng mới nhé.',
@@ -399,6 +400,9 @@ export const vi = {
   },
 
   caro: {
+    nextFirstLabel: 'Ván sau ai đi trước',
+    loserFirst: 'Thua đi trước',
+    swapFirst: 'Đổi lượt',
     tapAgain: 'Chạm lần nữa vào ô đó để đánh, hoặc chạm ô khác để đổi.',
     x: 'Quân X',
     o: 'Quân O',
@@ -431,6 +435,7 @@ export const vi = {
         title: 'Cách chơi',
         items: [
           'X luôn đi trước. Mỗi lượt đánh một quân vào một ô trống bất kỳ.',
+          'Ván sau: mặc định người thua cầm X và đi trước (thua đi trước); ván hoà thì đổi lượt. Chủ phòng có thể chọn luôn đổi lượt.',
           'Xếp được 5 quân (hoặc nhiều hơn) liên tiếp theo hàng ngang, hàng dọc hoặc đường chéo là thắng.',
           'Bàn kín mà không ai có 5 quân thì hòa.',
         ],
@@ -738,7 +743,7 @@ export const vi = {
         items: [
           'Bài 2 đến 10 tính đúng số; J, Q, K tính 10. Lá A tính 1, 10 hoặc 11 khi trên tay có tối đa 3 lá, từ lá thứ 4 trở đi chỉ tính 1.',
           'Xì bàn: 2 lá A. Xì dách: 1 lá A với 1 lá 10, J, Q hoặc K. Ngũ linh: đủ 5 lá mà không quá 21 điểm. Quá 21 điểm là quắc.',
-          'Mạnh nhất là xì bàn, rồi xì dách, rồi ngũ linh, rồi tới điểm cao hơn. Quắc là thua.',
+          'Mạnh nhất là xì bàn, rồi xì dách, rồi ngũ linh, rồi tới điểm cao hơn. Hai bên cùng ngũ linh thì ai ít điểm hơn thắng. Quắc là thua.',
         ],
       },
       {

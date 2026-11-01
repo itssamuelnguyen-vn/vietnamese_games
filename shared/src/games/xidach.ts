@@ -78,6 +78,10 @@ export const XD_MULTIPLIER: Record<HandKind, number> = { 'xi-ban': 3, 'xi-dach':
 // Both bust is a push; a player who went bust loses just their stake, whatever the dealer holds.
 export function xdSettle(player: HandValue, dealer: HandValue): number {
   if (player.kind === 'bust') return dealer.kind === 'bust' ? 0 : -1;
+  // Ngũ linh against ngũ linh: the lower total wins (the same total is a push).
+  if (player.kind === 'ngu-linh' && dealer.kind === 'ngu-linh' && player.total !== dealer.total) {
+    return (player.total < dealer.total ? 1 : -1) * XD_MULTIPLIER['ngu-linh'];
+  }
   const p = strength(player);
   const d = strength(dealer);
   if (p > d) return XD_MULTIPLIER[player.kind];

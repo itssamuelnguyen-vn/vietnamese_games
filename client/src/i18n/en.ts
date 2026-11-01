@@ -138,6 +138,7 @@ export const en: Strings = {
     hostColors: { random: 'Random', white: 'White', black: 'Black' },
     requestRematch: 'Ask for a rematch',
     rematchRequested: 'Rematch requested',
+    loadingGame: 'Loading the game…',
     dealerLabel: 'Dealer',
     houseDealer: 'The house',
     roomGone: 'The room has closed (the server restarted, or it sat idle too long). Start a new one.',
@@ -391,6 +392,9 @@ export const en: Strings = {
   },
 
   caro: {
+    nextFirstLabel: 'Who starts the next game',
+    loserFirst: 'The loser',
+    swapFirst: 'Take turns',
     tapAgain: 'Tap the cell again to play there, or tap another to change.',
     x: 'X',
     o: 'O',
@@ -423,6 +427,7 @@ export const en: Strings = {
         title: 'How to play',
         items: [
           'X always moves first. On your turn, place one mark on any empty cell.',
+          'Next game: by default the loser takes X and moves first; after a draw, sides swap. The host can choose to always swap.',
           'Five (or more) in a row across, down or diagonally wins.',
           'If the board fills up with no five, it’s a draw.',
         ],
@@ -727,7 +732,7 @@ export const en: Strings = {
         items: [
           'Cards 2 to 10 count their number; J, Q and K count 10. An ace counts 1, 10 or 11 while you hold up to 3 cards, and 1 from the fourth card on.',
           'Xi ban: two aces. Xi dach: an ace with a 10, J, Q or K. Five cards (ngu linh): five cards without going over 21. Over 21 is bust.',
-          'Strongest is two aces, then xi dach, then five cards, then the higher total. Bust loses.',
+          'Strongest is two aces, then xi dach, then five cards, then the higher total. Five cards against five cards: the lower total wins. Bust loses.',
         ],
       },
       {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RoomOptions } from '../types';
 import { caroBoard, caroBotCell, caroGame, cellName, winningLine, type CaroMove, type CaroState } from './caro';
 
-const options: RoomOptions = { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' };
+const options: RoomOptions = { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true };
 const ctx = { now: 0 };
 const S = 15;
 const at = (r: number, c: number) => r * S + c;
@@ -103,10 +103,21 @@ describe('caro', () => {
     expect(caroGame.timeout!(s, { now: 3 * 60_000 }).result).toMatchObject({ winner: 'o', reason: 'timeout' });
   });
 
-  it('rematches swap who plays X', () => {
+  it('rematches: the loser moves first (thua đi trước); after a draw, or with the rule off, sides swap', () => {
     const first = fresh();
-    const second = caroGame.setup(['x', 'o'], options, ctx, first);
-    expect([second.x, second.o]).toEqual(['o', 'x']);
+    const undecided = caroGame.setup(['x', 'o'], options, ctx, first);
+    expect([undecided.x, undecided.o]).toEqual(['o', 'x']);
+    // O lost: O takes X. X lost: X keeps X.
+    const oLost = { ...first, result: { winner: 'x', reason: 'five' } } as CaroState;
+    expect(caroGame.setup(['x', 'o'], options, ctx, oLost)).toMatchObject({ x: 'o', o: 'x' });
+    const xLost = { ...first, result: { winner: 'o', reason: 'five' } } as CaroState;
+    expect(caroGame.setup(['x', 'o'], options, ctx, xLost)).toMatchObject({ x: 'x', o: 'o' });
+    const drawn = { ...first, result: { winner: null, reason: 'agreement' } } as CaroState;
+    expect(caroGame.setup(['x', 'o'], options, ctx, drawn)).toMatchObject({ x: 'o', o: 'x' });
+    // Always swapping instead: X lost but swaps anyway.
+    expect(caroGame.setup(['x', 'o'], { ...options, caroLoserFirst: false }, ctx, xLost)).toMatchObject({ x: 'o', o: 'x' });
+    // A new opponent: the usual choice, not the old loser rule.
+    expect(caroGame.setup(['x', 'n'], options, ctx, xLost)).toMatchObject({ x: 'x', o: 'n' });
   });
 
   describe('bot', () => {

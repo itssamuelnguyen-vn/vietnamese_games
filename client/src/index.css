@@ -5804,3 +5804,10 @@ main {
 .lt-cell.win {
   box-shadow: inset 0 0 0 3px #f5b400;
 }
+
+/* Shown for the moment a game's screen takes to download. */
+.game-loading {
+  padding: 48px 16px;
+  text-align: center;
+  font-weight: 700;
+}

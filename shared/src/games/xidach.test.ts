@@ -51,6 +51,10 @@ describe('xi dach', () => {
     // Going bust costs the stake once, even against the dealer's xì dách.
     expect(xdSettle(v(10, 8, 9), v(1, 13))).toBe(-1);
     expect(xdSettle(v(10, 8), v(10, 8))).toBe(0);
+    // Ngũ linh against ngũ linh: the lower total wins ×2; the same total is a push.
+    expect(xdSettle(v(2, 3, 2, 4, 3), v(2, 3, 4, 5, 3))).toBe(2);
+    expect(xdSettle(v(2, 3, 4, 5, 3), v(2, 3, 2, 4, 3))).toBe(-2);
+    expect(xdSettle(v(2, 3, 2, 4, 3), v(3, 2, 2, 4, 3))).toBe(0);
   });
 
   it('bets, then deals two cards each once everyone is ready, hiding others’ cards', () => {

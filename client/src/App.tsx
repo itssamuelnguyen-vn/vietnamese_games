@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RoomView } from '@vg/shared';
 import { socket } from './socket';
-import { LOCALES, useI18n, type Locale } from './i18n';
+import { LOCALES, useI18n } from './i18n';
 import { useTheme } from './theme';
 import { Lobby } from './components/Lobby';
 import { RoomScreen } from './components/RoomScreen';
@@ -80,7 +80,7 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <div className="lang-switch" role="group" aria-label={t.settings.language}>
-            {(Object.keys(LOCALES) as Locale[]).map((l) => (
+            {LOCALES.map((l) => (
               <button key={l} aria-pressed={l === locale} onClick={() => setLocale(l)}>
                 {l.toUpperCase()}
               </button>

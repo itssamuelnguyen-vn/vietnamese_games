@@ -174,7 +174,12 @@ export const caroGame: GameDefinition<CaroState, CaroMove, CaroView> = {
   type: 'caro',
 
   setup(playerIds, options, { now }, previous) {
-    const [x, o] = chooseSides(playerIds, options.hostColor, previous && [previous.x, previous.o]);
+    // Thua đi trước: after a decided game between the same two players, the loser takes X and moves
+    // first. Otherwise (a draw, new players, or the rule off) sides swap as in the other duels.
+    const loser = previous?.result?.winner && [previous.x, previous.o].find((id) => id !== previous.result!.winner);
+    const sameTwo = previous && [previous.x, previous.o].every((id) => playerIds.includes(id));
+    const [x, o] =
+      options.caroLoserFirst !== false && sameTwo && loser ? [loser, playerIds.find((id) => id !== loser)!] : chooseSides(playerIds, options.hostColor, previous && [previous.x, previous.o]);
     const tc = TIME_CONTROLS[options.timeControl];
     const clock = tc && { incrementMs: tc.incrementMs, remaining: { x: tc.initialMs, o: tc.initialMs }, turnStartedAt: null };
     const size = CARO_SIZES.includes(Number(options.caroSize)) ? Number(options.caroSize) : CARO_SIZES[0];

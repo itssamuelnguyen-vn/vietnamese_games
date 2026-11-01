@@ -142,14 +142,14 @@ describe('xiangqiGame', () => {
   });
 
   it('honours the host side and swaps on rematch', () => {
-    const first = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null);
+    const first = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null);
     expect([first.red, first.black]).toEqual([R, B]);
-    const rematch = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, first);
+    const rematch = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, first);
     expect([rematch.red, rematch.black]).toEqual([B, R]);
   });
 
   it('runs clocks and flags like chess, drawing if the opponent cannot attack', () => {
-    const timed = xiangqiGame.setup([R, B], { timeControl: '5+0', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, { now: 0 }, null);
+    const timed = xiangqiGame.setup([R, B], { timeControl: '5+0', hostColor: 'white', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, { now: 0 }, null);
     expect(xiangqiGame.deadline!(timed)).toBe(30_000);
     expect(xiangqiGame.timeout!(timed, { now: 30_000 }).result).toEqual({ winner: null, reason: 'aborted' });
 
@@ -181,9 +181,9 @@ describe('xiangqiGame', () => {
     });
 
     it('the host gives the odds on whichever side they play', () => {
-      const asRed = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'chariot', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null);
+      const asRed = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'white', handicap: 'chariot', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null);
       expect(xiangqiGame.playerView(asRed, R, ctx).startFen).toBe(handicapFen('r', 'chariot'));
-      const asBlack = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'black', handicap: 'chariot', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal' }, ctx, null);
+      const asBlack = xiangqiGame.setup([R, B], { timeControl: 'none', hostColor: 'black', handicap: 'chariot', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true }, ctx, null);
       expect(asBlack.black).toBe(R);
       expect(new Xiangqi(xiangqiGame.playerView(asBlack, R, ctx).fen).get('i9')).toBeNull();
       // Play continues from the handicap position.
