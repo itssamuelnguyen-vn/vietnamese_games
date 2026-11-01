@@ -367,14 +367,14 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
   },
 
   points(state) {
-    return state.result ? duelPoints([state.red, state.black], state.result.winner) : null;
+    return duelPoints([state.red, state.black], state.result);
   },
 
   // A bot always grants takebacks, takes a draw only when it's clearly behind, and otherwise
   // searches for its move.
   heavyBot: true,
 
-  botMove(state, playerId, { now, random }) {
+  botMove(state, playerId, { now, random, botLevel }) {
     const side = sideOf(state, playerId);
     if (state.result || !side) return null;
     const opponent = opponentOf(state, side);
@@ -388,7 +388,8 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
     }
     if (state.drawOffer === opponent) return { type: xiangqiScore(game, side) < BOT_DRAW_BELOW ? 'accept-draw' : 'decline-draw' };
     if (game.turn() !== side) return null;
-    const move = xiangqiBotMove(game, seen, { timeMs: botThinkMs(state.clock, side, now), random });
+    const level = botLevel ?? 'medium';
+    const move = xiangqiBotMove(game, seen, { timeMs: botThinkMs(state.clock, side, now, level), random, level });
     return move && { type: 'move', ...move };
   },
 

@@ -89,6 +89,21 @@ describe('bau cua', () => {
     expect(s.result.ranking).toHaveLength(3);
     expect(bauCuaGame.points!(s)).toMatchObject({ [s.result.ranking[0]]: { place: 1 } });
   });
+  it('places the same bets as last round in one go', () => {
+    let s = act(act(game(), 'a', { type: 'bet', symbol: 'cua', amount: 100 }), 'a', { type: 'bet', symbol: 'ga', amount: 50 });
+    expect(() => act(s, 'a', { type: 'repeat' })).toThrow('INVALID_MOVE');
+    s = act(act(s, 'a', { type: 'ready' }), 'b', { type: 'ready' }, faces(0, 0, 0));
+    s = bauCuaGame.timeout!(s, { now: s.deadline });
+    expect(bauCuaGame.playerView(s, 'a', { now: 0 }).lastBets).toEqual({ cua: 100, ga: 50 });
+    const before = s.chips.a;
+    s = act(s, 'a', { type: 'repeat' });
+    expect(s.bets.a).toEqual({ cua: 100, ga: 50 });
+    expect(s.chips.a).toBe(before - 150);
+    // Not twice, and not without the chips.
+    expect(() => act(s, 'a', { type: 'repeat' })).toThrow('INVALID_MOVE');
+    expect(() => act({ ...s, bets: {}, chips: { ...s.chips, a: 100 } }, 'a', { type: 'repeat' })).toThrow('INVALID_MOVE');
+  });
+
   describe('a seated banker', () => {
     const banked = (ids = ['d', 'a', 'b']) => bauCuaGame.setup(ids, { ...options, dealer: 'd' }, { now: 0 }, null);
 

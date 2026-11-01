@@ -1,3 +1,5 @@
+import type { BotLevel } from '../types';
+
 // Pieces shared by two-player board games (chess, xiangqi): clocks, side choice,
 // first-move deadlines. `S` is the game's side key, e.g. 'w' | 'b' or 'r' | 'b'.
 
@@ -68,19 +70,24 @@ export function refundIncrements<S extends string>(clock: MatchClock<S> | null, 
   return { ...clock, remaining };
 }
 
-// Points for the room scoreboard in a two-player game: +1 for a win, -1 for a loss, 0 for a draw.
-export function duelPoints(players: [string, string], winner: string | null): Record<string, { points: number; place: number }> {
-  return Object.fromEntries(
-    players.map((id) => [id, { points: winner === null ? 0 : winner === id ? 1 : -1, place: winner !== null && winner !== id ? 2 : 1 }]),
-  );
+// Points for the room scoreboard in a two-player game: +1 for a win, -1 for a loss, 0 for a draw
+// (where nobody places first, so it doesn't count as a win for either). An aborted game, never
+// really played, doesn't count at all.
+export function duelPoints(players: [string, string], result: { winner: string | null; reason: string } | null): Record<string, { points: number; place: number }> | null {
+  if (!result || result.reason === 'aborted') return null;
+  const { winner } = result;
+  return Object.fromEntries(players.map((id) => [id, { points: winner === null ? 0 : winner === id ? 1 : -1, place: winner === id ? 1 : 2 }]));
 }
 
 // How long a bot thinks over a move: about this long, less when its clock is running low.
 export const BOT_THINK_MS = 700;
+// The same by level: easy barely thinks, hard takes its time.
+export const BOT_THINK_MS_BY_LEVEL: Record<BotLevel, number> = { easy: 300, medium: BOT_THINK_MS, hard: 2500 };
 // A bot accepts a draw offer once it's behind by about this much (two pawns, or a xiangqi horse).
 export const BOT_DRAW_BELOW = -200;
 
-export function botThinkMs<S extends string>(clock: MatchClock<S> | null, side: S, now: number): number {
-  if (!clock) return BOT_THINK_MS;
-  return Math.max(50, Math.min(BOT_THINK_MS, remainingAt(clock, side, now)[side] / 30));
+export function botThinkMs<S extends string>(clock: MatchClock<S> | null, side: S, now: number, level: BotLevel = 'medium'): number {
+  const base = BOT_THINK_MS_BY_LEVEL[level] ?? BOT_THINK_MS;
+  if (!clock) return base;
+  return Math.max(50, Math.min(base, remainingAt(clock, side, now)[side] / 30));
 }

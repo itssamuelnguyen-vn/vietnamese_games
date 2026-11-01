@@ -21,6 +21,8 @@ function rulesFor(t: Strings, gameType: GameType, houseRules: HouseRuleId[], caN
   if (gameType === 'wordchain') return { title: t.wordchain.enRulesTitle, intro: t.wordchain.enRulesIntro, sections: t.wordchain.enRules };
   if (gameType === 'noitu') return { title: t.wordchain.noituRulesTitle, intro: t.wordchain.noituRulesIntro, sections: t.wordchain.noituRules };
   if (gameType === 'caro') return { title: t.caro.rulesTitle, intro: t.caro.rulesIntro, sections: t.caro.rules };
+  if (gameType === 'chess') return { title: t.chess.rulesTitle, intro: t.chess.rulesIntro, sections: t.chess.rules };
+  if (gameType === 'xiangqi') return { title: t.xiangqi.rulesTitle, intro: t.xiangqi.rulesIntro, sections: t.xiangqi.rules };
   if (gameType === 'typhu') return { title: t.typhu.rulesTitle, intro: t.typhu.rulesIntro, sections: t.typhu.rules };
   if (gameType === 'baucua') return { title: t.baucua.rulesTitle, intro: t.baucua.rulesIntro, sections: t.baucua.rules };
   if (gameType === 'xidach') return { title: t.xidach.rulesTitle, intro: t.xidach.rulesIntro, sections: t.xidach.rules };

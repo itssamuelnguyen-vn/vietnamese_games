@@ -1,4 +1,5 @@
 import { TIME_CONTROLS, type GameDefinition } from '../types';
+import { caroBotCell } from './caro-bot';
 import {
   CLOCK_START_PLY,
   chooseSides,
@@ -164,73 +165,8 @@ function takeBack(state: CaroState, requester: CaroSide, now: number): CaroState
   return { ...state, moves, clock, drawOffer: null, takebackRequest: null, firstMoveDeadline: firstMoveDeadline(clock, moves.length, now) };
 }
 
-// ---- Bot ----
-
-// Value of a run of `count` stones with `open` free ends, for attacking or defending. `stopped` counts
-// ends blocked by the opponent: only a five stopped at both ends fails under the blocked-ends rule
-// (the board edge doesn't block).
-function runScore(count: number, open: number, stopped: number, blockRule: boolean): number {
-  if (count >= 5) return blockRule && stopped === 2 ? 0 : 1_000_000;
-  if (open === 0) return 0;
-  const table: Record<number, [number, number]> = { 4: [10_000, 100_000], 3: [500, 5_000], 2: [50, 200], 1: [5, 10] };
-  return table[count][open - 1];
-}
-
-// How good placing `side` at `cell` would be for that side.
-function cellScore(board: (CaroSide | null)[], size: number, cell: number, side: CaroSide, blockRule: boolean): number {
-  const r0 = Math.floor(cell / size);
-  const c0 = cell % size;
-  const at = (r: number, c: number) => (r >= 0 && r < size && c >= 0 && c < size ? board[r * size + c] : 'edge');
-  let total = 0;
-  for (const [dr, dc] of DIRECTIONS) {
-    let count = 1;
-    let open = 0;
-    let stopped = 0;
-    for (const sign of [1, -1]) {
-      let r = r0 + dr * sign;
-      let c = c0 + dc * sign;
-      while (at(r, c) === side) {
-        count++;
-        r += dr * sign;
-        c += dc * sign;
-      }
-      const end = at(r, c);
-      if (end === null) open++;
-      else if (end !== 'edge') stopped++;
-    }
-    total += runScore(count, open, stopped, blockRule);
-  }
-  return total;
-}
-
-// Picks the cell that best combines attacking and blocking, preferring the centre on ties.
-export function caroBotCell(moves: number[], size: number, blockRule: boolean): number {
-  const center = Math.floor(size / 2) * size + Math.floor(size / 2);
-  if (moves.length === 0) return center;
-  const board = caroBoard(moves, size);
-  const side = turnOf(moves);
-  const enemy: CaroSide = side === 'x' ? 'o' : 'x';
-  const near = (cell: number) => {
-    const r = Math.floor(cell / size);
-    const c = cell % size;
-    for (let dr = -2; dr <= 2; dr++)
-      for (let dc = -2; dc <= 2; dc++) {
-        const rr = r + dr;
-        const cc = c + dc;
-        if (rr >= 0 && rr < size && cc >= 0 && cc < size && board[rr * size + cc]) return true;
-      }
-    return false;
-  };
-  let best = -1;
-  let bestScore = -1;
-  for (let cell = 0; cell < board.length; cell++) {
-    if (board[cell] || !near(cell)) continue;
-    const dist = Math.abs(Math.floor(cell / size) - Math.floor(center / size)) + Math.abs((cell % size) - (center % size));
-    const score = cellScore(board, size, cell, side, blockRule) + 0.9 * cellScore(board, size, cell, enemy, blockRule) - dist * 0.01;
-    if (score > bestScore) [best, bestScore] = [cell, score];
-  }
-  return best >= 0 ? best : board.indexOf(null);
-}
+// The bot lives in caro-bot.ts.
+export { caroBotCell } from './caro-bot';
 
 // ---- Game definition ----
 
@@ -375,17 +311,20 @@ export const caroGame: GameDefinition<CaroState, CaroMove, CaroView> = {
   },
 
   points(state) {
-    return state.result ? duelPoints([state.x, state.o], state.result.winner) : null;
+    return duelPoints([state.x, state.o], state.result);
   },
 
+  // The hard bot's threat search takes a while, so bots think off the server's main thread.
+  heavyBot: true,
+
   // Bots answer draw offers and takeback requests, then play their move.
-  botMove(state, playerId) {
+  botMove(state, playerId, { random, botLevel }) {
     const side = sideOf(state, playerId);
     if (!side || state.result) return null;
     const opponent = opponentOf(state, side);
     if (state.drawOffer === opponent) return { type: 'decline-draw' };
     if (state.takebackRequest === opponent) return { type: 'accept-takeback' };
     if (turnOf(state.moves) !== side) return null;
-    return { type: 'place', cell: caroBotCell(state.moves, state.size, state.blockRule) };
+    return { type: 'place', cell: caroBotCell(state.moves, state.size, state.blockRule, botLevel ?? 'medium', random) };
   },
 };

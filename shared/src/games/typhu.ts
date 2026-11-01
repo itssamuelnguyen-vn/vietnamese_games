@@ -173,6 +173,8 @@ export interface Business {
   level: number;
   // Total paid for it (price plus upgrades, or the takeover or auction price); counts towards net worth.
   invested: number;
+  // Month it last changed hands by trade: it doesn't count towards a route win that month.
+  tradedMonth?: number;
 }
 
 export interface TyPhuPlayer {
@@ -189,9 +191,10 @@ export interface TyPhuPlayer {
   interestWaived: boolean;
   // Month a bot last proposed a trade, so it doesn't pester people.
   lastOfferMonth: number;
-  // Fortune effects for one month: businesses can't be taken over, fees ×1.5.
-  shieldMonth: number;
-  pressMonth: number;
+  // Opportunity card effects that last until the player's next turn starts (a full round, whatever
+  // their seat): businesses can't be taken over, fees ×1.5.
+  shielded: boolean;
+  pressed: boolean;
   // The next business this player opens costs half.
   discount: boolean;
   // Flying from an opportunity card: no fee.
@@ -318,7 +321,7 @@ export interface TyPhuView {
     cards: number;
     out: boolean;
     bankrupt: boolean;
-    // This month's fortune effects.
+    // Opportunity card effects, until their next turn.
     shielded: boolean;
     pressed: boolean;
     discount: boolean;
@@ -412,8 +415,8 @@ export function yearFactor(month: number): number {
   return 1 + Math.floor((month - 1) / YEAR) * YEAR_GROWTH;
 }
 
-// What a visitor pays the owner of this business this month. `pressed` is whether the owner drew
-// the press card this month.
+// What a visitor pays the owner of this business this month. `pressed` is whether the owner is in
+// the papers (the press card, until their next turn).
 export function visitFee(businesses: Business[], b: Business, event: EventId, month = 1, pressed = false): number {
   const square = BOARD[b.square] as StreetSquare;
   const route = holdsRoute(businesses, b.owner, routeOf(b.square)) ? ROUTE_FACTOR : 1;
@@ -458,15 +461,15 @@ export function upgradable(s: Pick<TyPhuState, 'businesses'>, square: number, pl
   return s.businesses.filter((b) => b.square === square && b.owner === player && b.level < MAX_LEVEL);
 }
 
-// Rivals' businesses here that `player` could take over: not landmarks, and not shielded this month.
-export function takeoverTargets(s: Pick<TyPhuState, 'businesses' | 'players' | 'month'>, square: number, player: string): Business[] {
+// Rivals' businesses here that `player` could take over: not landmarks, and not shielded.
+export function takeoverTargets(s: Pick<TyPhuState, 'businesses' | 'players'>, square: number, player: string): Business[] {
   return s.businesses.filter((b) => {
     const owner = s.players[b.owner];
-    return b.square === square && b.owner !== player && b.level < MAX_LEVEL && owner && !owner.out && owner.shieldMonth !== s.month;
+    return b.square === square && b.owner !== player && b.level < MAX_LEVEL && owner && !owner.out && !owner.shielded;
   });
 }
 
-const isPressed = (s: Pick<TyPhuState, 'players' | 'month'>, owner: string) => s.players[owner]?.pressMonth === s.month;
+const isPressed = (s: Pick<TyPhuState, 'players'>, owner: string) => !!s.players[owner]?.pressed;
 
 // Fees a player would pay on landing here this month.
 export function feesAt(s: Pick<TyPhuState, 'businesses' | 'players' | 'month'>, square: number, player: string, event: EventId): number {
@@ -480,6 +483,14 @@ export function feesAt(s: Pick<TyPhuState, 'businesses' | 'players' | 'month'>, 
 const withLog = (s: TyPhuState, ...entries: TyPhuLogEntry[]): TyPhuState => ({ ...s, log: [...s.log, ...entries].slice(-LOG_LIMIT) });
 
 const activeIds = (s: TyPhuState) => s.seats.filter((id) => !s.players[id].out);
+
+// The order players take their turns in this month. It reverses every month, so whoever went last
+// starts the next month (two turns in a row): going early or late evens out. With a fixed order the
+// first seats won far more often (all-bot games, 4 players: 31% vs 19%), mostly by getting first
+// pick of the free slots.
+export function turnOrder(s: Pick<TyPhuState, 'seats' | 'month'>): string[] {
+  return s.month % 2 === 1 ? s.seats : [...s.seats].reverse();
+}
 
 const drawCard = (random: () => number) => 1 + Math.floor(random() * MAX_CARD);
 
@@ -547,8 +558,10 @@ function credit(s: TyPhuState, id: string, amount: number): TyPhuState {
   return updatePlayer(s, id, { cash: s.players[id].cash + amount });
 }
 
+// A player's shield and press last until their own next turn starts.
 function startTurn(s: TyPhuState, turn: string | null, now: number): TyPhuState {
-  return { ...s, turn, phase: 'move', turnDeadline: turn && s.turnLimitMs ? now + s.turnLimitMs : null };
+  const next = turn && (s.players[turn].shielded || s.players[turn].pressed) ? updatePlayer(s, turn, { shielded: false, pressed: false }) : s;
+  return { ...next, turn, phase: 'move', turnDeadline: turn && s.turnLimitMs ? now + s.turnLimitMs : null };
 }
 
 function finish(s: TyPhuState, reason: ResultReason, winner?: string): TyPhuState {
@@ -560,20 +573,42 @@ function finish(s: TyPhuState, reason: ResultReason, winner?: string): TyPhuStat
   return { ...s, turn: null, turnDeadline: null, offers: [], auction: null, result: { ranking, worth, reason } };
 }
 
-// Logs routes a player newly holds after businesses changed hands, and ends the game if someone
-// now holds enough of them.
+// Logs routes a player newly holds after businesses changed hands. Routes don't win on the spot:
+// the game is only decided at the end of the month (see routeWinner), so everyone has had the same
+// number of turns, and the rest of the table a chance to break the routes up.
 function checkRoutes(prev: TyPhuState, next: TyPhuState): TyPhuState {
   let s = next;
   for (const id of activeIds(next)) {
     const before = heldRoutes(prev.businesses, id);
     const after = heldRoutes(next.businesses, id);
     for (const route of after.filter((r) => !before.includes(r))) s = withLog(s, { kind: 'route', player: id, route, count: after.length });
-    if (after.length >= ROUTES_TO_WIN) return finish(s, 'routes', id);
   }
   return s;
 }
 
+// Routes that count towards winning at the end of this month. A business received by trade only
+// counts from the next month on, so a gift can't crown anyone.
+export function winningRoutes(s: Pick<TyPhuState, 'businesses' | 'month'>, owner: string): number[] {
+  return heldRoutes(
+    s.businesses.filter((b) => b.tradedMonth !== s.month),
+    owner,
+  );
+}
+
+// At the end of a month, whoever holds enough routes wins: the most routes, then the highest net
+// worth, then the earlier seat.
+export function routeWinner(s: TyPhuState): string | null {
+  const contenders = activeIds(s)
+    .map((id) => ({ id, routes: winningRoutes(s, id).length, worth: netWorth(s, id) }))
+    .filter((c) => c.routes >= ROUTES_TO_WIN)
+    .sort((a, b) => b.routes - a.routes || b.worth - a.worth);
+  return contenders[0]?.id ?? null;
+}
+
 function endMonth(s: TyPhuState, now: number): TyPhuState {
+  // Everyone has had their turn: routes are counted before salaries and interest.
+  const winner = routeWinner(s);
+  if (winner) return finish(s, 'routes', winner);
   const event = eventOf(s);
   let next = s;
   for (const id of activeIds(s)) {
@@ -590,16 +625,16 @@ function endMonth(s: TyPhuState, now: number): TyPhuState {
   if (s.month >= MAX_MONTHS) return finish(next, 'time');
   next = { ...next, month: s.month + 1 };
   next = withLog(next, { kind: 'month', month: next.month, event: eventOf(next) });
-  return startTurn(next, activeIds(next)[0] ?? null, now);
+  return startTurn(next, turnOrder(next).find((id) => !next.players[id].out) ?? null, now);
 }
 
-// Passes the turn on; after the last seat the month ends.
+// Passes the turn on; after the last player of the month the month ends.
 function endTurn(s: TyPhuState, now: number): TyPhuState {
   if (s.result) return s;
   if (activeIds(s).length <= 1) return finish(s, 'last', activeIds(s)[0]);
-  const from = s.turn;
-  const i = from ? s.seats.indexOf(from) : -1;
-  const later = s.seats.slice(i + 1).find((id) => !s.players[id].out);
+  const order = turnOrder(s);
+  const i = s.turn ? order.indexOf(s.turn) : -1;
+  const later = order.slice(i + 1).find((id) => !s.players[id].out);
   return later ? startTurn(s, later, now) : endMonth(s, now);
 }
 
@@ -647,10 +682,10 @@ function drawFortune(s: TyPhuState, id: string, deckName: Deck, now: number, ran
       next = updatePlayer(next, id, { discount: true });
       break;
     case 'press':
-      next = updatePlayer(next, id, { pressMonth: next.month });
+      next = updatePlayer(next, id, { pressed: true });
       break;
     case 'shield':
-      next = updatePlayer(next, id, { shieldMonth: next.month });
+      next = updatePlayer(next, id, { shielded: true });
       break;
     case 'upgrade': {
       // The cheapest of the player's businesses that can still go up a level, for free.
@@ -845,12 +880,39 @@ function validOffer(s: TyPhuState, o: Omit<TradeOffer, 'id' | 'expiresAt'>): boo
   if (!isAmount(o.giveCash) || !isAmount(o.getCash)) return false;
   if (!Array.isArray(o.give) || !Array.isArray(o.get) || new Set(o.give).size !== o.give.length || new Set(o.get).size !== o.get.length) return false;
   const owns = (ids: string[], owner: string) => ids.every((bid) => s.businesses.some((b) => b.id === bid && b.owner === owner));
-  if (!owns(o.give, o.from) || !owns(o.get, o.to)) return false;
-  return o.giveCash + o.getCash + o.give.length + o.get.length > 0;
+  return owns(o.give, o.from) && owns(o.get, o.to);
+}
+
+// Trades must be roughly fair, so nobody can hand a friend the game or dump businesses on an ally
+// before going bankrupt:
+// - at least one business changes hands, and both sides give something (no gifts);
+// - whoever hands over businesses gets back at least what the bank would pay for them (salePrice,
+//   half of what was put in), in cash or in businesses counted the same way.
+// On top of that, businesses received by trade don't count towards a route win until the next
+// month (see winningRoutes).
+export type TradeProblem = 'noBusiness' | 'oneSided' | 'underpriced';
+type TradeTerms = Pick<TradeOffer, 'giveCash' | 'getCash' | 'give' | 'get'>;
+
+const bankValue = (businesses: Business[], ids: string[]) =>
+  businesses.filter((b) => ids.includes(b.id)).reduce((sum, b) => sum + salePrice(b), 0);
+
+// How much more each side would have to receive for the trade to be fair: `from` is the one
+// making the offer, `to` the one it's made to.
+export function tradeShortfall(businesses: Business[], o: TradeTerms): { from: number; to: number } {
+  const give = bankValue(businesses, o.give);
+  const get = bankValue(businesses, o.get);
+  return { from: Math.max(0, give - o.getCash - get), to: Math.max(0, get - o.giveCash - give) };
+}
+
+export function tradeProblem(businesses: Business[], o: TradeTerms): TradeProblem | null {
+  if (o.give.length + o.get.length === 0) return 'noBusiness';
+  if (o.giveCash + o.give.length === 0 || o.getCash + o.get.length === 0) return 'oneSided';
+  const short = tradeShortfall(businesses, o);
+  return short.from > 0 || short.to > 0 ? 'underpriced' : null;
 }
 
 function applyTrade(s: TyPhuState, o: TradeOffer): TyPhuState | null {
-  if (!validOffer(s, o)) return null;
+  if (!validOffer(s, o) || tradeProblem(s.businesses, o)) return null;
   // Only money beyond what a player owes can change hands, so borrowed cash can't be passed to a
   // friend before going bankrupt or leaving.
   const spare = (id: string) => Math.max(0, s.players[id].cash - s.players[id].debt);
@@ -859,7 +921,11 @@ function applyTrade(s: TyPhuState, o: TradeOffer): TyPhuState | null {
   next = {
     ...next,
     businesses: next.businesses.map((b) =>
-      o.give.includes(b.id) ? { ...b, owner: o.to } : o.get.includes(b.id) ? { ...b, owner: o.from } : b,
+      o.give.includes(b.id)
+        ? { ...b, owner: o.to, tradedMonth: s.month }
+        : o.get.includes(b.id)
+          ? { ...b, owner: o.from, tradedMonth: s.month }
+          : b,
     ),
   };
   // Offers that relied on the traded businesses no longer make sense.
@@ -882,6 +948,11 @@ const completesRoute = (s: Pick<TyPhuState, 'businesses'>, id: string, square: n
   return ROUTES[route].every((sq) => sq === square || s.businesses.some((b) => b.square === sq && b.owner === id));
 };
 
+// Whether taking over this business would stop its owner winning at the end of the month.
+const stopsWin = (s: Pick<TyPhuState, 'businesses' | 'month'>, b: Business, by: string) =>
+  winningRoutes(s, b.owner).length >= ROUTES_TO_WIN &&
+  winningRoutes({ ...s, businesses: s.businesses.map((x) => (x.id === b.id ? { ...x, owner: by } : x)) }, b.owner).length < ROUTES_TO_WIN;
+
 // How attractive landing on a square is for a player: fees count against, chances to invest for.
 function landingScore(s: TyPhuState, id: string, square: number): number {
   const sq = BOARD[square];
@@ -891,7 +962,9 @@ function landingScore(s: TyPhuState, id: string, square: number): number {
       let score = -feesAt(s, square, id, event);
       if (freeTypes(s, square).length > 0) score += 30 + sq.tier * 10 + (completesRoute(s, id, square) ? 150 : 0);
       if (upgradable(s, square, id).length > 0) score += 40;
-      if (takeoverTargets(s, square, id).some((b) => completesRoute(s, id, b.square))) score += 120;
+      const targets = takeoverTargets(s, square, id);
+      if (targets.some((b) => completesRoute(s, id, b.square))) score += 120;
+      if (targets.some((b) => stopsWin(s, b, id) && s.players[id].cash >= takeoverPrice(b))) score += 300;
       return score;
     }
     case 'market':
@@ -943,9 +1016,12 @@ function botAct(s: TyPhuState, id: string): TyPhuMove {
   const affordable = (price: number, reserve = BOT_RESERVE) => p.cash - price >= reserve;
   const openPrice = (t: BizType) => (p.discount ? round10(bizPrice(square, t, event) / 2) : bizPrice(square, t, event));
 
-  // Completing a route matters most, whether by opening a business or taking one over.
   const types = freeTypes(s, p.position);
   const targets = takeoverTargets(s, p.position, id).sort((a, b) => takeoverPrice(a) - takeoverPrice(b));
+  // Someone holds enough routes to win at the end of the month: break one up at any price.
+  const rescue = targets.find((b) => affordable(takeoverPrice(b), 0) && stopsWin(s, b, id));
+  if (rescue) return { type: 'takeover', id: rescue.id };
+  // Then completing a route matters most, whether by opening a business or taking one over.
   if (completesRoute(s, id, p.position)) {
     const t = types.filter((x) => affordable(openPrice(x), 0)).sort((a, b) => openPrice(a) - openPrice(b))[0];
     if (t) return { type: 'buy', biz: t };
@@ -1090,8 +1166,8 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
           bankrupt: false,
           interestWaived: false,
           lastOfferMonth: 0,
-          shieldMonth: 0,
-          pressMonth: 0,
+          shielded: false,
+          pressed: false,
           discount: false,
           freeFlight: false,
         },
@@ -1149,6 +1225,7 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
       case 'offer': {
         const offer = { from: playerId, to: move.to, giveCash: move.giveCash, getCash: move.getCash, give: move.give, get: move.get };
         if (!validOffer(state, offer)) return fail;
+        if (tradeProblem(state.businesses, offer)) return { ok: false, error: 'TRADE_UNFAIR' };
         const created: TradeOffer = { ...offer, give: [...offer.give], get: [...offer.get], id: state.nextOfferId, expiresAt: now + OFFER_MS };
         // One open offer per player: a new one replaces the old.
         const offers = [...state.offers.filter((o) => o.from !== playerId), created];
@@ -1162,6 +1239,8 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
         const offer = state.offers.find((o) => o.id === move.id && o.expiresAt > now);
         if (!offer || (move.type === 'cancel' ? offer.from : offer.to) !== playerId) return fail;
         if (move.type !== 'accept') return { ok: true, state: { ...state, offers: state.offers.filter((o) => o !== offer) } };
+        // Upgrades since the offer was made can leave it short of the bank price.
+        if (validOffer(state, offer) && tradeProblem(state.businesses, offer)) return { ok: false, error: 'TRADE_UNFAIR' };
         const traded = applyTrade(state, offer);
         return traded ? { ok: true, state: traded } : fail;
       }
@@ -1238,8 +1317,9 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
         const price = takeoverPrice(biz);
         if (me.cash < price) return fail;
         let next = credit(updatePlayer(state, playerId, { cash: me.cash - price }), biz.owner, price);
+        // A takeover isn't a trade: the business counts towards the new owner's routes at once.
         next = dropOffersFor(
-          { ...next, businesses: next.businesses.map((b) => (b === biz ? { ...b, owner: playerId, invested: price } : b)) },
+          { ...next, businesses: next.businesses.map((b) => (b === biz ? { id: b.id, square: b.square, type: b.type, level: b.level, owner: playerId, invested: price } : b)) },
           [biz.id],
         );
         next = withLog(next, { kind: 'takeover', player: playerId, from: biz.owner, square: pos, biz: biz.type, price });
@@ -1300,8 +1380,8 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
           cards: p.hand.length,
           out: p.out,
           bankrupt: p.bankrupt,
-          shielded: p.shieldMonth === state.month,
-          pressed: p.pressMonth === state.month,
+          shielded: p.shielded,
+          pressed: p.pressed,
           discount: p.discount,
           freeFlight: p.freeFlight,
         };

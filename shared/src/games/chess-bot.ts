@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
-import { MATE, searchBestMove, type SearchAdapter } from './search';
+import type { BotLevel } from '../types';
+import { MATE, searchBestMove, type SearchAdapter, type SearchOptions, type SearchResult } from './search';
 
 // The chess bot: the shared alpha-beta search over chess.js, scoring positions by material and
 // where each piece stands (piece-square tables in the spirit of the well-known "simplified
@@ -114,6 +115,7 @@ interface InternalMove {
   from: number;
   to: number;
   piece: PieceType;
+  flags?: number;
   captured?: PieceType;
   promotion?: PieceType;
 }
@@ -123,41 +125,114 @@ interface ChessInternals {
   _undoMove(): unknown;
   _board: ({ type: PieceType; color: Color } | undefined)[];
   _turn: Color;
+  _hash: bigint;
   _isKingAttacked(color: Color): boolean;
+  _computeHash(): bigint;
 }
+
+// chess.js's flag for a null move (a pass).
+const NULL_MOVE = 128;
 
 export function hasFastPath(chess: Chess): boolean {
   const c = chess as unknown as Partial<ChessInternals>;
-  return typeof c._moves === 'function' && typeof c._makeMove === 'function' && typeof c._undoMove === 'function' && Array.isArray(c._board);
+  return (
+    typeof c._moves === 'function' &&
+    typeof c._makeMove === 'function' &&
+    typeof c._undoMove === 'function' &&
+    typeof c._computeHash === 'function' &&
+    typeof c._hash === 'bigint' &&
+    Array.isArray(c._board)
+  );
 }
 
 // 0x88 board index to algebraic square name.
 const squareOf = (i: number) => 'abcdefgh'[i & 15] + (8 - (i >> 4));
 
+// evaluateBoard straight off chess.js's 0x88 board, without building a piece list.
+function evaluateInternal(board: ChessInternals['_board']): number {
+  let heavy = 0;
+  for (let i = 0; i < 128; i++) {
+    if (i & 0x88) {
+      i += 7;
+      continue;
+    }
+    const p = board[i];
+    if (p && p.type !== 'p' && p.type !== 'k') heavy += VALUE[p.type];
+  }
+  const endgame = heavy <= 2 * (VALUE.q + VALUE.n);
+  let score = 0;
+  for (let i = 0; i < 128; i++) {
+    if (i & 0x88) {
+      i += 7;
+      continue;
+    }
+    const p = board[i];
+    if (!p) continue;
+    const row = i >> 4;
+    const col = i & 15;
+    const table = p.type === 'k' && endgame ? PST.kEnd : PST[p.type];
+    if (p.color === 'w') score += VALUE[p.type] + table[row * 8 + col];
+    else score -= VALUE[p.type] + table[(7 - row) * 8 + col];
+  }
+  return score;
+}
+
 function fastAdapter(chess: Chess): SearchAdapter<InternalMove> {
   const c = chess as unknown as ChessInternals;
+  const hashes: bigint[] = [];
   return {
     moves: () => c._moves({ legal: true }),
+    // Pseudo-legal moves are much cheaper; only the captures among them are checked for legality.
+    captures: () => {
+      const us = c._turn;
+      return c._moves({ legal: false }).filter((m) => {
+        if (!m.captured && !m.promotion) return false;
+        c._makeMove(m);
+        const legal = !c._isKingAttacked(us);
+        c._undoMove();
+        return legal;
+      });
+    },
     play: (m) => c._makeMove(m),
     undo: () => c._undoMove(),
     evaluate: () => {
-      const pieces: { type: PieceType; color: Color; row: number; col: number }[] = [];
+      const score = evaluateInternal(c._board);
+      return c._turn === 'w' ? score : -score;
+    },
+    noMoves: () => (c._isKingAttacked(c._turn) ? -MATE : 0),
+    captured: (m) => (m.captured ? VALUE[m.captured] || 1 : 0) + (m.promotion ? VALUE[m.promotion] : 0),
+    mover: (m) => VALUE[m.piece] || 1000,
+    key: () => c._hash,
+    // 0x88 squares are below 128.
+    moveId: (m) => m.from * 128 + m.to,
+    inCheck: () => c._isKingAttacked(c._turn),
+    // chess.js plays null moves but doesn't update its hash for them, so the hash is recomputed
+    // after the pass and put back after the undo.
+    pass: () => {
+      hashes.push(c._hash);
+      c._makeMove({ color: c._turn, from: 0, to: 0, piece: 'k', flags: NULL_MOVE } as InternalMove);
+      c._hash = c._computeHash();
+    },
+    unpass: () => {
+      c._undoMove();
+      c._hash = hashes.pop()!;
+    },
+    // Only with a piece besides pawns: king and pawn endings are full of zugzwang.
+    canPass: () => {
       for (let i = 0; i < 128; i++) {
         if (i & 0x88) {
           i += 7;
           continue;
         }
         const p = c._board[i];
-        if (p) pieces.push({ type: p.type, color: p.color, row: i >> 4, col: i & 15 });
+        if (p && p.color === c._turn && p.type !== 'p' && p.type !== 'k') return true;
       }
-      const score = evaluateBoard(pieces);
-      return c._turn === 'w' ? score : -score;
+      return false;
     },
-    noMoves: () => (c._isKingAttacked(c._turn) ? -MATE : 0),
-    captured: (m) => (m.captured ? VALUE[m.captured] || 1 : 0) + (m.promotion ? VALUE[m.promotion] : 0),
-    mover: (m) => VALUE[m.piece] || 1000,
   };
 }
+
+const squareIndex = (square: string) => (square.charCodeAt(0) - 97) * 8 + (square.charCodeAt(1) - 49);
 
 interface PublicMove {
   from: string;
@@ -182,6 +257,9 @@ function publicAdapter(chess: Chess): SearchAdapter<PublicMove> {
     noMoves: () => (chess.inCheck() ? -MATE : 0),
     captured: (m) => (m.captured ? VALUE[m.captured] || 1 : 0) + (m.promotion ? VALUE[m.promotion] : 0),
     mover: (m) => VALUE[m.piece] || 1000,
+    key: () => chess.hash(),
+    moveId: (m) => squareIndex(m.from) * 64 + squareIndex(m.to),
+    inCheck: () => chess.inCheck(),
   };
 }
 
@@ -190,19 +268,62 @@ export interface BotOptions {
   maxDepth?: number;
   random?: () => number;
   now?: () => number;
+  level?: BotLevel;
+  // How often each position of the game so far came up, by chess.js hash, so the bot can tell which
+  // moves would make a threefold repetition.
+  seen?: Map<string, number>;
 }
 
-// The bot's move in this position, or null if there is none.
-export function chessBotMove(fen: string, opts: BotOptions): ChessBotMove | null {
-  const chess = new Chess(fen);
-  // About 1.5 s of searching at the fast path's speed, should the clock stand still.
-  const search = { maxDepth: opts.maxDepth ?? 6, timeMs: opts.timeMs, margin: 15, random: opts.random, now: opts.now, maxNodes: 50_000 };
-  if (hasFastPath(chess)) {
-    const { move } = searchBestMove(fastAdapter(chess), search);
-    return move && { from: squareOf(move.from), to: squareOf(move.to), ...(move.promotion ? { promotion: move.promotion as ChessBotMove['promotion'] } : {}) };
+// How each level searches. Easy looks two plies ahead, counts exchanges only a little way, and now and
+// then settles for a worse move, as a casual player would; it still sees a mate in one, its own or
+// the opponent's. Medium is the original bot. Hard searches with the full set of engine tricks.
+// maxNodes caps the search at a few seconds of the fast path, should the clock stand still.
+export const CHESS_LEVELS: Record<BotLevel, Omit<SearchOptions, 'timeMs'>> = {
+  easy: { maxDepth: 2, captureDepth: 2, margin: 25, maxNodes: 10_000, slips: [{ chance: 0.1, margin: 350 }, { chance: 0.3, margin: 120 }] },
+  medium: { maxDepth: 6, margin: 15, maxNodes: 50_000 },
+  hard: { maxDepth: 30, margin: 5, maxNodes: 300_000, enhanced: true },
+};
+
+// Positions a game has been through, counted by chess.js hash, starting position included.
+export function seenPositions(chess: Chess): Map<string, number> {
+  const replay = new Chess();
+  const seen = new Map([[replay.hash(), 1]]);
+  for (const san of chess.history()) {
+    replay.move(san);
+    seen.set(replay.hash(), (seen.get(replay.hash()) ?? 0) + 1);
   }
-  const { move } = searchBestMove(publicAdapter(chess), search);
-  return move && { from: move.from, to: move.to, ...(move.promotion ? { promotion: move.promotion as ChessBotMove['promotion'] } : {}) };
+  return seen;
+}
+
+// The bot's move in this position, or null if there is none. With `seen`, a move that repeats a
+// position for the third time counts as a draw: taken only when everything else is clearly worse.
+export function chessBotMove(fen: string, opts: BotOptions): ChessBotMove | null {
+  return chessBotSearch(fen, opts).move;
+}
+
+// The same, with how deep the search got and how many positions it looked at.
+export function chessBotSearch(fen: string, opts: BotOptions): SearchResult<ChessBotMove> {
+  const chess = new Chess(fen);
+  const level = CHESS_LEVELS[opts.level ?? 'medium'];
+  const seen = opts.seen;
+  const search = { ...level, maxDepth: opts.maxDepth ?? level.maxDepth, timeMs: opts.timeMs, random: opts.random, now: opts.now };
+  // Root moves that would bring a position back for the third time.
+  const drawsIn = <M>(a: SearchAdapter<M>) =>
+    seen &&
+    ((m: M) => {
+      a.play(m);
+      const count = seen.get(chess.hash()) ?? 0;
+      a.undo();
+      return count >= 2;
+    });
+  if (hasFastPath(chess)) {
+    const adapter = fastAdapter(chess);
+    const { move, ...rest } = searchBestMove(adapter, { ...search, draws: drawsIn(adapter) });
+    return { ...rest, move: move && { from: squareOf(move.from), to: squareOf(move.to), ...(move.promotion ? { promotion: move.promotion as ChessBotMove['promotion'] } : {}) } };
+  }
+  const adapter = publicAdapter(chess);
+  const { move, ...rest } = searchBestMove(adapter, { ...search, draws: drawsIn(adapter) });
+  return { ...rest, move: move && { from: move.from, to: move.to, ...(move.promotion ? { promotion: move.promotion as ChessBotMove['promotion'] } : {}) } };
 }
 
 // How the position looks to the side to move, for deciding on draw offers.

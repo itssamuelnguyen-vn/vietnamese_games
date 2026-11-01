@@ -18,8 +18,14 @@ interface BoardProps {
   line: number[] | null;
   // The mark shown as a preview under the pointer when it's our move; null when we can't move.
   ghost: CaroSide | null;
+  // On touch screens, the cell picked by a first tap: a second tap there places the mark.
+  armed: number | null;
   onPlace: (cell: number) => void;
 }
+
+// Touch screens confirm a move with a second tap: cells are small on a phone, and a takeback
+// needs the opponent's say-so.
+const TOUCH = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 // Drawn rather than typed, so marks fill the cell at any board size.
 export function CaroMark({ side }: { side: CaroSide }) {
@@ -31,7 +37,7 @@ export function CaroMark({ side }: { side: CaroSide }) {
 }
 
 // Memoized so the clock ticking in the surrounding screen doesn't redraw hundreds of cells.
-const CaroBoard = memo(function CaroBoard({ size, moves, line, ghost, onPlace }: BoardProps) {
+const CaroBoard = memo(function CaroBoard({ size, moves, line, ghost, armed, onPlace }: BoardProps) {
   const board = useMemo(() => caroBoard(moves, size), [moves, size]);
   const last = moves.at(-1);
   const winning = useMemo(() => new Set(line ?? []), [line]);
@@ -41,13 +47,13 @@ const CaroBoard = memo(function CaroBoard({ size, moves, line, ghost, onPlace }:
         <button
           key={cell}
           type="button"
-          className={['caro-cell', mark ?? 'empty', cell === last ? 'last' : '', winning.has(cell) ? 'win' : ''].join(' ')}
+          className={['caro-cell', mark ?? 'empty', cell === last ? 'last' : '', winning.has(cell) ? 'win' : '', cell === armed && !mark ? 'armed' : ''].join(' ')}
           disabled={!ghost || mark !== null}
           onClick={() => onPlace(cell)}
           aria-label={`${cellName(cell, size)}${mark ? ` ${mark.toUpperCase()}` : ''}`}
           title={cellName(cell, size)}
         >
-          {mark && <CaroMark side={mark} />}
+          {mark ? <CaroMark side={mark} /> : cell === armed && ghost && <CaroMark side={ghost} />}
         </button>
       ))}
     </div>
@@ -69,6 +75,8 @@ export function CaroGame({ room, view, onLeave }: Props) {
   const shownMoves = useMemo(() => (optimistic !== null ? [...view.moves, optimistic] : view.moves), [view.moves, optimistic]);
   // Also on a result: a move sent after the flag fell ends the game without being placed.
   useEffect(() => setPending(null), [view.moves.length, !!view.result]);
+  const [armed, setArmed] = useState<number | null>(null);
+  useEffect(() => setArmed(null), [view.moves.length]);
 
   async function send(move: CaroMove) {
     const r = await api.move(move);
@@ -81,6 +89,8 @@ export function CaroGame({ room, view, onLeave }: Props) {
   const place = useRef((_cell: number) => {});
   place.current = (cell: number) => {
     if (!canMoveRef.current || optimistic !== null) return;
+    if (TOUCH && armed !== cell) return setArmed(cell);
+    setArmed(null);
     setPending({ cell, ply: view.moves.length });
     void send({ type: 'place', cell }).then((ok) => !ok && setPending(null));
   };
@@ -100,7 +110,7 @@ export function CaroGame({ room, view, onLeave }: Props) {
     const moves = reviewing ? (slices[ply - 1] ?? EMPTY) : shownMoves;
     const line = !reviewing && view.result?.line ? view.result.line : null;
     const ghost = canMove && optimistic === null && mySide && turnOf(view.moves) === mySide ? mySide : null;
-    return <CaroBoard size={view.size} moves={moves} line={line} ghost={ghost} onPlace={onPlace} />;
+    return <CaroBoard size={view.size} moves={moves} line={line} ghost={ghost} armed={reviewing ? null : armed} onPlace={onPlace} />;
   }
 
   return (
@@ -116,6 +126,7 @@ export function CaroGame({ room, view, onLeave }: Props) {
       gameStarted={t.caro.gameStarted}
       noMoves={t.caro.noMoves}
       lastMoveText={lastMoveText}
+      extraStatus={armed !== null ? [t.caro.tapAgain] : undefined}
       soundForPly={() => 'move'}
       renderBoard={renderBoard}
       movesTools={<span className="muted small">{view.blockRule ? t.caro.blockTagOn : t.caro.blockTagOff}</span>}

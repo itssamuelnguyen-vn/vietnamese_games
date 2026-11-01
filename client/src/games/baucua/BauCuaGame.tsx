@@ -118,6 +118,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
   const shown = view.phase === 'reveal' && !shaking ? view.dice : null;
   const hitsOf = (s: BauCuaSymbol) => (shown ? shown.filter((d) => d === s).length : 0);
   const myBets = view.bets[me] ?? {};
+  const repeatTotal = Object.values(view.lastBets).reduce((sum, n) => sum + (n ?? 0), 0);
   const myPlace = view.result ? view.result.ranking.indexOf(me) + 1 : 0;
 
   let status: string;
@@ -285,6 +286,11 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
               <button className="btn btn-ghost" disabled={!betting || mySeat.staked === 0} onClick={() => send({ type: 'clear' })}>
                 {B.clear}
               </button>
+              {repeatTotal > 0 && mySeat.staked === 0 && (
+                <button className="btn btn-secondary" disabled={!betting || mySeat.chips < repeatTotal} onClick={() => send({ type: 'repeat' })}>
+                  ↻ {B.repeat(money(repeatTotal))}
+                </button>
+              )}
               <button className="btn btn-primary" disabled={!betting} onClick={() => send({ type: 'ready' })}>
                 🎲 {B.ready}
               </button>

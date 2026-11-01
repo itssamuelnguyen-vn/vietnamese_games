@@ -496,6 +496,34 @@ describe('bots', () => {
     expect(playOf(s)).toBe('5s 5c 5d 5h');
   });
 
+  it('against an opponent on one card, leads something they cannot go out on', () => {
+    expect(playOf(table({ a: '3s 5c 8d Qs Qc Ah', b: 'Kh' }))).toBe('Qs Qc');
+    // Only singles to lead: the highest.
+    expect(playOf(table({ a: '3s 8d Ah', b: 'Kh' }))).toBe('Ah');
+    // On two cards, not a pair.
+    expect(playOf(table({ a: '3s 3c 9d', b: 'Kh Kd' }))).toBe('9d');
+  });
+
+  it('beats a single as high as it can when the next player is on one card', () => {
+    const trick = { cards: cards('4c'), combo: combo('4c'), by: 'b', chop: false };
+    expect(playOf(table({ a: '5s 9c Jd Kh', b: '6s 7s 8s 9s', c: 'Qh' }, { trick, turn: 'a' }))).toBe('Kh');
+  });
+
+  it('chops a 2 out of turn with four pairs in a row, when the table allows it', () => {
+    const trick = { cards: cards('2h'), combo: combo('2h'), by: 'b', chop: false };
+    const s = table({ a: '3s 3c 4s 4c 5s 5c 6s 6c 9h', b: '7s 8s', c: 'Ts Js Qs' }, { trick, turn: 'c', rules: ['four-pairs-anytime'] });
+    expect(playOf(s)).toBe('3s 3c 4s 4c 5s 5c 6s 6c');
+    expect(bot({ ...s, rules: [] })).toBeNull();
+  });
+
+  it('under the scoring rule, sheds 2s late rather than pay for them', () => {
+    // Only the 2 beats the ace. Without the scoring rule the bot keeps it for later.
+    const trick = { cards: cards('Ac'), combo: combo('Ac'), by: 'b', chop: false };
+    const s = table({ a: '5s 9c Jd Qd Kh 2h', b: '3s 4s 6s 7s 8s 8c Td Th' }, { trick, turn: 'a' });
+    expect(playOf(s)).toBe('pass');
+    expect(playOf({ ...s, rules: ['penalties'] })).toBe('2h');
+  });
+
   it('under no-two-finish, never leaves itself holding only 2s', () => {
     const s = table({ a: '9d 2h', b: '3s 4s 5s' }, { rules: ['no-two-finish'] });
     expect(playOf(s)).toBe('2h');

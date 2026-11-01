@@ -1,5 +1,7 @@
 import { randomInt } from 'node:crypto';
 import {
+  BOT_LEVELS,
+  DEFAULT_BOT_LEVEL,
   DEFAULT_ROOM_OPTIONS,
   GAME_CATALOG,
   HANDICAPS,
@@ -22,6 +24,7 @@ import {
   STAKES_PER_POINT,
   WALLET_STARTS,
   xiangqiGame,
+  type BotLevel,
   type ChatMessage,
   type TallyEntry,
   ABANDON_CLAIM_MS,
@@ -58,6 +61,8 @@ interface Player {
   id: string;
   name: string;
   bot?: boolean;
+  // How strong a bot plays, in games whose bots have levels.
+  botLevel?: BotLevel;
   // A spectator who chose to watch: not seated automatically when a seat frees up.
   watching?: boolean;
 }
@@ -156,8 +161,8 @@ export class RoomManager {
     this.thinker = thinker;
   }
 
-  private ctx() {
-    return { now: this.clock(), random: this.random };
+  private ctx(botLevel?: BotLevel) {
+    return { now: this.clock(), random: this.random, ...(botLevel ? { botLevel } : {}) };
   }
 
   roomOf(playerId: string): Room | undefined {
@@ -297,17 +302,21 @@ export class RoomManager {
     return (people.find((p) => this.isConnected(p.id)) ?? people[0])?.id;
   }
 
-  // The host can fill empty seats with computer players between games.
-  addBot(playerId: string): Result<{ room: Room }> {
+  // The host can fill empty seats with computer players between games, picking how strong each one
+  // plays in games whose bots have levels (medium when not given; ignored in other games).
+  addBot(playerId: string, level?: unknown): Result<{ room: Room }> {
     const room = this.roomOf(playerId);
     if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
     if (room.hostId !== playerId) return { ok: false, error: 'NOT_HOST' };
     if (room.status === 'playing') return { ok: false, error: 'GAME_IN_PROGRESS' };
     if (!GAMES[room.gameType]?.botMove) return { ok: false, error: 'GAME_UNAVAILABLE' };
+    if (level !== undefined && level !== null && !BOT_LEVELS.includes(level as BotLevel)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (room.players.length >= GAME_CATALOG[room.gameType].maxPlayers) return { ok: false, error: 'ROOM_FULL' };
     let n = 1;
     while (room.players.some((p) => p.id === `${BOT_PREFIX}${n}`)) n++;
-    room.players.push({ id: `${BOT_PREFIX}${n}`, name: `Bot ${n}`, bot: true });
+    const bot: Player = { id: `${BOT_PREFIX}${n}`, name: `Bot ${n}`, bot: true };
+    if (GAME_CATALOG[room.gameType].botLevels) bot.botLevel = (level as BotLevel | null | undefined) ?? DEFAULT_BOT_LEVEL;
+    room.players.push(bot);
     // A new bot starts with a full wallet, even if an earlier one with its name went broke.
     delete room.wallets[`${BOT_PREFIX}${n}`];
     room.rematchVotes = [];
@@ -524,10 +533,10 @@ export class RoomManager {
     offlineSince: (id: string) => number | null = () => null,
   ): RoomView {
     const now = this.clock();
-    const info = ({ id, name, bot = false }: Player) => {
+    const info = ({ id, name, bot = false, botLevel }: Player) => {
       const connected = bot || isConnected(id);
       const since = connected ? null : offlineSince(id);
-      return { id, name, bot, connected, offlineMs: since === null ? null : Math.max(0, now - since) };
+      return { id, name, bot, connected, offlineMs: since === null ? null : Math.max(0, now - since), ...(botLevel ? { botLevel } : {}) };
     };
     return {
       you: playerId,
@@ -664,7 +673,7 @@ export class RoomManager {
       for (const bot of room.players.filter((p) => p.bot)) {
         let move: unknown;
         try {
-          move = game.botMove!(room.state, bot.id, this.ctx());
+          move = game.botMove!(room.state, bot.id, this.ctx(bot.botLevel));
         } catch {
           continue;
         }
@@ -684,7 +693,7 @@ export class RoomManager {
   private thinkElsewhere(room: Room, thinker: BotThinker): void {
     const game = GAMES[room.gameType]!;
     const state = room.state;
-    const bots = room.players.filter((p) => p.bot).map((p) => p.id);
+    const bots = room.players.filter((p) => p.bot).map((p) => ({ id: p.id, ...(p.botLevel ? { level: p.botLevel } : {}) }));
     this.thinking.add(room.code);
     thinker(room.gameType, state, bots, this.clock())
       .catch(() => pickBotMove(game, state, bots, this.ctx()))

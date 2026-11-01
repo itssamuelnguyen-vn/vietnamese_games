@@ -12,7 +12,7 @@ import { XiDachGame } from '../games/xidach/XiDachGame';
 import { WordChainGame } from '../games/wordchain/WordChainGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
+import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, AddBotButton, BotTag, copyInvite, inviteLink, removeBot } from './RoomPanels';
 import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -118,11 +118,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                     <span className="seat-name">
                       <Ellipsis text={t.room.emptySeat} />
                     </span>
-                    {offerBot && (
-                      <button className="btn btn-secondary btn-sm" onClick={() => addBot(t)}>
-                        🤖 {t.room.addBot}
-                      </button>
-                    )}
+                    {offerBot && <AddBotButton room={room} />}
                   </li>
                 );
               }
@@ -138,7 +134,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
                       </span>
                     )}
                     {p.id === room.you && <span className="tag">{t.room.you}</span>}
-                    {p.bot && <span className="tag">🤖 {t.room.botTag}</span>}
+                    {p.bot && <BotTag player={p} />}
                     {!p.connected && <span className="tag tag-muted">{t.room.offline}</span>}
                   </span>
                   {p.bot && isHost && (

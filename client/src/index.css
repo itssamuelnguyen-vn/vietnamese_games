@@ -1118,6 +1118,23 @@ main {
   opacity: 0.6;
 }
 
+.chip.chip-sm {
+  padding: 3px 9px;
+  font-size: 0.75rem;
+}
+
+.add-bot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-bot .chip-group {
+  justify-content: center;
+  gap: 4px;
+}
+
 .chip.static {
   cursor: default;
   background: var(--surface-2);
@@ -2962,6 +2979,22 @@ main {
   }
 }
 
+/* An incoming offer over the board, for phones (see the 860px breakpoint). */
+.offer-banner {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--gold-soft);
+  animation: fade-in 0.2s ease;
+}
+
+.offer-banner strong {
+  flex: 1 1 100%;
+}
+
 /* Responsive */
 
 @media (max-width: 1180px) {
@@ -2980,6 +3013,10 @@ main {
 @media (max-width: 860px) {
   .game-layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .offer-banner {
+    display: flex;
   }
 
   .game-center {
@@ -3943,7 +3980,20 @@ main {
 
 .tp-trade-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.tp-trade-hint {
+  flex: 1 1 200px;
+}
+
+.tp-pending-win {
+  max-width: 92%;
+  font-size: 1.9cqw;
+  text-align: center;
 }
 
 @media (max-width: 560px) {
@@ -4066,6 +4116,16 @@ main {
 
 .caro-cell.last {
   background: #ffe9a8;
+}
+
+/* Picked by a first tap on a touch screen, waiting for the second. */
+.caro-cell.armed {
+  background: #d9f0d2;
+  box-shadow: inset 0 0 0 2px #27ae60;
+}
+
+.caro-cell.armed .caro-mark {
+  opacity: 0.55;
 }
 
 .caro-cell.win {

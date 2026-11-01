@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaNguaView, CaroView, ChessView, WordChainView, TienLenView, TyPhuView } from '@vg/shared';
-import { caNguaGame, tienlenGame, xdHandValue, type BauCuaView, type TienLenState, type XiDachView } from '@vg/shared';
+import { caNguaGame, caroGame, tienlenGame, xdHandValue, type BauCuaView, type TienLenState, type XiDachView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -671,6 +671,67 @@ describe('RoomManager', () => {
       const { rooms } = typhuRoom();
       for (let i = 0; i < 5; i++) expect(rooms.addBot(A).ok).toBe(true);
       expect(rooms.addBot(A)).toEqual({ ok: false, error: 'ROOM_FULL' });
+    });
+
+    it('bots get the level the host picks, in games whose bots have levels', () => {
+      const rooms = new RoomManager({ botDelayMs: 10 });
+      const created = rooms.create(A, 'An', 'chess');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      for (const bad of ['impossible', 42, {}, 'HARD']) expect(rooms.addBot(A, bad)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+      expect(room.players).toHaveLength(1);
+      expect(rooms.addBot(A, 'hard').ok).toBe(true);
+      expect(room.players[1]).toMatchObject({ id: 'bot:1', botLevel: 'hard' });
+      expect(rooms.view(room, A, allOnline).players[1]).toMatchObject({ bot: true, botLevel: 'hard' });
+      // No level (or null, from a client that sent none): medium.
+      expect(rooms.removeBot(A, 'bot:1').ok).toBe(true);
+      expect(rooms.addBot(A, null).ok).toBe(true);
+      expect(room.players[1].botLevel).toBe('medium');
+
+      // Games without levels take a level without complaint, and ignore it.
+      const { rooms: other, room: typhu } = typhuRoom();
+      expect(other.addBot(A, 'easy').ok).toBe(true);
+      expect(other.addBot(A).ok).toBe(true);
+      expect(typhu.players.every((p) => p.botLevel === undefined)).toBe(true);
+      expect(other.view(typhu, A, allOnline).players.every((p) => !('botLevel' in p))).toBe(true);
+      expect(other.addBot(A, 'insane')).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+    });
+
+    it('each bot moves at its own level, on the main thread and through the thinker', async () => {
+      vi.useFakeTimers();
+      // Inline (no thinker): botMove sees the level in its context.
+      const seen: (string | undefined)[] = [];
+      const spy = vi.spyOn(caroGame, 'botMove').mockImplementation((state, playerId, ctx) => {
+        seen.push(ctx.botLevel);
+        return null;
+      });
+      try {
+        const rooms = new RoomManager({ botDelayMs: 10 });
+        const created = rooms.create(A, 'An', 'caro');
+        if (!created.ok) throw new Error(created.error);
+        rooms.setOptions(A, { timeControl: 'none' });
+        rooms.addBot(A, 'easy');
+        rooms.start(A);
+        vi.advanceTimersByTime(10);
+        expect(seen).toEqual(['easy']);
+      } finally {
+        spy.mockRestore();
+      }
+
+      // Through a thinker: the request names each bot with its level.
+      const asked: unknown[] = [];
+      const thinker = (_type: string, _state: unknown, bots: unknown) => {
+        asked.push(bots);
+        return Promise.resolve(null);
+      };
+      const rooms = new RoomManager({ botDelayMs: 10, thinker });
+      const created = rooms.create(A, 'An', 'xiangqi');
+      if (!created.ok) throw new Error(created.error);
+      rooms.setOptions(A, { hostColor: 'black', timeControl: 'none' });
+      rooms.addBot(A, 'hard');
+      rooms.start(A);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(asked[0]).toEqual([{ id: 'bot:1', level: 'hard' }]);
     });
 
     it('bots play on their own, and a game with one person and bots runs to the end', async () => {

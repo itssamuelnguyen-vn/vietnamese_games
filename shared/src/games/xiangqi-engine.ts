@@ -51,6 +51,9 @@ const onBoard = (f: number, r: number) => f >= 0 && f <= 8 && r >= 0 && r <= 9;
 const inPalace = (side: XSide, f: number, r: number) => f >= 3 && f <= 5 && (side === 'r' ? r <= 2 : r >= 7);
 const ownHalf = (side: XSide, r: number) => (side === 'r' ? r <= 4 : r >= 5);
 const forward = (side: XSide) => (side === 'r' ? 1 : -1);
+const LINES: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+// Where a horse attacking the general stands, relative to it (negated).
+const HORSE_ATTACKS: readonly (readonly [number, number])[] = [[1, 2], [-1, 2], [1, -2], [-1, -2], [2, 1], [2, -1], [-2, 1], [-2, -1]];
 
 export class Xiangqi {
   private grid: Grid;
@@ -312,39 +315,44 @@ export class Xiangqi {
     if (!own) return true;
     const [gf, gr] = own;
     const enemy = other(side);
-    const at = (f: number, r: number) => (onBoard(f, r) ? this.grid[r][f] : null);
-    const is = (p: XPiece | null, type: XPieceType) => !!p && p.side === enemy && p.type === type;
+    const grid = this.grid;
 
     // Along each line: the first piece met may be a chariot (or the facing general, on the file);
     // the piece after the first one may be a cannon.
-    for (const [df, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    for (const [df, dr] of LINES) {
       let screens = 0;
       for (let f = gf + df, r = gr + dr; onBoard(f, r); f += df, r += dr) {
-        const p = this.grid[r][f];
+        const p = grid[r][f];
         if (!p) continue;
         if (screens === 0) {
-          if (is(p, 'r') || (df === 0 && is(p, 'k'))) return true;
+          if (p.side === enemy && (p.type === 'r' || (df === 0 && p.type === 'k'))) return true;
           screens = 1;
         } else {
-          if (is(p, 'c')) return true;
+          if (p.side === enemy && p.type === 'c') return true;
           break;
         }
       }
     }
 
     // Horses: one orthogonal step then one diagonal, hobbled by a piece next to the horse.
-    for (const [df, dr] of [[1, 2], [-1, 2], [1, -2], [-1, -2], [2, 1], [2, -1], [-2, 1], [-2, -1]] as const) {
-      const [hf, hr] = [gf - df, gr - dr];
-      if (!is(at(hf, hr), 'n')) continue;
-      const leg = Math.abs(dr) === 2 ? at(hf, hr + Math.sign(dr)) : at(hf + Math.sign(df), hr);
+    for (const [df, dr] of HORSE_ATTACKS) {
+      const hf = gf - df;
+      const hr = gr - dr;
+      if (!onBoard(hf, hr)) continue;
+      const h = grid[hr][hf];
+      if (!h || h.side !== enemy || h.type !== 'n') continue;
+      const leg = Math.abs(dr) === 2 ? grid[hr + Math.sign(dr)][hf] : grid[hr][hf + Math.sign(df)];
       if (!leg) return true;
     }
 
     // Soldiers: straight ahead from their side, and sideways once across the river.
-    if (is(at(gf, gr - forward(enemy)), 'p')) return true;
-    for (const df of [1, -1]) {
-      if (is(at(gf + df, gr), 'p') && !ownHalf(enemy, gr)) return true;
-    }
+    const isSoldier = (f: number, r: number) => {
+      if (!onBoard(f, r)) return false;
+      const p = grid[r][f];
+      return !!p && p.side === enemy && p.type === 'p';
+    };
+    if (isSoldier(gf, gr - forward(enemy))) return true;
+    if (!ownHalf(enemy, gr) && (isSoldier(gf + 1, gr) || isSoldier(gf - 1, gr))) return true;
     return false;
   }
 

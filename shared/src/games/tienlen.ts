@@ -449,9 +449,16 @@ const isStrong = (cards: Card[]) => {
 // What a bot plays on its turn: leading, the lowest combination its plan would play anyway (2s and
 // bombs last); following, the cheapest beat that doesn't break up its hand, holding 2s and bombs
 // back unless someone is about to go out, the hand is nearly done, or there's a 2 to chop.
+// Against an opponent down to one or two cards (báo), it doesn't lead what they could go out on.
+// Out of turn, it chops a 2 with four pairs in a row when the table allows that.
 export function tienlenBotMove(s: TienLenState, id: string): TienLenMove | null {
-  if (s.result || s.turn !== id) return null;
+  if (s.result || !active(s, id)) return null;
   const hand = s.hands[id];
+  if (s.turn !== id) {
+    const onTwos = !!s.trick && s.trick.by !== id && (isTwos(s.trick.combo, 1) || isTwos(s.trick.combo, 2) || s.trick.chop);
+    const chop = onTwos ? combosIn(hand).find((c) => canChopOutOfTurn(s, c)) : undefined;
+    return chop ? { type: 'play', cards: chop } : null;
+  }
   const allowed = (cards: Card[]) => playProblem(s, hand, cards) === null;
   const rest = (cards: Card[]) => hand.filter((c) => !cards.includes(c));
   const before = planSize(hand);
@@ -459,7 +466,11 @@ export function tienlenBotMove(s: TienLenState, id: string): TienLenMove | null 
   // Under 'no-two-finish' a hand of nothing but 2s can't go out: shed 2s before it comes to that.
   const noTwoFinish = s.rules.includes('no-two-finish');
   const deadEnd = (cards: Card[]) => noTwoFinish && rest(cards).length > 0 && rest(cards).every((c) => rankOf(c) === TWO);
-  const shedTwos = noTwoFinish && hand.length <= 6 && hand.some((c) => rankOf(c) === TWO);
+  // Under the scoring rule, 2s and bombs still in hand at the end cost points (thối): shed them too.
+  const scoring = s.rules.includes('penalties');
+  const shedTwos = (noTwoFinish || scoring) && hand.length <= 6 && (hand.some((c) => rankOf(c) === TWO) || (scoring && combosIn(hand).some((c) => !!classify(c) && isStrong(c))));
+  // The fewest cards an opponent still holds.
+  const fewest = Math.min(...s.seats.filter((p) => p !== id && active(s, p)).map((p) => s.hands[p].length));
 
   if (!s.trick) {
     let options = hintPlays(hand, null, s.mustPlay).filter(allowed);
@@ -468,6 +479,13 @@ export function tienlenBotMove(s: TienLenState, id: string): TienLenMove | null 
     if (options.length === 0) return null;
     const all = options.find((c) => c.length === hand.length);
     if (all) return { type: 'play', cards: all };
+    // An opponent on one card goes out on any single we lead that they can beat; on two cards, on
+    // a pair. Lead something else if we can; failing that, the highest of what we must lead.
+    if (fewest <= 2) {
+      const safe = options.filter((c) => c.length !== fewest);
+      if (safe.length > 0) options = safe;
+      else return { type: 'play', cards: options.sort((a, b) => Math.max(...b) - Math.max(...a))[0] };
+    }
     const best = options
       .map((cards) => ({ cards, plan: planSize(rest(cards)) + (deadEnd(cards) ? 100 : 0), strong: isStrong(cards) && !shedTwos }))
       .sort((a, b) => a.plan - b.plan || Number(a.strong) - Number(b.strong) || lowest(a.cards) - lowest(b.cards) || b.cards.length - a.cards.length)[0];
@@ -483,6 +501,11 @@ export function tienlenBotMove(s: TienLenState, id: string): TienLenMove | null 
   const twoOnTable = isTwos(s.trick.combo, 1) || isTwos(s.trick.combo, 2);
   // A hand that's almost sorted out: worth spending a 2 or a bomb to take the lead and run it out.
   const closing = before <= 3;
+  // A single on the table and an opponent on one card: beat it as high as we can, so they can't.
+  if (fewest === 1 && s.trick.cards.length === 1) {
+    const top = options.filter((c) => !deadEnd(c)).sort((a, b) => Math.max(...b) - Math.max(...a))[0];
+    if (top) return { type: 'play', cards: top };
+  }
   const scored = options
     .map((cards) => ({ cards, delta: planSize(rest(cards)) - before, strong: isStrong(cards), top: Math.max(...cards) }))
     .filter((o) => {

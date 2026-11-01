@@ -172,9 +172,11 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       });
     }
 
-    socket.on('room:add-bot', (ack) => {
+    socket.on('room:add-bot', (level, ack) => {
+      // Older clients send no level, just the callback.
+      if (typeof level === 'function') [level, ack] = [undefined, level];
       const reply = safe<Parameters<typeof ack>[0]>(ack);
-      const r = rooms.addBot(playerId);
+      const r = rooms.addBot(playerId, level);
       if (!r.ok) return reply(r);
       reply({ ok: true });
       broadcast(r.room);

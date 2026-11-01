@@ -1,4 +1,4 @@
-import type { GameType, RoomOptions, RoomView } from './types';
+import type { BotLevel, GameType, RoomOptions, RoomView } from './types';
 
 // Errors travel as codes; each client locale turns them into readable text.
 export type ErrorCode =
@@ -27,7 +27,9 @@ export type ErrorCode =
   | 'WORD_LINK'
   | 'WORD_UNKNOWN'
   | 'WORD_USED'
-  | 'WORD_DEAD_END';
+  | 'WORD_DEAD_END'
+  // Co ti phu: a trade offer that isn't fair enough (see tradeProblem).
+  | 'TRADE_UNFAIR';
 
 export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
 
@@ -45,7 +47,8 @@ export interface ClientToServerEvents {
   'chat:send': (text: string, ack: (r: Ack) => void) => void;
   'room:rematch': (ack: (r: Ack) => void) => void;
   'game:claim-win': (ack: (r: Ack) => void) => void;
-  'room:add-bot': (ack: (r: Ack) => void) => void;
+  // `level`: how strong the bot plays, in games whose bots have levels (medium when left out).
+  'room:add-bot': (level: BotLevel | undefined, ack: (r: Ack) => void) => void;
   'room:remove-bot': (botId: string, ack: (r: Ack) => void) => void;
 }
 

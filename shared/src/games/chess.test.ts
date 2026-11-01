@@ -174,6 +174,12 @@ describe('chessGame', () => {
     it('wins and losses count on the room scoreboard', () => {
       expect(chessGame.points!(act(fresh(), A, { type: 'resign' }))).toEqual({ [A]: { points: -1, place: 2 }, [B]: { points: 1, place: 1 } });
     });
+
+    it("a draw is nobody's win, and an aborted game does not count", () => {
+      const drawn = act(act(fresh(), A, { type: 'offer-draw' }), B, { type: 'accept-draw' });
+      expect(chessGame.points!(drawn)).toEqual({ [A]: { points: 0, place: 2 }, [B]: { points: 0, place: 2 } });
+      expect(chessGame.points!({ ...drawn, result: { winner: null, reason: 'aborted' } })).toBeNull();
+    });
   });
 
   describe('clocks', () => {

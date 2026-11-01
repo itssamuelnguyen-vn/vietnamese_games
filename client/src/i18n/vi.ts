@@ -1,4 +1,4 @@
-import type { BizType, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, SpecialKind, StreetId, Area, Deck, FortuneId, BauCuaSymbol, HandKind, Stakes, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { BizType, BotLevel, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, SpecialKind, StreetId, Area, Deck, FortuneId, BauCuaSymbol, HandKind, Stakes, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -111,6 +111,8 @@ export const vi = {
     addBot: 'Thêm máy',
     removeBot: 'Bỏ máy này',
     botTag: 'Máy',
+    botLevel: 'Độ khó của máy',
+    botLevels: { easy: 'Dễ', medium: 'Vừa', hard: 'Khó' } satisfies Record<BotLevel, string>,
     scoreboard: 'Bảng điểm',
     scoreGames: 'Ván',
     scoreWins: 'Nhất',
@@ -171,6 +173,34 @@ export const vi = {
   },
 
   chess: {
+    rulesTitle: 'Luật chơi Cờ vua',
+    rulesIntro: 'Cờ vua theo luật quốc tế (FIDE). Trắng đi trước; chiếu hết vua đối phương là thắng.',
+    rules: [
+      {
+        title: 'Thắng, thua',
+        items: [
+          'Chiếu hết: vua bị chiếu mà không còn nước nào thoát là thua.',
+          'Hết giờ là thua, trừ khi đối thủ không còn đủ quân để chiếu hết (khi đó là hòa).',
+          'Xin thua bất cứ lúc nào bằng nút Xin thua. Đối thủ mất kết nối quá 1 phút thì bạn có thể nhận thắng.',
+        ],
+      },
+      {
+        title: 'Hòa',
+        items: [
+          'Hết nước đi: bên tới lượt không bị chiếu nhưng không còn nước hợp lệ.',
+          'Cùng một thế cờ lặp lại 3 lần; 50 nước mỗi bên không ăn quân và không đi tốt; hai bên không đủ quân để chiếu hết.',
+          'Hai bên đồng ý hòa: mỗi người được đề nghị hòa, đối thủ chấp nhận hoặc từ chối.',
+        ],
+      },
+      {
+        title: 'Nước đi đặc biệt',
+        items: [
+          'Nhập thành, bắt tốt qua đường và phong cấp (chọn hậu, xe, tượng hoặc mã) đều được hỗ trợ.',
+          'Xin đi lại: đối thủ đồng ý thì nước vừa đi được rút lại.',
+          'Ván có đồng hồ: mỗi bên phải đi nước đầu trong 30 giây, nếu không ván bị hủy.',
+        ],
+      },
+    ],
     endReasons: {
       checkmate: 'Chiếu hết',
       stalemate: 'Hết nước đi',
@@ -287,6 +317,34 @@ export const vi = {
   },
 
   xiangqi: {
+    rulesTitle: 'Luật chơi Cờ tướng',
+    rulesIntro: 'Cờ tướng theo luật châu Á. Đỏ đi trước; bắt được tướng (chiếu bí) là thắng.',
+    rules: [
+      {
+        title: 'Thắng, thua',
+        items: [
+          'Chiếu bí là thắng. Khác cờ vua, bên tới lượt mà không còn nước hợp lệ (dù không bị chiếu) cũng thua.',
+          'Hai tướng không được nhìn mặt nhau trên cùng một cột mà không có quân chắn.',
+          'Hết giờ là thua, trừ khi đối thủ không còn quân tấn công (xe, mã, pháo, tốt) thì hòa.',
+        ],
+      },
+      {
+        title: 'Chiếu dai, đuổi dai',
+        items: [
+          'Khi một thế cờ lặp lại lần thứ 3: bên chiếu liên tục mọi nước (chiếu dai) bị xử thua.',
+          'Không ai chiếu dai mà một bên nước nào cũng chiếu hoặc đuổi bắt quân (đuổi dai) thì bên đó thua. Đuổi là dọa ăn một quân không có bảo vệ, hoặc quân giá trị cao hơn quân mình. Tướng và tốt đuổi thì không tính.',
+          'Cả hai cùng dai, hoặc không ai dai, thì hòa.',
+        ],
+      },
+      {
+        title: 'Hòa và luật khác',
+        items: [
+          '60 nước mỗi bên không ăn quân thì hòa; hai bên cùng hết quân tấn công cũng hòa; hai bên có thể đồng ý hòa.',
+          'Chấp quân: chủ phòng có thể chấp xe, mã, pháo hoặc 2 mã.',
+          'Xin đi lại cần đối thủ đồng ý. Ván có đồng hồ: phải đi nước đầu trong 30 giây, nếu không ván bị hủy.',
+        ],
+      },
+    ],
     red: 'Quân đỏ',
     black: 'Quân đen',
     redToMove: 'Lượt Đỏ',
@@ -341,6 +399,7 @@ export const vi = {
   },
 
   caro: {
+    tapAgain: 'Chạm lần nữa vào ô đó để đánh, hoặc chạm ô khác để đổi.',
     x: 'Quân X',
     o: 'Quân O',
     xToMove: 'Lượt X',
@@ -402,6 +461,7 @@ export const vi = {
     pickHorse: 'Chọn ngựa để đi: bấm vào ngựa đang sáng hoặc nút bên dưới.',
     rolling: 'Đang gieo…',
     keysHint: 'Phím tắt: Space để gieo, phím 1–4 để chọn ngựa.',
+    autoMove: 'Chỉ có một nước đi, tự đi ngay…',
     turnOf: (who: string) => `Lượt của ${who}`,
     rollAgain: 'Gieo được 6, bạn được gieo thêm!',
     spectating: 'Bạn đang xem ván này',
@@ -493,6 +553,7 @@ export const vi = {
     revealed: 'Mở bát!',
     ready: 'Xong, lắc đi!',
     clear: 'Huỷ cược',
+    repeat: (amount: string) => `Cược như ván trước (${amount})`,
     readyTag: 'Xong',
     bankerTag: 'Cái',
     youBank: 'Bạn làm cái: chờ mọi người đặt cược…',
@@ -560,6 +621,7 @@ export const vi = {
     waitingOthers: 'Đã sẵn sàng, chờ mọi người…',
     noChips: 'Bạn đã hết xu, ở lại xem tiếp nhé',
     ready: 'Sẵn sàng',
+    betAgain: (amount: string) => `Cược lại ${amount}`,
     hit: 'Rút bài',
     stand: 'Dằn',
     needSixteen: 'Cần ít nhất 16 điểm mới được dằn',
@@ -980,8 +1042,8 @@ export const vi = {
       bonus: { title: 'Thưởng doanh thu', text: 'Nhận 30 cho mỗi cơ sở bạn có.' },
       scholarship: { title: 'Bản đồ mới', text: 'Nhận thêm 1 thẻ Đi đường.' },
       investor: { title: 'Nhà đầu tư rót vốn', text: 'Cơ sở tiếp theo bạn mở chỉ tốn nửa giá.' },
-      press: { title: 'Lên báo', text: 'Cơ sở của bạn thu phí ×1,5 tới hết tháng.' },
-      shield: { title: 'Luật sư giỏi', text: 'Tới hết tháng, không ai thâu tóm được cơ sở của bạn.' },
+      press: { title: 'Lên báo', text: 'Cơ sở của bạn thu phí ×1,5 tới lượt sau của bạn.' },
+      shield: { title: 'Luật sư giỏi', text: 'Tới lượt sau của bạn, không ai thâu tóm được cơ sở của bạn.' },
       bus: { title: 'Xe buýt tốc hành', text: 'Đi thẳng về Bến Thành, nhận 1 thẻ Đi đường.' },
       ticket: { title: 'Vé máy bay miễn phí', text: 'Bay tới bất kỳ ô nào, không mất phí.' },
       upgrade: { title: 'Cải tạo miễn phí', text: 'Nâng cấp miễn phí cơ sở rẻ nhất của bạn (chưa có thì nhận 100).' },
@@ -992,6 +1054,8 @@ export const vi = {
     thisMonth: 'Tháng này',
     nextMonth: 'Tháng sau',
     finalYear: 'Năm cuối!',
+    routePending: (who: string) => `🏆 ${who} sẽ thắng khi hết tháng nếu không ai phá được tuyến`,
+    orderLine: (names: string) => `Thứ tự đi tháng này: ${names}`,
     cash: 'Tiền mặt',
     debt: 'Nợ',
     worth: 'Tài sản',
@@ -1078,6 +1142,10 @@ export const vi = {
     sendOffer: 'Gửi đề nghị',
     noBusinesses: 'Chưa có cơ sở nào',
     emptyOffer: 'Chọn ít nhất một thứ để trao đổi',
+    tradeNoBusiness: 'Giao dịch phải có ít nhất một cơ sở',
+    tradeOneSided: 'Hai bên đều phải đưa gì đó, không cho không',
+    tradeAskMore: (amount: string) => `Đòi thêm ít nhất ${amount}: ngân hàng cũng trả chừng đó cho thứ bạn giao đi`,
+    tradeOfferMore: (amount: string) => `Trả thêm ít nhất ${amount}: ngân hàng cũng trả chừng đó cho thứ bạn đòi`,
     offers: 'Đề nghị mua bán',
     offerFrom: (who: string) => `${who} đề nghị`,
     offerTo: (who: string) => `Bạn đề nghị ${who}`,
@@ -1135,7 +1203,7 @@ export const vi = {
     },
     rulesTitle: 'Luật chơi Cờ tỉ phú',
     rulesIntro:
-      'Cuộc đua làm ăn trên 16 con đường nổi tiếng của TP.HCM. Chiếm trọn 3 tuyến đường thì thắng ngay. Không thì ai không trả nổi nợ sẽ phá sản, người trụ lại cuối cùng là tỉ phú; sau 3 năm (36 tháng) mà còn nhiều người thì ai giàu nhất thắng.',
+      'Cuộc đua làm ăn trên 16 con đường nổi tiếng của TP.HCM. Hết tháng mà đang chiếm trọn 3 tuyến đường thì thắng. Không thì ai không trả nổi nợ sẽ phá sản, người trụ lại cuối cùng là tỉ phú; sau 3 năm (36 tháng) mà còn nhiều người thì ai giàu nhất thắng.',
     rules: [
       {
         title: 'Mỗi lượt',
@@ -1143,6 +1211,7 @@ export const vi = {
           'Gieo 2 xúc xắc, hoặc đánh 1 thẻ Đi đường để đi đúng số ô ghi trên thẻ. Thẻ đánh rồi là mất: chỉ được thêm thẻ khi đi qua Bến Thành, ghé Trạm xe buýt hoặc bốc được thẻ Thời cơ (cầm tối đa 5 thẻ).',
           'Dừng ở một con đường: trả phí ghé cho từng chủ cơ sở ở đó, rồi chọn 1 việc: mở cơ sở mới, nâng cấp cơ sở của mình, hoặc thâu tóm cơ sở của người khác.',
           'Bàn là một vòng 28 ô quanh thành phố, đi hết lại về Bến Thành.',
+          'Thứ tự đi đảo ngược mỗi tháng: người đi cuối tháng này đi đầu tháng sau (được 2 lượt liền), nên đi trước hay đi sau đều như nhau.',
         ],
       },
       {
@@ -1158,7 +1227,9 @@ export const vi = {
         title: 'Tuyến đường và thắng sớm',
         items: [
           'Các con đường đi theo cặp, gọi là tuyến (ví dụ Đồng Khởi – Nguyễn Huệ). Có cơ sở trên cả 2 đường của một tuyến thì phí ghé của bạn ở tuyến đó ×2.',
-          'Chiếm trọn 3 tuyến đường thì thắng ngay lập tức.',
+          'Hết tháng (khi mọi người đã đi đủ lượt) mà đang chiếm trọn 3 tuyến đường thì thắng. Trước đó người khác vẫn có thể thâu tóm một cơ sở để phá tuyến.',
+          'Nếu lúc đó nhiều người cùng có 3 tuyến, ai nhiều tuyến hơn thắng; bằng nhau thì ai giàu hơn.',
+          'Cơ sở có được nhờ mua bán chỉ được tính vào điều kiện này từ tháng sau.',
         ],
       },
       {
@@ -1199,6 +1270,7 @@ export const vi = {
         title: 'Mua bán, hết giờ và máy',
         items: [
           'Gửi đề nghị mua bán cho người khác: tiền và cơ sở hai bên đưa cho nhau. Người nhận có 30 giây để đồng ý hoặc từ chối.',
+          'Mua bán phải tương đối công bằng: phải có ít nhất một cơ sở đổi chủ, hai bên đều phải đưa gì đó, và ai giao cơ sở đi phải nhận lại ít nhất bằng giá ngân hàng mua lại (nửa số tiền đã đầu tư), bằng tiền hoặc bằng cơ sở tính theo cùng cách.',
           'Người đang nợ chỉ được đưa phần tiền mặt vượt quá số nợ, để tiền vay không bị chuyển sang người khác.',
           'Hết giờ lượt: tự gieo xúc xắc, bỏ qua ô đang đứng (có thể thành đấu giá) hoặc ở lại sân bay.',
           'Chủ phòng có thể thêm máy (bot) vào chỗ trống ở phòng chờ. Máy tự chơi, tự đấu giá, tự mua bán và luôn đồng ý chơi ván mới.',
@@ -1207,7 +1279,7 @@ export const vi = {
     ],
     summaryTitle: 'Tóm tắt luật',
     summary: [
-      'Chiếm trọn 3 tuyến đường thì thắng ngay; không thì người trụ lại cuối cùng (hoặc giàu nhất sau 3 năm) thắng.',
+      'Hết tháng mà chiếm trọn 3 tuyến đường thì thắng; không thì người trụ lại cuối cùng (hoặc giàu nhất sau 3 năm) thắng.',
       'Gieo xúc xắc hoặc đánh thẻ Đi đường; dừng ở đường nào thì trả phí cho chủ ở đó.',
       'Mở Quán ăn, Khách sạn, Cửa hàng; nâng lên cấp 3 thành Thương hiệu, không ai thâu tóm được.',
       'Không mua thì ô đó đem ra đấu giá; dừng ở cơ sở người khác thì có thể trả gấp đôi để thâu tóm.',
@@ -1241,6 +1313,7 @@ export const vi = {
     WORD_UNKNOWN: 'Từ này không có trong từ điển',
     WORD_USED: 'Từ này đã được dùng rồi',
     WORD_DEAD_END: 'Không có từ nào nối tiếp được từ này, hãy chọn từ khác',
+    TRADE_UNFAIR: 'Giao dịch chưa công bằng: cơ sở phải đổi lấy ít nhất giá ngân hàng mua lại, và hai bên đều phải đưa gì đó',
   } satisfies Record<ErrorCode, string>,
 };
 
