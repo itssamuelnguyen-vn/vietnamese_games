@@ -6356,3 +6356,102 @@ main {
     animation: none;
   }
 }
+
+/* Voice chat bar, pinned to the bottom-left corner of every room screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.voice-dock {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 96px);
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.voice-dock .btn-sm {
+  border-radius: 999px;
+}
+
+.voice-mic.off {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.voice-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.voice-members li {
+  position: relative;
+  flex: none;
+  border-radius: 50%;
+  transition: box-shadow 0.15s ease, opacity 0.2s ease;
+}
+
+.voice-members li.speaking {
+  box-shadow: 0 0 0 3px var(--ok);
+}
+
+.voice-members li.pending {
+  opacity: 0.55;
+}
+
+.voice-members li.unheard:not(.speaking) {
+  opacity: 0.4;
+}
+
+.voice-members li.failed {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+.voice-warn {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.voice-note {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ms-seat.speaking {
+  box-shadow: 0 0 0 3px var(--ok), var(--shadow-md);
+}
+
+@media (max-width: 560px) {
+  .voice-note,
+  .voice-leave-text {
+    display: none;
+  }
+}

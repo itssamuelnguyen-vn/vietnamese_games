@@ -110,6 +110,22 @@ export const vi = {
     locked: 'Chưa nói được lúc này',
   },
 
+  voice: {
+    join: 'Vào voice',
+    joining: 'Đang bật micro…',
+    leave: 'Rời voice',
+    mute: 'Tắt mic',
+    unmute: 'Bật mic',
+    inVoice: (n: number) => (n ? `${n} người đang voice` : 'Chưa ai vào voice'),
+    connecting: 'đang nối…',
+    failed: 'không nối được',
+    speaking: 'đang nói',
+    silenced: 'Lúc này không ai nghe được bạn',
+    denied: 'Không dùng được micro: hãy cho phép trình duyệt dùng micro rồi thử lại.',
+    insecure: 'Voice chỉ chạy trên trang https (hoặc localhost).',
+    unsupported: 'Trình duyệt này không hỗ trợ voice chat.',
+  },
+
   room: {
     codeLabel: 'Mã phòng',
     addBot: 'Thêm máy',

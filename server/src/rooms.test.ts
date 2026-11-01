@@ -583,6 +583,14 @@ describe('RoomManager', () => {
       expect(text(C)).toEqual(['before the game', 'popcorn']);
       expect(rooms.view(room, B, allOnline).chatTo).toBeNull();
       expect(rooms.view(room, A, allOnline).chatTo).toBe('wolves');
+      // Voice follows the same routes: at night the villager is silent, the wolf talks to wolves
+      // only, and players and spectators don't hear each other.
+      rooms.voiceJoin(A);
+      rooms.voiceJoin(B);
+      rooms.voiceJoin(C);
+      expect(rooms.view(room, A, allOnline).voice).toEqual({ members: [A, B, C], to: [], from: [] });
+      expect(rooms.view(room, B, allOnline).voice).toMatchObject({ to: [], from: [] });
+      expect(rooms.view(room, C, allOnline).voice).toMatchObject({ to: [], from: [] });
       // Once the game is over, everything is out in the open.
       room.status = 'finished';
       expect(text(B)).toEqual(['before the game', 'eat the bot', 'popcorn']);

@@ -102,6 +102,8 @@ export interface Room {
   // The first chat message of the current game: in games with private channels, those from
   // earlier games are open to everyone.
   chatFrom: number;
+  // People in the room's voice chat.
+  voice: string[];
   lastActivity: number;
 }
 
@@ -208,6 +210,7 @@ export class RoomManager {
       rematchVotes: [],
       chat: [],
       chatFrom: 0,
+      voice: [],
       lastActivity: Date.now(),
     };
     this.rooms.set(room.code, room);
@@ -274,6 +277,7 @@ export class RoomManager {
     if (!room) return undefined;
     this.playerRoom.delete(playerId);
     this.chatTimes.delete(playerId);
+    room.voice = room.voice.filter((id) => id !== playerId);
 
     if (room.spectators.some((p) => p.id === playerId)) {
       room.spectators = room.spectators.filter((p) => p.id !== playerId);
@@ -527,6 +531,7 @@ export class RoomManager {
       this.playerRoom.delete(p.id);
       this.chatTimes.delete(p.id);
     }
+    room.voice = room.voice.filter((id) => !absent.some((p) => p.id === id));
     if (absent.some((p) => p.id === room.hostId)) room.hostId = playerId;
     if (game.isOver(room.state)) room.status = 'finished';
     this.settle(room);
@@ -558,6 +563,35 @@ export class RoomManager {
     );
     room.lastActivity = Date.now();
     return { ok: true, room };
+  }
+
+  // Voice chat: any person in the room (not a bot) can join.
+  voiceJoin(playerId: string): Result<{ room: Room }> {
+    const room = this.roomOf(playerId);
+    if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
+    if (!room.voice.includes(playerId)) room.voice = [...room.voice, playerId];
+    return { ok: true, room };
+  }
+
+  voiceLeave(playerId: string): Room | undefined {
+    const room = this.roomOf(playerId);
+    if (!room || !room.voice.includes(playerId)) return undefined;
+    room.voice = room.voice.filter((id) => id !== playerId);
+    return room;
+  }
+
+  // Whether `from` may pass WebRTC signals to `to`: both in the same room's voice.
+  canSignal(from: string, to: string): boolean {
+    const room = this.roomOf(from);
+    return !!room && from !== to && room.voice.includes(from) && room.voice.includes(to);
+  }
+
+  // Whether `listener` can hear `speaker` right now: voice follows the game's chat routing.
+  private hears(room: Room, listener: string, speaker: string): boolean {
+    const sent = this.chatRoute(room, speaker).send;
+    if (sent === null) return false;
+    const read = this.chatRoute(room, listener).read;
+    return read === 'all' || read.includes(sent);
   }
 
   private chatRoute(room: Room, playerId: string): ChatRoute {
@@ -596,6 +630,11 @@ export class RoomManager {
       rematchVotes: room.rematchVotes,
       chat: room.chat.filter((m) => !m.channel || m.id < room.chatFrom || route.read === 'all' || route.read.includes(m.channel)),
       chatTo: route.send,
+      voice: {
+        members: room.voice,
+        to: room.voice.filter((id) => id !== playerId && this.hears(room, id, playerId)),
+        from: room.voice.filter((id) => id !== playerId && this.hears(room, playerId, id)),
+      },
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
     };
   }

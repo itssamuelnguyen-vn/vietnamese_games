@@ -10,6 +10,7 @@ import { RulesButton } from '../../components/RulesDialog';
 import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
+import { useVoice } from '../../voice';
 
 interface Props {
   room: RoomView;
@@ -141,6 +142,7 @@ export function MaSoiGame({ room, view, onLeave }: Props) {
   const ghost = !!me && !me.alive;
   const night = NIGHT_PHASES.has(view.phase);
   const mode = modeOf(view, you);
+  const { speaking } = useVoice();
 
   // A pick that still needs confirming (seer, guard, witch's poison, hunter's shot), per phase.
   const phaseKey = `${view.phase}-${view.day}`;
@@ -427,6 +429,7 @@ export function MaSoiGame({ room, view, onLeave }: Props) {
                       'ms-seat',
                       seat.alive ? '' : 'dead',
                       seat.id === you ? 'me' : '',
+                      speaking.includes(seat.id) ? 'speaking' : '',
                       can ? 'can' : '',
                       chosen ? 'chosen' : '',
                       seat.id === view.accused && (view.phase === 'defense' || view.phase === 'verdict') ? 'accused' : '',

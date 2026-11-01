@@ -12,6 +12,8 @@ const ROOM_IDLE_MS = 10 * 60 * 1000;
 const RATE_MAX = 60;
 const RATE_WINDOW_MS = 10_000;
 const SWEEP_INTERVAL_MS = 60 * 1000;
+// A session description with its ICE candidates is a few KB; anything far bigger is junk.
+const MAX_SDP_LENGTH = 20_000;
 
 export interface GameServerOptions {
   // Directory of the built frontend to serve; skipped when missing (dev and tests).
@@ -51,6 +53,8 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   const offlineAt = new Map<string, number>();
   const offlineSince = (id: string) => (isConnected(id) ? null : (offlineAt.get(id) ?? null));
   const channel = (playerId: string) => `player:${playerId}`;
+  // The socket carrying each person's voice chat.
+  const voiceSockets = new Map<string, string>();
 
   function broadcast(room: Room | undefined) {
     if (!room) return;
@@ -117,6 +121,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     });
 
     socket.on('room:leave', () => {
+      if (voiceSockets.get(playerId) === socket.id) voiceSockets.delete(playerId);
       const room = rooms.leave(playerId);
       io.to(channel(playerId)).emit('room:closed');
       broadcast(room);
@@ -190,6 +195,31 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       broadcast(r.room);
     });
 
+    socket.on('voice:join', (ack) => {
+      const reply = safe<Parameters<typeof ack>[0]>(ack);
+      const r = rooms.voiceJoin(playerId);
+      if (!r.ok) return reply(r);
+      // One tab per person carries their voice: signals go to the socket that joined.
+      voiceSockets.set(playerId, socket.id);
+      reply({ ok: true });
+      broadcast(r.room);
+    });
+
+    socket.on('voice:leave', () => {
+      if (voiceSockets.get(playerId) !== socket.id) return;
+      voiceSockets.delete(playerId);
+      broadcast(rooms.voiceLeave(playerId));
+    });
+
+    socket.on('voice:signal', (p) => {
+      const to = p?.to;
+      const data = p?.data;
+      if (typeof to !== 'string' || voiceSockets.get(playerId) !== socket.id || !rooms.canSignal(playerId, to)) return;
+      if (!data || (data.type !== 'offer' && data.type !== 'answer') || typeof data.sdp !== 'string' || data.sdp.length > MAX_SDP_LENGTH) return;
+      const target = voiceSockets.get(to);
+      if (target) io.to(target).emit('voice:signal', { from: playerId, data: { type: data.type, sdp: data.sdp } });
+    });
+
     socket.on('chat:send', (text, ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
       const r = rooms.chat(playerId, text);
@@ -199,6 +229,10 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     });
 
     socket.on('disconnect', () => {
+      if (voiceSockets.get(playerId) === socket.id) {
+        voiceSockets.delete(playerId);
+        rooms.voiceLeave(playerId);
+      }
       connections.set(playerId, (connections.get(playerId) ?? 1) - 1);
       if (!isConnected(playerId)) {
         connections.delete(playerId);

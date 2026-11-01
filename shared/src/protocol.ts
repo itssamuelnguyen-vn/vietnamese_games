@@ -52,6 +52,16 @@ export interface ClientToServerEvents {
   // `level`: how strong the bot plays, in games whose bots have levels (medium when left out).
   'room:add-bot': (level: BotLevel | undefined, ack: (r: Ack) => void) => void;
   'room:remove-bot': (botId: string, ack: (r: Ack) => void) => void;
+  // Voice chat: join or leave the room's voice, and pass WebRTC offers/answers to another member.
+  'voice:join': (ack: (r: Ack) => void) => void;
+  'voice:leave': () => void;
+  'voice:signal': (p: { to: string; data: VoiceSignal }) => void;
+}
+
+// A WebRTC session description, sent once ICE gathering is done (no trickled candidates).
+export interface VoiceSignal {
+  type: 'offer' | 'answer';
+  sdp: string;
 }
 
 export interface ServerToClientEvents {
@@ -59,6 +69,7 @@ export interface ServerToClientEvents {
   // `gone`: the room no longer exists (the server restarted, or it sat idle), rather than the
   // player having left it.
   'room:closed': (reason?: 'gone') => void;
+  'voice:signal': (p: { from: string; data: VoiceSignal }) => void;
 }
 
 // The token is a per-browser secret; the server derives the public player id from it

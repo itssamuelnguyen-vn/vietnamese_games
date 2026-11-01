@@ -96,6 +96,22 @@ export const en: Strings = {
     locked: 'You can’t talk right now',
   },
 
+  voice: {
+    join: 'Join voice',
+    joining: 'Turning on the mic…',
+    leave: 'Leave voice',
+    mute: 'Mute',
+    unmute: 'Unmute',
+    inVoice: (n: number) => (n ? `${n} in voice` : 'Nobody in voice yet'),
+    connecting: 'connecting…',
+    failed: 'can’t connect',
+    speaking: 'speaking',
+    silenced: 'Nobody can hear you right now',
+    denied: 'Can’t use the microphone: allow it in your browser and try again.',
+    insecure: 'Voice only works on an https page (or localhost).',
+    unsupported: 'This browser doesn’t support voice chat.',
+  },
+
   room: {
     codeLabel: 'Room code',
     addBot: 'Add a bot',

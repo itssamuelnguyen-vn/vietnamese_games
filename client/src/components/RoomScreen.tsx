@@ -6,6 +6,7 @@ import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
 import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, LotoOptionsPicker, MaSoiOptionsPicker, MaSoiRolesCard, AddBotButton, BotTag, copyInvite, inviteLink, removeBot } from './RoomPanels';
 import { RulesButton } from './RulesDialog';
+import { VoiceDock } from './VoiceDock';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
 
@@ -61,11 +62,21 @@ export function RoomScreen({ room }: Props) {
     api.leave();
   }
 
-  if (room.game === null) return <WaitingRoom room={room} onLeave={leave} />;
+  // The voice bar stays in the same place in the tree, so voice carries on as the game starts.
+  if (room.game === null)
+    return (
+      <>
+        <WaitingRoom room={room} onLeave={leave} />
+        <VoiceDock room={room} />
+      </>
+    );
   return (
-    <Suspense fallback={<GameLoading />}>
-      <GameScreen room={room} leave={leave} />
-    </Suspense>
+    <>
+      <Suspense fallback={<GameLoading />}>
+        <GameScreen room={room} leave={leave} />
+      </Suspense>
+      <VoiceDock room={room} />
+    </>
   );
 }
 

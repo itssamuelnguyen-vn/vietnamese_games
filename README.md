@@ -81,6 +81,14 @@ Rooms also hold a chat (last 80 messages, flood-limited; games can route message
 channels with `chatRoute`, as ma sói does for the wolves and the dead) and up to 20 spectators, who get the
 same game view as players but cannot move.
 
+Rooms also have voice chat: each member's browser sends its microphone straight to the others
+(a WebRTC mesh; the server only relays the offers and answers over Socket.IO, see
+`client/src/voice.ts`). A public STUN server finds direct routes between most home networks; there
+is no TURN relay yet, so people on networks that block direct connections (some mobile carriers,
+strict office or school firewalls) may not connect. Voice follows the game's chat routing, so in
+ma sói the village is silent at night while the wolves hear each other, and the dead talk only
+among themselves. Microphone access needs https (or localhost).
+
 Rooms live in server memory, so restarting the server drops all rooms.
 
 ## UI text, languages and themes

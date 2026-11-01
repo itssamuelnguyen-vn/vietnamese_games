@@ -226,6 +226,9 @@ export interface RoomView {
   // The channel your next chat message goes to ('public' for the whole room), or null while you
   // can't talk (games with private channels, see GameDefinition.chatRoute).
   chatTo: string | null;
+  // Voice chat: who is in it, and of those, who can hear you and who you can hear right now
+  // (games with private channels route voice like chat).
+  voice: { members: string[]; to: string[]; from: string[] };
   game: unknown;
 }
 
