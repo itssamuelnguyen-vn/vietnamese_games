@@ -320,17 +320,6 @@ function HorseRaceArt() {
   );
 }
 
-function ColorCardsArt() {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <rect x="10" y="14" width="26" height="38" rx="4" fill="currentColor" opacity="0.55" transform="rotate(-14 23 33)" />
-      <rect x="22" y="10" width="30" height="44" rx="5" fill="currentColor" />
-      <ellipse cx="37" cy="32" rx="9" ry="15" fill="none" stroke="var(--art-ink)" strokeWidth="2.5" transform="rotate(28 37 32)" />
-      <path d="M33 27a6 6 0 0 1 9 2m0 0l1-4m-1 4l-4-1M41 37a6 6 0 0 1-9-2m0 0l-1 4m1-4l4 1" stroke="var(--art-ink)" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function WordChainArt({ first, second }: { first: string; second: string }) {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -399,7 +388,6 @@ const ART: Record<GameType, () => ReactElement> = {
   typhu: PropertyArt,
   caro: CaroArt,
   cangua: HorseRaceArt,
-  colors: ColorCardsArt,
   noitu: () => <WordChainArt first="Ăn" second="Ơi" />,
   wordchain: () => <WordChainArt first="Ab" second="Bc" />,
   masoi: WolfArt,

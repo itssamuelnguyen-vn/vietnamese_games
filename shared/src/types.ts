@@ -7,7 +7,6 @@ export type GameType =
   | 'typhu'
   | 'caro'
   | 'cangua'
-  | 'colors'
   | 'noitu'
   | 'wordchain'
   | 'masoi'
@@ -39,7 +38,6 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
   caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true, botLevels: true },
   cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
-  colors: { type: 'colors', minPlayers: 2, maxPlayers: 8, available: false },
   noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   masoi: { type: 'masoi', minPlayers: 5, maxPlayers: 12, available: false },
