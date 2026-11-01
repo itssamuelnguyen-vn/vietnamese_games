@@ -16,6 +16,8 @@ import {
   caNguaGame,
   bauCuaGame,
   xiDachGame,
+  lotoGame,
+  LOTO_SPEEDS,
   createWordChainGame,
   CARO_SIZE_IDS,
   CANGUA_RULES,
@@ -50,6 +52,7 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   cangua: caNguaGame,
   baucua: bauCuaGame,
   xidach: xiDachGame,
+  loto: lotoGame,
   noitu: createWordChainGame('noitu', loadDictionary('vi', NOITU_FILES, 'noitu-common.txt')),
   wordchain: createWordChainGame('wordchain', loadDictionary('en', WORDCHAIN_FILES, 'wordchain-common.txt')),
 };
@@ -400,6 +403,7 @@ export class RoomManager {
       walletStart = room.options.walletStart,
       stakePerPoint = room.options.stakePerPoint,
       dealer = room.options.dealer,
+      callSpeed = room.options.callSpeed,
     } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
@@ -412,6 +416,7 @@ export class RoomManager {
     if (!STAKES.includes(stakes) || !WALLET_STARTS.includes(walletStart) || !STAKES_PER_POINT.includes(stakePerPoint)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (stakes === 'money' && !MONEY_GAMES.includes(room.gameType)) return { ok: false, error: 'INVALID_OPTIONS' };
     // A newly picked dealer must be seated; one who later gets up leaves the dealing to the house.
+    if (!LOTO_SPEEDS.includes(callSpeed)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (dealer !== room.options.dealer && dealer !== null && !room.players.some((p) => p.id === dealer)) return { ok: false, error: 'INVALID_OPTIONS' };
     // New money terms start everyone afresh.
     const o = room.options;
@@ -430,6 +435,7 @@ export class RoomManager {
       walletStart,
       stakePerPoint,
       dealer,
+      callSpeed,
     };
     room.lastActivity = Date.now();
     return { ok: true, room };

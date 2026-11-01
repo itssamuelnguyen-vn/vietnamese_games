@@ -7,12 +7,12 @@ export type GameType =
   | 'typhu'
   | 'caro'
   | 'cangua'
-  | 'colors'
   | 'noitu'
   | 'wordchain'
   | 'masoi'
   | 'baucua'
-  | 'xidach';
+  | 'xidach'
+  | 'loto';
 
 export interface GameInfo {
   type: GameType;
@@ -39,12 +39,12 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
   caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true, botLevels: true },
   cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
-  colors: { type: 'colors', minPlayers: 2, maxPlayers: 8, available: false },
   noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   masoi: { type: 'masoi', minPlayers: 5, maxPlayers: 12, available: false },
   baucua: { type: 'baucua', minPlayers: 2, maxPlayers: 10, available: true, bots: true },
   xidach: { type: 'xidach', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
+  loto: { type: 'loto', minPlayers: 2, maxPlayers: 16, available: true, bots: true },
 };
 
 export type TimeControlId = 'none' | '3+2' | '5+0' | '10+0' | '15+10';
@@ -86,6 +86,10 @@ export const CARO_SIZE_IDS: CaroSizeId[] = ['15', '19'];
 export type CaNguaRuleId = 'jump' | 'fast-home' | 'one-out';
 export const CANGUA_RULES: CaNguaRuleId[] = ['jump', 'fast-home', 'one-out'];
 
+// How fast the lô tô caller calls the numbers.
+export type LotoSpeed = 'slow' | 'normal' | 'fast';
+export const LOTO_SPEEDS: LotoSpeed[] = ['slow', 'normal', 'fast'];
+
 // Settings the host picks before starting a game.
 // How a room keeps score from game to game: points, or a play-money wallet per player (made-up
 // numbers with no real-world value) that wins and losses move by points × the stake per point.
@@ -95,7 +99,7 @@ export const WALLET_STARTS = [50_000, 100_000, 200_000, 500_000, 1_000_000];
 export const STAKES_PER_POINT = [1_000, 2_000, 5_000, 10_000, 20_000];
 // Games that can be played for play money. Tien len moves wallets by its points; xi dach and bau
 // cua play with the wallets themselves as chips.
-export const MONEY_GAMES: GameType[] = ['tienlen', 'xidach', 'baucua'];
+export const MONEY_GAMES: GameType[] = ['tienlen', 'xidach', 'baucua', 'loto'];
 
 // In a room for money, chip games bet in multiples of this: a tenth of the room's stake.
 export const chipUnit = (options: Pick<RoomOptions, 'stakePerPoint'>) => Math.max(1, Math.round(options.stakePerPoint / 10));
@@ -117,6 +121,8 @@ export interface RoomOptions {
   stakePerPoint: number;
   // Xi dach and bau cua: the seated player who deals and keeps the bank, or null for the house.
   dealer: string | null;
+  // Lô tô: how fast numbers are called.
+  callSpeed: LotoSpeed;
 }
 
 export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
@@ -132,6 +138,7 @@ export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
   walletStart: 200_000,
   stakePerPoint: 5_000,
   dealer: null,
+  callSpeed: 'normal',
 };
 
 export interface PlayerInfo {

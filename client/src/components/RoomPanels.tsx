@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { ABANDON_CLAIM_MS, BOT_LEVELS, DEFAULT_BOT_LEVEL, type BotLevel, type PlayerInfo, CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
+import { ABANDON_CLAIM_MS, LOTO_SPEEDS, BOT_LEVELS, DEFAULT_BOT_LEVEL, type BotLevel, type PlayerInfo, CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -263,7 +263,7 @@ export function TienLenOptionsPicker({ room }: { room: RoomView }) {
 
 // Points or play money, and for play money the starting wallet and the stake per point. Chip games
 // (xi dach, bau cua) play with the wallet itself, and the stake is their smallest bet.
-function StakesPicker({ room, locked, onSet, chips = false }: { room: RoomView; locked: boolean; onSet: (options: Partial<RoomOptions>) => void; chips?: boolean }) {
+function StakesPicker({ room, locked, onSet, chips = false, stakeLabel }: { room: RoomView; locked: boolean; onSet: (options: Partial<RoomOptions>) => void; chips?: boolean; stakeLabel?: string }) {
   const { t } = useI18n();
   const o = room.options;
   const amounts = (label: string, values: number[], value: number, key: 'walletStart' | 'stakePerPoint') => (
@@ -284,7 +284,7 @@ function StakesPicker({ room, locked, onSet, chips = false }: { room: RoomView; 
       {o.stakes === 'money' && (
         <>
           {amounts(t.room.walletStartLabel, WALLET_STARTS, o.walletStart, 'walletStart')}
-          {amounts(chips ? t.room.minBetLabel : t.room.stakePerPointLabel, STAKES_PER_POINT, o.stakePerPoint, 'stakePerPoint')}
+          {amounts(stakeLabel ?? (chips ? t.room.minBetLabel : t.room.stakePerPointLabel), STAKES_PER_POINT, o.stakePerPoint, 'stakePerPoint')}
           <p className="muted small stakes-note">{chips ? t.room.chipMoneyNote : t.room.moneyNote}</p>
         </>
       )}
@@ -525,6 +525,22 @@ export function ChipGameOptionsPicker({ room, dealerNote }: { room: RoomView; de
     <>
       <StakesPicker room={room} locked={locked} onSet={set} chips />
       <DealerPicker room={room} note={dealerNote} />
+    </>
+  );
+}
+
+// Lô tô: how fast numbers are called, and points or play money (the stake is the ticket price).
+export function LotoOptionsPicker({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const locked = room.hostId !== room.you || room.status === 'playing';
+  async function set(options: Partial<RoomOptions>) {
+    const r = await api.options(options);
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <>
+      <ChipGroup label={t.loto.speedLabel} options={LOTO_SPEEDS} value={room.options.callSpeed} labelOf={(s) => t.loto.speeds[s]} disabled={locked} onPick={(callSpeed) => set({ callSpeed })} />
+      <StakesPicker room={room} locked={locked} onSet={set} chips stakeLabel={t.loto.priceLabel} />
     </>
   );
 }

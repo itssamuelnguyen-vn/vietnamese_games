@@ -320,17 +320,6 @@ function HorseRaceArt() {
   );
 }
 
-function ColorCardsArt() {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <rect x="10" y="14" width="26" height="38" rx="4" fill="currentColor" opacity="0.55" transform="rotate(-14 23 33)" />
-      <rect x="22" y="10" width="30" height="44" rx="5" fill="currentColor" />
-      <ellipse cx="37" cy="32" rx="9" ry="15" fill="none" stroke="var(--art-ink)" strokeWidth="2.5" transform="rotate(28 37 32)" />
-      <path d="M33 27a6 6 0 0 1 9 2m0 0l1-4m-1 4l-4-1M41 37a6 6 0 0 1-9-2m0 0l-1 4m1-4l4 1" stroke="var(--art-ink)" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function WordChainArt({ first, second }: { first: string; second: string }) {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -392,6 +381,22 @@ function BlackjackArt() {
   );
 }
 
+// A corner of a lô tô ticket, with a called number's ball rolling in front.
+function LotoArt() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="6" y="8" width="40" height="34" rx="4" fill="currentColor" opacity="0.6" transform="rotate(-8 26 25)" />
+      <g fill="var(--art-ink)" opacity="0.55" transform="rotate(-8 26 25)">
+        {[0, 1, 2].map((r) => [0, 1, 2, 3].map((c) => ((r + c) % 2 === 0 ? <rect key={`${r}${c}`} x={10 + c * 9} y={12 + r * 9} width="6" height="6" rx="1" /> : null)))}
+      </g>
+      <circle cx="42" cy="42" r="17" fill="currentColor" stroke="var(--art-ink)" strokeWidth="2" />
+      <text x="42" y="48.5" fill="var(--art-ink)" fontFamily="inherit" fontWeight="800" fontSize="18" textAnchor="middle">
+        25
+      </text>
+    </svg>
+  );
+}
+
 const ART: Record<GameType, () => ReactElement> = {
   chess: ChessArt,
   xiangqi: XiangqiArt,
@@ -399,12 +404,12 @@ const ART: Record<GameType, () => ReactElement> = {
   typhu: PropertyArt,
   caro: CaroArt,
   cangua: HorseRaceArt,
-  colors: ColorCardsArt,
   noitu: () => <WordChainArt first="Ăn" second="Ơi" />,
   wordchain: () => <WordChainArt first="Ab" second="Bc" />,
   masoi: WolfArt,
   baucua: CrabArt,
   xidach: BlackjackArt,
+  loto: LotoArt,
 };
 
 export function GameArt({ type }: { type: GameType }) {

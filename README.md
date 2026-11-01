@@ -19,7 +19,8 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 | English word chain | Playable: 2-8 players, each word starts with the previous word's last letter, same knock-out rules as nối từ; ENABLE word list (public domain, server/data/wordchain-words.txt) with rude words removed, plus about 100 newer everyday words such as internet, email and website (server/data/wordchain-extra.txt, hand-written for this project); bots prefer everyday words |
 | Bầu cua | Playable: 2-10 players, bets of play chips on six animals over 10 rounds against the house or a player (or bot) the host seats as banker, room play-money wallets, shaken bowl that lifts to show three dice, computer players (bots), in-app rules |
 | Xì dách | Playable: 2-8 players over 10 rounds against the house or a player (or bot) the host seats as dealer, who plays last, can check hands early (xét bài) and pays from their own chips, room play-money wallets, dealer cards face down, busts kept hidden, play-chip stakes, Vietnamese hands (xì bàn, xì dách, ngũ linh, quắc), 16 to stand, dealer draws to 16, others' cards hidden until the reveal, computer players (bots), in-app rules |
-| Color Switch (original colour-matching card game), Ma sói (werewolf) | Planned, listed in the lobby as coming soon |
+| Lô tô (Vietnamese bingo) | Playable: up to 16 players buy 1-2 tickets (9 rows of 5 numbers), the house calls 1-90 at the host's chosen speed, mark by hand or auto-mark, Vietnamese read-aloud from a recorded call sheet (client/public/audio/loto-vi.mp3, about 430 KB, synthesized with Piper using the vi_VN-vais1000-medium voice, trained on the VAIS-1000 corpus, CC BY 4.0), first to shout Kinh! on a full row takes the pot (ties share, a wrong kinh is out), points or room play money, computer players (bots), in-app rules |
+| Ma sói (werewolf) | Planned, listed in the lobby as coming soon |
 
 ## Running locally
 
