@@ -42,15 +42,16 @@ function vietnameseVoice(): SpeechSynthesisVoice | null {
 
 const CAN_SPEAK = typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined';
 
-// Reads a line out in Vietnamese. Without a listed Vietnamese voice it still asks for vi-VN: many
-// phones (Android especially) list few or no voices yet speak Vietnamese through the system.
-function speak(text: string, voice: SpeechSynthesisVoice | null) {
-  if (!CAN_SPEAK) return;
+// Reads a line out with a Vietnamese voice. Without one, browsers quietly fall back to their
+// default (usually English) voice, which mangles Vietnamese, so then nothing is read at all.
+function speak(text: string, voice: SpeechSynthesisVoice | null): boolean {
+  if (!CAN_SPEAK || !voice) return false;
   speechSynthesis.cancel();
   const say = new SpeechSynthesisUtterance(text);
-  say.lang = voice?.lang ?? 'vi-VN';
-  if (voice) say.voice = voice;
+  say.voice = voice;
+  say.lang = voice.lang;
   speechSynthesis.speak(say);
+  return true;
 }
 
 function useVoiceReady() {
@@ -157,8 +158,7 @@ export function LotoGame({ room, view, onLeave }: Props) {
     seenLog.current = view.log;
     const call = fresh.filter((e) => e.kind === 'call').at(-1);
     if (call && call.kind === 'call') {
-      if (voiceOn && CAN_SPEAK && isSoundOn()) speak(T.say(vietnameseNumber(call.number)), voice);
-      else playSound('move');
+      if (!(voiceOn && isSoundOn() && speak(T.say(vietnameseNumber(call.number)), voice))) playSound('move');
     }
     if (fresh.some((e) => e.kind === 'kinh')) playSound('end');
     if (fresh.some((e) => e.kind === 'bust')) playSound('capture');
@@ -254,8 +254,7 @@ export function LotoGame({ room, view, onLeave }: Props) {
                     if (!on) return;
                     // A sample right away, so you know whether you can hear it.
                     if (!isSoundOn()) return toast(T.soundOff);
-                    speak(T.say(vietnameseNumber(1)), voice);
-                    if (!voice) toast(T.noVoice);
+                    if (!speak(T.say(vietnameseNumber(1)), voice)) toast(T.noVoice);
                   }}
                 />
                 🔊 {T.voice}

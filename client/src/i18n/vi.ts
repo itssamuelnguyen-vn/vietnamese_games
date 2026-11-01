@@ -618,7 +618,7 @@ export const vi = {
     say: (number: string) => `Số ${number}`,
     board: 'Các số đã xướng',
     voice: 'Đọc số',
-    noVoice: 'Không thấy giọng đọc tiếng Việt trên trình duyệt này. Nếu không nghe gì, hãy dùng Microsoft Edge, hoặc cài giọng tiếng Việt trong cài đặt máy (Windows: Cài đặt > Thời gian và ngôn ngữ > Giọng nói).',
+    noVoice: 'Máy chưa có giọng đọc tiếng Việt, nên số sẽ không được đọc (để khỏi bị đọc bằng giọng tiếng Anh). Hãy mở bằng Microsoft Edge, hoặc cài giọng tiếng Việt: Windows vào Cài đặt > Thời gian và ngôn ngữ > Giọng nói > Thêm giọng nói, rồi tải lại trang.',
     cannotSpeak: 'Trình duyệt này không hỗ trợ đọc thành tiếng',
     soundOff: 'Âm thanh đang tắt: bật loa ở góc trên để nghe đọc số',
     auto: 'Tự dò',

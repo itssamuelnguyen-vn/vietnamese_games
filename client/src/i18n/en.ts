@@ -607,7 +607,7 @@ export const en: Strings = {
     say: (number: string) => `Số ${number}`,
     board: 'Numbers called',
     voice: 'Read aloud',
-    noVoice: 'No Vietnamese voice found in this browser. If you hear nothing, try Microsoft Edge, or add a Vietnamese voice in your system settings (Windows: Settings > Time & language > Speech).',
+    noVoice: 'This device has no Vietnamese voice, so numbers won’t be read (rather than in an English voice). Open the game in Microsoft Edge, or add a Vietnamese voice (Windows: Settings > Time & language > Speech > Add voices), then reload.',
     cannotSpeak: 'This browser can’t read aloud',
     soundOff: 'Sound is off: turn on the speaker at the top to hear the numbers',
     auto: 'Auto-mark',
