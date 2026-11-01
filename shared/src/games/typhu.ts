@@ -802,9 +802,13 @@ function decline(s: TyPhuState, now: number): TyPhuState {
   return endTurn(s, now);
 }
 
-// Everyone who can still bid has dropped out (or the leader is unopposed).
+// Everyone who can still bid has dropped out (or the leader is unopposed). Someone who couldn't
+// raise the next bid even by borrowing up to their credit limit counts as out, so the table
+// doesn't wait for them.
 function auctionSettled(s: TyPhuState, a: Auction): boolean {
-  return activeIds(s).every((id) => id === a.from || id === a.leader || a.passed.includes(id));
+  const least = a.leader ? a.bid + BID_STEP : a.bid;
+  const canBid = (id: string) => s.players[id].cash + Math.max(0, creditLimit(s, id) - s.players[id].debt) >= least;
+  return activeIds(s).every((id) => id === a.from || id === a.leader || a.passed.includes(id) || !canBid(id));
 }
 
 function closeAuction(s: TyPhuState, now: number): TyPhuState {
@@ -1342,6 +1346,8 @@ export const typhuGame: GameDefinition<TyPhuState, TyPhuMove, TyPhuView> = {
           next = { ...r.state, log: r.state.log.map((e, j) => (j === i && e.kind === 'roll' ? { ...e, auto: true } : e)) };
         }
       } else if (next.phase === 'act') next = paced(next, decline(next, now), now, 0);
+      // Out of time at the airport is staying put, which uses up a free flight just the same.
+      else if (next.phase === 'fly') next = paced(next, endTurn(updatePlayer(next, player, { freeFlight: false }), now), now, 0);
       else next = paced(next, endTurn(next, now), now, 0);
     }
     return next;

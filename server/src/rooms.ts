@@ -35,6 +35,7 @@ import {
   type RoomView,
 } from '@vg/shared';
 import { loadDictionary } from './dictionaries';
+import { pickBotMove, type BotThinker } from './botThinker';
 
 // To add a game: write its GameDefinition in shared/src/games and register it here.
 const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
@@ -98,8 +99,10 @@ export interface RoomManagerOptions {
   random?: () => number;
   // Pause before each bot move, so people can follow what bots do.
   botDelayMs?: number;
-  // Called with the people still in a room that just closed, so they can be told.
-  onClosed?: (memberIds: string[]) => void;
+  // Whether a person is online now, for picking a new host; everyone counts as online by default.
+  isConnected?: (id: string) => boolean;
+  // Where heavy bot searches run; without one they run inline (tests).
+  thinker?: BotThinker;
 }
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
@@ -130,7 +133,10 @@ export class RoomManager {
   private readonly maxRooms: number;
   private readonly random: () => number;
   private readonly botDelayMs: number;
-  private readonly onClosed: (memberIds: string[]) => void;
+  private readonly isConnected: (id: string) => boolean;
+  private readonly thinker: BotThinker | undefined;
+  // Rooms whose bot is thinking off the main thread right now.
+  private thinking = new Set<string>();
 
   constructor({
     clock = Date.now,
@@ -138,14 +144,16 @@ export class RoomManager {
     maxRooms = 1000,
     random = secureRandom,
     botDelayMs = DEFAULT_BOT_DELAY_MS,
-    onClosed = () => {},
+    isConnected = () => true,
+    thinker,
   }: RoomManagerOptions = {}) {
     this.clock = clock;
     this.onAutoUpdate = onAutoUpdate;
     this.maxRooms = maxRooms;
     this.random = random;
     this.botDelayMs = botDelayMs;
-    this.onClosed = onClosed;
+    this.isConnected = isConnected;
+    this.thinker = thinker;
   }
 
   private ctx() {
@@ -251,7 +259,7 @@ export class RoomManager {
 
     if (room.spectators.some((p) => p.id === playerId)) {
       room.spectators = room.spectators.filter((p) => p.id !== playerId);
-      return room;
+      return this.afterLeaving(room, playerId);
     }
 
     if (room.status === 'playing') {
@@ -268,19 +276,25 @@ export class RoomManager {
     room.rematchVotes = [];
     room.lastActivity = Date.now();
     this.fillSeats(room);
+    const left = this.afterLeaving(room, playerId);
+    if (left) this.scheduleBots(room);
+    return left;
+  }
 
-    // Bots don't keep a room alive.
-    const people = room.players.filter((p) => !p.bot);
-    if (people.length === 0) {
-      const watchers = room.spectators.map((p) => p.id);
-      for (const id of watchers) this.playerRoom.delete(id);
+  // Closes a room nobody is left in (bots don't count), or hands the host role on.
+  private afterLeaving(room: Room, playerId: string): Room | undefined {
+    if (![...room.players, ...room.spectators].some((p) => !p.bot)) {
       this.deleteRoom(room);
-      if (watchers.length) this.onClosed(watchers);
       return undefined;
     }
-    if (room.hostId === playerId) room.hostId = people[0].id;
-    this.scheduleBots(room);
+    if (room.hostId === playerId) room.hostId = this.nextHost(room)!;
     return room;
+  }
+
+  // Who should host next: someone online, seated before watching; anyone, failing that.
+  private nextHost(room: Room, except?: string): string | undefined {
+    const people = [...room.players, ...room.spectators].filter((p) => !p.bot && p.id !== except);
+    return (people.find((p) => this.isConnected(p.id)) ?? people[0])?.id;
   }
 
   // The host can fill empty seats with computer players between games.
@@ -376,6 +390,7 @@ export class RoomManager {
       stakes = room.options.stakes,
       walletStart = room.options.walletStart,
       stakePerPoint = room.options.stakePerPoint,
+      xiDachDealer = room.options.xiDachDealer,
     } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
@@ -387,6 +402,8 @@ export class RoomManager {
     if (!Array.isArray(caNguaRules) || !caNguaRules.every((r) => CANGUA_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
     if (!STAKES.includes(stakes) || !WALLET_STARTS.includes(walletStart) || !STAKES_PER_POINT.includes(stakePerPoint)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (stakes === 'money' && !MONEY_GAMES.includes(room.gameType)) return { ok: false, error: 'INVALID_OPTIONS' };
+    // A newly picked dealer must be seated; one who later gets up leaves the dealing to the house.
+    if (xiDachDealer !== room.options.xiDachDealer && xiDachDealer !== null && !room.players.some((p) => p.id === xiDachDealer)) return { ok: false, error: 'INVALID_OPTIONS' };
     // New money terms start everyone afresh.
     const o = room.options;
     if (stakes !== o.stakes || walletStart !== o.walletStart || stakePerPoint !== o.stakePerPoint) room.wallets = {};
@@ -403,6 +420,7 @@ export class RoomManager {
       stakes,
       walletStart,
       stakePerPoint,
+      xiDachDealer,
     };
     room.lastActivity = Date.now();
     return { ok: true, room };
@@ -611,12 +629,12 @@ export class RoomManager {
 
   // A host who has been offline for a while hands the room to someone who is here, so games
   // can still be started.
-  handOffHost(playerId: string, isConnected: (id: string) => boolean): Room | undefined {
+  handOffHost(playerId: string): Room | undefined {
     const room = this.roomOf(playerId);
-    if (!room || room.hostId !== playerId || isConnected(playerId)) return undefined;
-    const next = room.players.find((p) => !p.bot && isConnected(p.id));
-    if (!next) return undefined;
-    room.hostId = next.id;
+    if (!room || room.hostId !== playerId || this.isConnected(playerId)) return undefined;
+    const next = this.nextHost(room, playerId);
+    if (!next || !this.isConnected(next)) return undefined;
+    room.hostId = next;
     return room;
   }
 
@@ -631,13 +649,14 @@ export class RoomManager {
       clearTimeout(this.botTimers.get(room.code));
       this.botTimers.delete(room.code);
     }
-    if (this.botTimers.has(room.code) || room.status !== 'playing' || !game.botMove || !room.players.some((p) => p.bot)) return;
+    if (this.botTimers.has(room.code) || this.thinking.has(room.code) || room.status !== 'playing' || !game.botMove || !room.players.some((p) => p.bot)) return;
     const timer = setTimeout(() => {
       this.botTimers.delete(room.code);
       if (this.rooms.get(room.code) !== room || room.status !== 'playing') return;
       // A change during the pause may have started a new animation (a roll, a new month): wait for it too.
       const busy = this.busyWait(room);
       if (busy > 0) return this.scheduleBots(room, busy);
+      if (game.heavyBot && this.thinker) return this.thinkElsewhere(room, this.thinker);
       for (const bot of room.players.filter((p) => p.bot)) {
         let move: unknown;
         try {
@@ -655,6 +674,24 @@ export class RoomManager {
     this.botTimers.set(room.code, timer);
   }
 
+  // A heavy bot search runs off the main thread. Meanwhile the game may have moved on (a person
+  // offered a draw, a clock ran out): then the move is dropped and the bots look again. If the
+  // worker fails, the bot thinks here instead rather than getting stuck.
+  private thinkElsewhere(room: Room, thinker: BotThinker): void {
+    const game = GAMES[room.gameType]!;
+    const state = room.state;
+    const bots = room.players.filter((p) => p.bot).map((p) => p.id);
+    this.thinking.add(room.code);
+    thinker(room.gameType, state, bots, this.clock())
+      .catch(() => pickBotMove(game, state, bots, this.ctx()))
+      .then((pick) => {
+        this.thinking.delete(room.code);
+        if (this.rooms.get(room.code) !== room || room.status !== 'playing') return;
+        if (room.state !== state) return this.scheduleBots(room, 0);
+        if (pick && this.play(room, pick.botId, pick.move).ok) this.onAutoUpdate(room);
+      });
+  }
+
   // How much longer bots should wait for clients to finish animating, if they haven't waited for
   // this animation yet. Scaled like the bot pause, so tests that shorten the pause aren't held up.
   private busyWait(room: Room): number {
@@ -665,6 +702,7 @@ export class RoomManager {
   }
 
   private deleteRoom(room: Room): void {
+    this.thinking.delete(room.code);
     clearTimeout(this.timers.get(room.code));
     this.timers.delete(room.code);
     clearTimeout(this.botTimers.get(room.code));

@@ -68,14 +68,25 @@ describe('xi dach', () => {
     expect(view.dealer).toHaveLength(1);
   });
 
-  it('needs 16 to stand; drawing past 21 is bust and passes the turn', () => {
+  it('needs 16 to stand; a bust stays hidden until the player stands', () => {
     let s = table({ a: hand(10, 4), b: hand(10, 9) }, hand(10, 6), hand(9, 1));
     expect(() => act(s, 'a', { type: 'stand' })).toThrow('INVALID_MOVE');
     expect(() => act(s, 'b', { type: 'hit' })).toThrow('NOT_YOUR_TURN');
     s = act(s, 'a', { type: 'hit' });
     expect(s.hands.a).toHaveLength(3);
+    expect(xdHandValue(s.hands.a).kind).toBe('bust');
+    // Still a's turn, and nothing tells the others: a can't draw again, only stand.
+    expect(s.turn).toBe('a');
+    expect(xiDachGame.playerView(s, 'b', { now: 0 }).log.at(-1)).toEqual({ kind: 'hit', player: 'a', cards: 3 });
+    expect(() => act(s, 'a', { type: 'hit' })).toThrow('INVALID_MOVE');
+    s = act(s, 'a', { type: 'stand' });
     expect(s.turn).toBe('b');
-    expect(s.log.some((e) => e.kind === 'bust' && e.player === 'a')).toBe(true);
+  });
+
+  it('five cards end the turn on their own', () => {
+    const s = act(table({ a: hand(2, 3, 2, 4), b: hand(10, 9) }, hand(10, 6), hand(5)), 'a', { type: 'hit' });
+    expect(xdHandValue(s.hands.a).kind).toBe('ngu-linh');
+    expect(s.turn).toBe('b');
   });
 
   it('the dealer draws to 16, then everyone is paid', () => {
@@ -110,5 +121,111 @@ describe('xi dach', () => {
     expect(s.result.ranking).toHaveLength(2);
     // Chips only ever move between players and the house in whole stakes.
     for (const id of s.seats) expect(s.chips[id] % 10).toBe(0);
+  });
+  describe('a seated dealer', () => {
+    const dealt = (dealer = 'd') => ({ ...options, xiDachDealer: dealer });
+    // d deals to a and b, with fixed hands and deck.
+    function dealerTable(hands: Record<string, XdCard[]>, dealerCards: XdCard[], deck: XdCard[], chips = XD_START_CHIPS): XiDachState {
+      const ids = Object.keys(hands);
+      return {
+        ...xiDachGame.setup(['d', ...ids], dealt(), { now: 0 }, null),
+        phase: 'play',
+        bets: Object.fromEntries(ids.map((id) => [id, 100])),
+        chips: { d: chips, ...Object.fromEntries(ids.map((id) => [id, XD_START_CHIPS - 100])) },
+        hands,
+        dealer: dealerCards,
+        deck,
+        turn: ids[0],
+      };
+    }
+
+    it('is picked by the host if seated, otherwise the house deals', () => {
+      expect(xiDachGame.setup(['a', 'd'], dealt(), { now: 0 }, null).dealerId).toBe('d');
+      expect(xiDachGame.setup(['a', 'b'], dealt(), { now: 0 }, null).dealerId).toBeNull();
+    });
+
+    it("doesn't stake; the round is dealt once the players are ready", () => {
+      let s = xiDachGame.setup(['d', 'a', 'b'], dealt(), { now: 0 }, null);
+      expect(() => act(s, 'd', { type: 'bet', amount: 100 })).toThrow('INVALID_MOVE');
+      expect(xiDachGame.botMove!(s, 'd', { now: 0 })).toBeNull();
+      s = act(act(s, 'a', { type: 'bet', amount: 100 }), 'a', { type: 'ready' });
+      s = act(act(s, 'b', { type: 'bet', amount: 50 }), 'b', { type: 'ready' }, 0, () => 0.1);
+      expect(s.phase).toBe('play');
+      expect(s.hands.d).toBeUndefined();
+      // The dealer sees their whole hand; the others only its first card.
+      expect(xiDachGame.playerView(s, 'd', { now: 0 }).dealer).toHaveLength(2);
+      expect(xiDachGame.playerView(s, 'a', { now: 0 }).dealer).toHaveLength(1);
+    });
+
+    it('plays last, needs 16 to stand, and pays and collects from their own chips', () => {
+      // a stands on 19, b on 17; the dealer has 12 and must draw: a 6 makes 18.
+      let s = dealerTable({ a: hand(10, 9), b: hand(10, 7) }, hand(10, 2), [c(6), c(9)]);
+      s = act(s, 'a', { type: 'stand' });
+      s = act(s, 'b', { type: 'stand' });
+      expect(s).toMatchObject({ phase: 'play', turn: 'd' });
+      expect(() => act(s, 'd', { type: 'stand' })).toThrow('INVALID_MOVE');
+      s = act(s, 'd', { type: 'hit' });
+      expect(s.dealer).toHaveLength(3);
+      s = act(s, 'd', { type: 'stand' });
+      expect(s.phase).toBe('reveal');
+      expect(s.chips).toEqual({ d: XD_START_CHIPS, a: XD_START_CHIPS + 100, b: XD_START_CHIPS - 100 });
+      expect(s.log).toContainEqual(expect.objectContaining({ kind: 'dealer', player: 'd', net: 0 }));
+    });
+
+    it('still plays when every player has gone bust, since busts stay hidden', () => {
+      let s = dealerTable({ a: hand(10, 6), b: hand(10, 6) }, hand(10, 7), [c(10), c(10)]);
+      for (const id of ['a', 'b']) s = act(act(s, id, { type: 'hit' }), id, { type: 'stand' });
+      expect(s).toMatchObject({ phase: 'play', turn: 'd' });
+      s = act(s, 'd', { type: 'stand' });
+      expect(s.phase).toBe('reveal');
+      expect(s.chips.d).toBe(XD_START_CHIPS + 200);
+    });
+
+    it('a short bank shares what it has among the winners, and the game ends', () => {
+      // Both players hold xì dách (×2 = 200 each) but the dealer has only 300 after collecting nothing.
+      let s = dealerTable({ a: hand(1, 13), b: hand(1, 12) }, hand(10, 2), [c(10)], 300);
+      s = { ...s, stood: ['a', 'b'], turn: 'd' };
+      s = act(s, 'd', { type: 'hit' });
+      expect(s.phase).toBe('reveal');
+      expect(s.chips).toEqual({ d: 0, a: XD_START_CHIPS + 150, b: XD_START_CHIPS + 150 });
+      expect(s.log.some((e) => e.kind === 'bank-broke')).toBe(true);
+      expect(xiDachGame.timeout!(s, { now: s.deadline }).result).not.toBeNull();
+    });
+
+    it('leaving mid-round hands the dealing to the house', () => {
+      let s = dealerTable({ a: hand(10, 9), b: hand(10, 7) }, hand(10, 2), [c(5), c(9)]);
+      s = act(s, 'a', { type: 'stand' });
+      s = act(s, 'b', { type: 'stand' });
+      s = xiDachGame.forfeit(s, 'd', { now: 0 }, 'left');
+      // The house draws a 5 to 17 and settles.
+      expect(s).toMatchObject({ dealerId: null, phase: 'reveal' });
+      expect(s.dealer).toHaveLength(3);
+      expect(s.chips.a).toBe(XD_START_CHIPS + 100);
+      expect(s.chips.b).toBe(XD_START_CHIPS);
+    });
+
+    it('a player leaving mid-round leaves their stake to the dealer', () => {
+      const s = xiDachGame.forfeit(dealerTable({ a: hand(10, 9), b: hand(10, 7) }, hand(10, 2), []), 'a', { now: 0 }, 'left');
+      expect(s.chips.d).toBe(XD_START_CHIPS + 100);
+      expect(s.turn).toBe('b');
+    });
+
+    it('games with a dealing bot run to the end', () => {
+      let s = xiDachGame.setup(['bot:1', 'bot:2', 'bot:3'], dealt('bot:2'), { now: 0 }, null);
+      let now = 0;
+      const total = () => s.seats.reduce((sum, id) => sum + s.chips[id], 0);
+      for (let steps = 0; !s.result; steps++) {
+        expect(steps).toBeLessThan(3000);
+        const mover = s.seats.find((id) => xiDachGame.botMove!(s, id, { now }));
+        if (mover) s = act(s, mover, xiDachGame.botMove!(s, mover, { now })!, now);
+        else {
+          now = s.deadline;
+          s = xiDachGame.timeout!(s, { now });
+        }
+        // Chips only move between the players and the dealer.
+        if (s.phase !== 'play') expect(total()).toBe(3 * XD_START_CHIPS);
+      }
+      expect(s.log.some((e) => e.kind === 'hit' && e.player === 'bot:2') || s.log.some((e) => e.kind === 'stand' && e.player === 'bot:2')).toBe(true);
+    });
   });
 });

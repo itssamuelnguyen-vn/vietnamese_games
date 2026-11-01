@@ -5,7 +5,7 @@ import { useI18n, type Strings } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
-import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
+import { AbsentPlayersNote, ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
 import { ExitIcon, PlayIcon, SendIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
@@ -349,6 +349,7 @@ export function WordChainGame({ room, view, onLeave }: Props) {
               />
             )}
           </div>
+          <AbsentPlayersNote room={room} />
           {myTurn && (
             <form className="wc-form" onSubmit={submit}>
               <input

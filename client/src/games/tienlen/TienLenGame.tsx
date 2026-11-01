@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { ABANDON_CLAIM_MS, canChopOutOfTurn, classify, hintPlays, playProblem, quickPick, rankOf, suitOf, type Card, type RoomView, type TienLenLogEntry, type TienLenMove, type TienLenView } from '@vg/shared';
+import { canChopOutOfTurn, classify, hintPlays, playProblem, quickPick, rankOf, suitOf, type Card, type RoomView, type TienLenLogEntry, type TienLenMove, type TienLenView } from '@vg/shared';
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
-import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
+import { AbsentPlayersNote, ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
 import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { loadSetting, saveSetting } from '../../settings';
@@ -212,17 +212,9 @@ export function TienLenGame({ room, view, onLeave }: Props) {
 
   // Live turn countdown between server updates.
   const receivedAt = useMemo(() => performance.now(), [room]);
-  // Seated opponents who dropped off; after a minute anyone can remove them from the table.
-  const offline = view.result
-    ? []
-    : view.seats
-        // Only players still in the hand matter; those who finished, froze or got stuck are done.
-        .filter((s) => s.id !== me && !s.out && !s.frozen && !s.stuck && s.place === null)
-        .map((s) => player(s.id))
-        .filter((p) => p && !p.connected && p.offlineMs !== null)
-        .map((p) => ({ name: p!.name, ms: p!.offlineMs! + (performance.now() - receivedAt) }));
-  const removable = offline.some((o) => o.ms >= ABANDON_CLAIM_MS);
-  useTicker((view.turnMs !== null || offline.length > 0) && !view.result);
+  // Only players still in the hand can hold it up; those who finished, froze or got stuck are done.
+  const inHand = view.result ? [] : view.seats.filter((s) => !s.out && !s.frozen && !s.stuck && s.place === null).map((s) => s.id);
+  useTicker(view.turnMs !== null && !view.result);
   const turnLeft = view.turnMs === null ? null : Math.max(0, view.turnMs - (performance.now() - receivedAt));
   const turnFraction = turnLeft !== null && view.turnLimitMs ? turnLeft / view.turnLimitMs : null;
 
@@ -300,11 +292,6 @@ export function TienLenGame({ room, view, onLeave }: Props) {
 
   async function play() {
     if (await send({ type: 'play', cards: selected })) setSelected([]);
-  }
-
-  async function removeOffline() {
-    const r = await api.claimWin();
-    if (!r.ok) toast(t.errors[r.error]);
   }
 
   async function rematch() {
@@ -521,19 +508,7 @@ export function TienLenGame({ room, view, onLeave }: Props) {
             {myTurn && turnLeft !== null && <span className="tl-seconds">{Math.ceil(turnLeft / 1000)}s</span>}
           </div>
           {myTurn && turnFraction !== null && <div className="tl-bar" style={{ '--left': turnFraction } as CSSProperties} />}
-          {seated && offline.length > 0 && (
-            <div className="offline-note">
-              <strong>{t.tienlen.offline(offline.map((o) => o.name).join(', '))}</strong>
-              <span className="muted small">
-                {removable ? t.tienlen.removeNow : t.tienlen.removeIn(Math.ceil((ABANDON_CLAIM_MS - Math.max(...offline.map((o) => o.ms))) / 1000))}
-              </span>
-              {removable && (
-                <button className="btn btn-primary btn-sm" onClick={removeOffline}>
-                  {t.tienlen.remove}
-                </button>
-              )}
-            </div>
-          )}
+          <AbsentPlayersNote room={room} ids={inHand} />
 
           {/* Once the game is over the results (with everyone's leftover cards) take over. */}
           {seated && hand.length > 0 && !view.result && (

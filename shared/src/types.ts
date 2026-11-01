@@ -7,8 +7,6 @@ export type GameType =
   | 'typhu'
   | 'caro'
   | 'cangua'
-  | 'maubinh'
-  | 'samloc'
   | 'colors'
   | 'noitu'
   | 'wordchain'
@@ -34,8 +32,6 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
   caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
   cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
-  maubinh: { type: 'maubinh', minPlayers: 2, maxPlayers: 4, available: false },
-  samloc: { type: 'samloc', minPlayers: 2, maxPlayers: 5, available: false },
   colors: { type: 'colors', minPlayers: 2, maxPlayers: 8, available: false },
   noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
@@ -107,6 +103,8 @@ export interface RoomOptions {
   // Play money each player's wallet starts with, and how much a point of a game's result is worth.
   walletStart: number;
   stakePerPoint: number;
+  // Xi dach: the seated player who deals and keeps the bank, or null for the automatic house.
+  xiDachDealer: string | null;
 }
 
 export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
@@ -121,6 +119,7 @@ export const DEFAULT_ROOM_OPTIONS: RoomOptions = {
   stakes: 'points',
   walletStart: 200_000,
   stakePerPoint: 5_000,
+  xiDachDealer: null,
 };
 
 export interface PlayerInfo {
@@ -208,6 +207,9 @@ export interface GameDefinition<S, M, V> {
   // games whose client animates each move (a rolling die, a walking piece). The pause restarts on
   // every change, so it always counts from the latest move.
   botPace?: number;
+  // The bot's move takes a CPU-heavy search (chess, xiangqi): the server works it out off its
+  // main thread, so other rooms aren't held up meanwhile.
+  heavyBot?: boolean;
   // Until when (absolute ms) clients are still animating the latest change, or null. Bots wait for
   // it before acting, so they don't move while people are still watching the last turn play out.
   busyUntil?(state: S): number | null;

@@ -332,6 +332,8 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
 
   // A bot always grants takebacks, takes a draw only when it's clearly behind, and otherwise
   // searches for its move.
+  heavyBot: true,
+
   botMove(state, playerId, { now, random }) {
     const color = colorOf(state, playerId);
     if (state.result || !color) return null;

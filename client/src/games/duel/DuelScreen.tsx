@@ -127,7 +127,6 @@ export function DuelScreen(props: DuelScreenProps) {
   const playerOn = (side: string) => room.players.find((p) => p.id === playerIds[side]);
   const nameOf = (side: string) => playerOn(side)?.name ?? t.chess.opponent;
   const opponent = mySide ? playerOn(otherSide(mySide)) : undefined;
-  const isHost = room.hostId === playerId;
   const myTurn = mySide === view.turn && !view.result;
 
   const [flipped, setFlipped] = useState(false);
@@ -213,8 +212,10 @@ export function DuelScreen(props: DuelScreenProps) {
     if (confirm(t.chess.confirmResign)) void act({ type: 'resign' });
   }
 
+  // Both players agree to the next game (a bot always does), so nobody is pulled out of looking
+  // over the last one.
   async function rematch() {
-    const r = isHost ? await api.start() : await api.rematch();
+    const r = await api.rematch();
     if (!r.ok) toast(t.errors[r.error]);
   }
 
@@ -245,6 +246,8 @@ export function DuelScreen(props: DuelScreenProps) {
 
   const iAskedRematch = room.rematchVotes.includes(playerId);
   const otherRematch = room.players.find((p) => p.id !== playerId && room.rematchVotes.includes(p.id));
+  const againstBot = room.players.some((p) => p.id !== playerId && p.bot);
+  const rematchLabel = iAskedRematch ? t.room.rematchRequested : againstBot ? t.room.playAgain : otherRematch ? t.room.acceptRematch : t.room.requestRematch;
 
   let statusTitle: string;
   let statusLines: string[] = [];
@@ -321,7 +324,7 @@ export function DuelScreen(props: DuelScreenProps) {
               detail={`${reasonText}${result.winner && result.winner !== playerId && playerOn(sideOf(result.winner) ?? '') ? ` · ${t.chess.playerWins(playerOn(sideOf(result.winner)!)!.name)}` : ''}`}
               rematch={
                 isPlayer
-                  ? { label: isHost ? t.room.playAgain : iAskedRematch ? t.room.rematchRequested : t.room.requestRematch, disabled: !isHost && iAskedRematch, onClick: rematch }
+                  ? { label: rematchLabel, disabled: iAskedRematch, onClick: rematch }
                   : null
               }
               onClose={() => setShowResult(false)}
@@ -432,8 +435,8 @@ export function DuelScreen(props: DuelScreenProps) {
             </>
           )}
           {result && mySide && (
-            <button className="btn btn-primary" disabled={!isHost && iAskedRematch} onClick={rematch}>
-              <PlayIcon /> {isHost ? t.room.playAgain : iAskedRematch ? t.room.rematchRequested : t.room.requestRematch}
+            <button className="btn btn-primary" disabled={iAskedRematch} onClick={rematch}>
+              <PlayIcon /> {rematchLabel}
             </button>
           )}
           <button

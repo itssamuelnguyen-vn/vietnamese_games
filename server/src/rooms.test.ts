@@ -30,7 +30,7 @@ describe('RoomManager', () => {
 
   it('refuses unavailable games and blank names', () => {
     const rooms = new RoomManager();
-    expect(rooms.create(A, 'An', 'maubinh')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+    expect(rooms.create(A, 'An', 'masoi')).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
     expect(rooms.create(A, '   ', 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
     expect(rooms.create(A, 42 as unknown as string, 'chess')).toEqual({ ok: false, error: 'NAME_REQUIRED' });
   });
@@ -277,6 +277,33 @@ describe('RoomManager', () => {
       expect((created.room.state as TienLenState).seats.toSorted()).toEqual(['bot:1', 'bot:2']);
     });
 
+    it('a host who watches and then leaves hands the room on, preferring someone online', () => {
+      const online = new Set([A, C]);
+      const rooms = new RoomManager({ isConnected: (id) => online.has(id) });
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.join(B, 'Bob', room.code);
+      rooms.join(C, 'Chi', room.code);
+      expect(rooms.stand(A).ok).toBe(true);
+      // B is seated but offline, so C gets it.
+      rooms.leave(A);
+      expect(room.hostId).toBe(C);
+      expect(rooms.start(C).ok).toBe(true);
+    });
+
+    it('an offline host is replaced by someone online, a spectator too', () => {
+      const online = new Set([B]);
+      const rooms = new RoomManager({ isConnected: (id) => online.has(id) });
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      rooms.join(B, 'Bob', created.room.code, true);
+      expect(rooms.handOffHost(A)?.hostId).toBe(B);
+      // Nobody else online: nothing changes.
+      online.clear();
+      expect(rooms.handOffHost(B)).toBeUndefined();
+    });
+
     it('a free seat after a game goes to those waiting to play, not to those who chose to watch', () => {
       let seed = 1;
       const rooms = new RoomManager({ random: () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646 });
@@ -294,6 +321,27 @@ describe('RoomManager', () => {
       expect(room.players.map((p) => p.id)).toEqual([A, D]);
       expect(room.spectators.map((p) => p.id)).toEqual([C]);
     });
+  });
+
+  it('xi dach: the host can seat a player as the dealer, or leave it to the house', () => {
+    const rooms = new RoomManager();
+    const created = rooms.create(A, 'An', 'xidach');
+    if (!created.ok) throw new Error(created.error);
+    const room = created.room;
+    rooms.join(B, 'Bob', room.code);
+    expect(rooms.setOptions(B, { xiDachDealer: B })).toEqual({ ok: false, error: 'NOT_HOST' });
+    expect(rooms.setOptions(A, { xiDachDealer: C })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
+    expect(rooms.setOptions(A, { xiDachDealer: B }).ok).toBe(true);
+    expect(rooms.start(A).ok).toBe(true);
+    expect((rooms.view(room, A, allOnline).game as XiDachView).dealerId).toBe(B);
+    rooms.leave(B);
+    expect(room.status).toBe('finished');
+    // Another option can still be set while the chosen dealer is away, and the house deals then.
+    rooms.join(C, 'Chi', room.code);
+    expect(rooms.setOptions(A, { turnTimer: '15' }).ok).toBe(true);
+    expect(rooms.start(A).ok).toBe(true);
+    expect((rooms.view(room, A, allOnline).game as XiDachView).dealerId).toBeNull();
+    expect(rooms.setOptions(A, { xiDachDealer: null })).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
   });
 
   describe('play money', () => {
@@ -507,14 +555,14 @@ describe('RoomManager', () => {
 
     it('lets only the host change options, and only between games', () => {
       const { rooms } = roomWithTwo();
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000 });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'random', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, xiDachDealer: null });
       expect(rooms.setOptions(B, { timeControl: '3+2' })).toEqual({ ok: false, error: 'NOT_HOST' });
       expect(rooms.setOptions(A, { timeControl: '1+0' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { timeControl: 'toString' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, null)).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'purple' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { hostColor: 'black' }).ok).toBe(true);
-      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000 });
+      expect(rooms.roomOf(A)?.options).toEqual({ timeControl: '10+0', hostColor: 'black', handicap: 'none', turnTimer: '30', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, xiDachDealer: null });
       expect(rooms.setOptions(A, { handicap: 'queen' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: ['no-two-finish', 'bogus'] })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
       expect(rooms.setOptions(A, { houseRules: 'no-two-finish' })).toEqual({ ok: false, error: 'INVALID_OPTIONS' });
@@ -740,18 +788,61 @@ describe('RoomManager', () => {
       expect((rooms.view(room, A, allOnline).game as TyPhuView).log.some((e) => 'player' in e && e.player === 'bot:1')).toBe(true);
     });
 
-    it('tells spectators when the last person leaves a room of bots', () => {
+    it('a spectator keeps a room of bots open and becomes host when the last seated person leaves', () => {
       vi.useFakeTimers();
-      const closed: string[][] = [];
-      const { rooms, room } = typhuRoom({ onClosed: (ids: string[]) => closed.push(ids) });
+      const { rooms, room } = typhuRoom();
       // Two bots, so the game goes on without the host and the spectator doesn't take a seat.
       rooms.addBot(A);
       rooms.addBot(A);
       rooms.start(A);
       rooms.join(C, 'Chi', room.code);
-      rooms.leave(A);
-      expect(closed).toEqual([[C]]);
+      expect(rooms.leave(A)).toBe(room);
+      expect(rooms.roomOf(C)).toBe(room);
+      expect(room.hostId).toBe(C);
+      // Once the last person goes, the room closes.
+      expect(rooms.leave(C)).toBeUndefined();
       expect(rooms.roomOf(C)).toBeUndefined();
+    });
+
+    it('heavy bot searches run elsewhere, and a move worked out for an old position is dropped', async () => {
+      vi.useFakeTimers();
+      const asked: unknown[] = [];
+      let answer: (pick: { botId: string; move: unknown } | null) => void = () => {};
+      const thinker = (_type: string, state: unknown) => {
+        asked.push(state);
+        return new Promise<{ botId: string; move: unknown } | null>((resolve) => (answer = resolve));
+      };
+      const rooms = new RoomManager({ botDelayMs: 10, thinker });
+      const created = rooms.create(A, 'An', 'chess');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.setOptions(A, { hostColor: 'black', timeControl: 'none' });
+      rooms.addBot(A);
+      rooms.start(A);
+      vi.advanceTimersByTime(10);
+      expect(asked).toHaveLength(1);
+      // The game changes meanwhile (as a draw offer would): the bot's move is for an old position.
+      room.state = { ...(room.state as object) };
+      answer({ botId: 'bot:1', move: { type: 'move', from: 'e2', to: 'e4' } });
+      await vi.advanceTimersByTimeAsync(10);
+      expect((rooms.view(room, A, allOnline).game as ChessView).history).toEqual([]);
+      // So the bot is asked again, and this time its move is played.
+      expect(asked).toHaveLength(2);
+      answer({ botId: 'bot:1', move: { type: 'move', from: 'e2', to: 'e4' } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect((rooms.view(room, A, allOnline).game as ChessView).history).toEqual(['e4']);
+    });
+
+    it('a failing bot worker falls back to thinking on the main thread', async () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10, thinker: () => Promise.reject(new Error('worker died')) });
+      const created = rooms.create(A, 'An', 'xiangqi');
+      if (!created.ok) throw new Error(created.error);
+      rooms.setOptions(A, { hostColor: 'black', timeControl: 'none' });
+      rooms.addBot(A);
+      rooms.start(A);
+      await vi.advanceTimersByTimeAsync(10);
+      expect((rooms.view(created.room, A, allOnline).game as { moves: string[] }).moves).toHaveLength(1);
     });
 
     it('caro: a bot answers every move until the game ends', () => {

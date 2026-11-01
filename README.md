@@ -18,8 +18,8 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 | Nối từ tiếng Việt (word chain) | Playable: 2-8 players, two-syllable words linked by syllable (either tone-mark placement, hoà or hòa, is accepted), turn timer, knock-outs, bots that know part of the dictionary. Word list: about 18,000 words from Wiktionary via kaikki.org, CC BY-SA 4.0 (server/data/noitu-words.txt) |
 | English word chain | Playable: 2-8 players, each word starts with the previous word's last letter, same knock-out rules as nối từ; ENABLE word list (public domain, server/data/wordchain-words.txt) with rude words removed; bots prefer everyday words |
 | Bầu cua | Playable: 2-10 players, bets of play chips on six animals over 10 rounds against the house, shaken bowl that lifts to show three dice, computer players (bots), in-app rules |
-| Xì dách | Playable: 2-8 players against the house over 10 rounds, play-chip stakes, Vietnamese hands (xì bàn, xì dách, ngũ linh, quắc), 16 to stand, dealer draws to 16, others' cards hidden until the reveal, computer players (bots), in-app rules |
-| Mậu binh, Sâm lốc, Color Switch (original colour-matching card game), Ma sói (werewolf) | Planned, listed in the lobby as coming soon |
+| Xì dách | Playable: 2-8 players over 10 rounds against the house or a player (or bot) the host seats as dealer, who plays last and pays from their own chips, play-chip stakes, Vietnamese hands (xì bàn, xì dách, ngũ linh, quắc), 16 to stand, dealer draws to 16, others' cards hidden until the reveal, computer players (bots), in-app rules |
+| Color Switch (original colour-matching card game), Ma sói (werewolf) | Planned, listed in the lobby as coming soon |
 
 ## Running locally
 
