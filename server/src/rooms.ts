@@ -376,6 +376,7 @@ export class RoomManager {
       stakes = room.options.stakes,
       walletStart = room.options.walletStart,
       stakePerPoint = room.options.stakePerPoint,
+      xiDachDealer = room.options.xiDachDealer,
     } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
@@ -387,6 +388,8 @@ export class RoomManager {
     if (!Array.isArray(caNguaRules) || !caNguaRules.every((r) => CANGUA_RULES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
     if (!STAKES.includes(stakes) || !WALLET_STARTS.includes(walletStart) || !STAKES_PER_POINT.includes(stakePerPoint)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (stakes === 'money' && !MONEY_GAMES.includes(room.gameType)) return { ok: false, error: 'INVALID_OPTIONS' };
+    // A newly picked dealer must be seated; one who later gets up leaves the dealing to the house.
+    if (xiDachDealer !== room.options.xiDachDealer && xiDachDealer !== null && !room.players.some((p) => p.id === xiDachDealer)) return { ok: false, error: 'INVALID_OPTIONS' };
     // New money terms start everyone afresh.
     const o = room.options;
     if (stakes !== o.stakes || walletStart !== o.walletStart || stakePerPoint !== o.stakePerPoint) room.wallets = {};
@@ -403,6 +406,7 @@ export class RoomManager {
       stakes,
       walletStart,
       stakePerPoint,
+      xiDachDealer,
     };
     room.lastActivity = Date.now();
     return { ok: true, room };

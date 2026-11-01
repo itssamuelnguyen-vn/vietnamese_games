@@ -320,36 +320,6 @@ function HorseRaceArt() {
   );
 }
 
-function ThreeHandsArt() {
-  // Thirteen cards arranged as the three hands of mau binh: 3 on top, 5 and 5 below.
-  const row = (y: number, n: number, w: number) =>
-    Array.from({ length: n }, (_, i) => (
-      <rect key={i} x={32 - (n * w) / 2 + i * w} y={y} width={w + 4} height="13" rx="2" />
-    ));
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <g fill="currentColor" stroke="var(--art-ink)" strokeWidth="1.2">
-        {row(10, 3, 8)}
-        {row(26, 5, 8)}
-        {row(42, 5, 8)}
-      </g>
-    </svg>
-  );
-}
-
-function FanArt() {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <g fill="currentColor" stroke="var(--art-ink)" strokeWidth="1.5">
-        {[-36, -18, 0, 18, 36].map((a) => (
-          <rect key={a} x="22" y="10" width="20" height="30" rx="3" transform={`rotate(${a} 32 52)`} />
-        ))}
-      </g>
-      <path d="M32 16l5 7-5 7-5-7z" fill="var(--art-ink)" transform="rotate(36 32 52)" />
-    </svg>
-  );
-}
-
 function ColorCardsArt() {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -429,8 +399,6 @@ const ART: Record<GameType, () => ReactElement> = {
   typhu: PropertyArt,
   caro: CaroArt,
   cangua: HorseRaceArt,
-  maubinh: ThreeHandsArt,
-  samloc: FanArt,
   colors: ColorCardsArt,
   noitu: () => <WordChainArt first="Ăn" second="Ơi" />,
   wordchain: () => <WordChainArt first="Ab" second="Bc" />,

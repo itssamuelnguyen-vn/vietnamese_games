@@ -89,7 +89,9 @@ function describe(t: Strings, e: XiDachLogEntry, name: (id: string) => string): 
     case 'bust':
       return L.bust(name(e.player));
     case 'dealer':
-      return L.dealer(valueLabel(t, e.value));
+      return L.dealer(valueLabel(t, e.value), e.player && name(e.player));
+    case 'bank-broke':
+      return L.bankBroke(name(e.player));
     case 'result':
       return L.result(name(e.player), valueLabel(t, e.hand), e.net > 0 ? X.win(t.typhu.money(e.net)) : e.net < 0 ? X.lose(t.typhu.money(-e.net)) : X.push);
     case 'left':
@@ -104,6 +106,8 @@ export function XiDachGame({ room, view, onLeave }: Props) {
   const me = room.you;
   const mySeat = view.seats.find((s) => s.id === me);
   const isHost = room.hostId === me;
+  const dealerId = view.dealerId;
+  const iDeal = dealerId === me;
   const name = (id: string) => (id === me ? t.room.you : ([...room.players, ...room.departed].find((p) => p.id === id)?.name ?? '…'));
   const player = (id: string) => room.players.find((p) => p.id === id);
   const color = (id: string) => SEAT_COLORS[Math.max(0, view.seats.findIndex((s) => s.id === id)) % SEAT_COLORS.length];
@@ -128,10 +132,13 @@ export function XiDachGame({ room, view, onLeave }: Props) {
     if (fresh.some((e) => e.kind === 'bust')) playSound('capture');
     const dealer = fresh.find((e) => e.kind === 'dealer');
     if (dealer && dealer.kind === 'dealer') {
-      setDealerShown(1);
-      for (let k = 2; k <= dealer.hand.length; k++) timers.current.push(setTimeout(() => (setDealerShown(k), playSound('move')), (k - 1) * DEALER_CARD_MS));
+      // The dealer has seen their own cards already; everyone else watches them turn over.
+      const from = dealer.player === me ? dealer.hand.length : 1;
+      setDealerShown(from);
+      for (let k = from + 1; k <= dealer.hand.length; k++) timers.current.push(setTimeout(() => (setDealerShown(k), playSound('move')), (k - 1) * DEALER_CARD_MS));
       const mine = fresh.find((e) => e.kind === 'result' && e.player === me);
-      timers.current.push(setTimeout(() => playSound(mine && mine.kind === 'result' && mine.net > 0 ? 'end' : 'notify'), dealer.hand.length * DEALER_CARD_MS));
+      const won = dealer.player === me ? dealer.net > 0 : !!mine && mine.kind === 'result' && mine.net > 0;
+      timers.current.push(setTimeout(() => playSound(won ? 'end' : 'notify'), dealer.hand.length * DEALER_CARD_MS));
     }
   }, [view.log]);
   const myTurn = view.phase === 'play' && view.turn === me && !view.result;
@@ -151,26 +158,32 @@ export function XiDachGame({ room, view, onLeave }: Props) {
 
   const revealing = view.phase === 'reveal';
   const dealerDone = revealing && dealerShown >= view.dealer.length;
+  const lastDealer = view.log.findLast((e) => e.kind === 'dealer');
+  const dealerNet = dealerDone && lastDealer?.kind === 'dealer' && lastDealer.player ? lastDealer.net : null;
   const results = new Map(
     view.log
       .slice(view.log.map((e) => e.kind).lastIndexOf('dealer'))
       .flatMap((e) => (e.kind === 'result' ? [[e.player, e] as const] : [])),
   );
-  const myHand = view.hands[me] ?? [];
+  const myHand = (iDeal ? view.dealer : view.hands[me]) ?? [];
   const myValue = myHand.length ? xdHandValue(myHand) : null;
-  const betting = view.phase === 'bet' && !view.result && !!mySeat && !mySeat.out && !mySeat.ready && mySeat.chips > 0;
+  const betting = view.phase === 'bet' && !view.result && !!mySeat && !mySeat.out && !iDeal && !mySeat.ready && mySeat.chips > 0;
   const myPlace = view.result ? view.result.ranking.indexOf(me) + 1 : 0;
-  const dealerValue = revealing ? xdHandValue(view.dealer.slice(0, dealerShown)) : null;
+  const dealerValue = revealing ? xdHandValue(view.dealer.slice(0, dealerShown)) : iDeal && view.dealer.length ? xdHandValue(view.dealer) : null;
 
   let status: string;
   if (view.result) status = X.resultTitle;
-  else if (view.phase === 'bet') status = !mySeat || mySeat.out ? X.round(view.round, view.rounds) : mySeat.chips === 0 ? X.noChips : mySeat.ready ? X.waitingOthers : X.betPrompt;
-  else if (view.phase === 'reveal') status = dealerDone && mySeat && results.get(me) ? describe(t, results.get(me)!, name) : X.dealerTurn;
+  else if (view.phase === 'bet')
+    status = !mySeat || mySeat.out ? X.round(view.round, view.rounds) : iDeal ? X.youDeal : mySeat.chips === 0 ? X.noChips : mySeat.ready ? X.waitingOthers : X.betPrompt;
+  else if (view.phase === 'reveal')
+    status = dealerDone && iDeal && dealerNet !== null ? X.dealerResult(dealerNet, money(Math.abs(dealerNet))) : dealerDone && mySeat && results.get(me) ? describe(t, results.get(me)!, name) : X.dealerTurn;
   else if (myTurn) status = X.yourTurn;
-  else if (mySeat && !mySeat.cards) status = X.sitOut;
+  else if (dealerId && view.turn === dealerId) status = X.dealerDrawing(name(dealerId));
+  else if (mySeat && !mySeat.cards && !iDeal) status = X.sitOut;
   else status = view.turn ? X.turnOf(name(view.turn)) : '';
 
-  const inRound = view.seats.filter((s) => s.cards > 0 || s.bet > 0);
+  const punters = view.seats.filter((s) => s.id !== dealerId);
+  const inRound = punters.filter((s) => s.cards > 0 || s.bet > 0);
 
   return (
     <div className="tl-layout xd-layout">
@@ -184,6 +197,7 @@ export function XiDachGame({ room, view, onLeave }: Props) {
             return seat ? (
               <>
                 🪙 {money(seat.chips)}
+                {id === dealerId && <span className="tag tag-gold bc-ready">🎩 {X.dealerTag}</span>}
                 {seat.ready && view.phase === 'bet' && <span className="tag tag-gold bc-ready">{t.baucua.readyTag}</span>}
               </>
             ) : null;
@@ -198,19 +212,32 @@ export function XiDachGame({ room, view, onLeave }: Props) {
       <section className="tl-main">
         <div className="xd-table">
           <header className="xd-round">{X.round(view.round, view.rounds)}</header>
-          <div className="xd-dealer">
-            <span className="xd-label">🎩 {X.dealer}</span>
+          <div className={`xd-dealer ${dealerId && view.turn === dealerId && view.phase === 'play' ? 'turn' : ''} ${iDeal ? 'me' : ''}`}>
+            <span className="xd-label">
+              🎩 {X.dealer}
+              {dealerId && (
+                <span className="xd-dealer-who">
+                  <Avatar id={dealerId} name={player(dealerId)?.name ?? name(dealerId)} size={24} color={color(dealerId)} />
+                  {name(dealerId)}
+                </span>
+              )}
+            </span>
             <div className="xd-cards">
               {view.dealerCards > 0 &&
                 Array.from({ length: revealing ? view.dealer.length : view.dealerCards }, (_, i) =>
-                  (revealing ? i < dealerShown : i === 0) && view.dealer[i] !== undefined ? <Card key={`c${i}`} card={view.dealer[i]} index={i} /> : <Back key={`b${i}`} index={i} />,
+                  (revealing ? i < dealerShown : i === 0 || iDeal) && view.dealer[i] !== undefined ? <Card key={`c${i}`} card={view.dealer[i]} index={i} /> : <Back key={`b${i}`} index={i} />,
                 )}
             </div>
             {dealerValue && <span className={`xd-value ${dealerValue.kind}`}>{valueLabel(t, dealerValue)}</span>}
+            {dealerNet !== null && (
+              <span className={`xd-result ${dealerNet > 0 ? 'win' : dealerNet < 0 ? 'lose' : 'push'}`}>
+                {dealerNet > 0 ? X.win(money(dealerNet)) : dealerNet < 0 ? X.lose(money(-dealerNet)) : X.push}
+              </span>
+            )}
           </div>
 
           <ol className="xd-seats">
-            {(inRound.length ? inRound : view.seats).map((seat) => {
+            {(inRound.length ? inRound : punters).map((seat) => {
               const cards = view.hands[seat.id];
               const result = dealerDone ? results.get(seat.id) : undefined;
               const value = cards ? xdHandValue(cards) : null;
@@ -338,7 +365,7 @@ export function XiDachGame({ room, view, onLeave }: Props) {
                   {describe(t, e, name)}
                 </li>
               ) : (
-                <li key={i} className={`tl-log-row ${'player' in e && e.player === me ? 'mine' : ''} ${e.kind === 'result' ? (e.net > 0 ? 'finish' : e.net < 0 ? 'pass' : '') : e.kind === 'bust' ? 'chop' : ''}`}>
+                <li key={i} className={`tl-log-row ${'player' in e && e.player === me ? 'mine' : ''} ${e.kind === 'result' ? (e.net > 0 ? 'finish' : e.net < 0 ? 'pass' : '') : e.kind === 'bust' || e.kind === 'bank-broke' ? 'chop' : ''}`}>
                   <span className="tl-log-text">{describe(t, e, name)}</span>
                 </li>
               ),

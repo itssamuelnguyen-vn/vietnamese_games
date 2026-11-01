@@ -69,8 +69,6 @@
 .art-typhu { --art-a: #9a4a16; --art-b: #e49b3d; --art-fg: #fff3dc; --art-ink: #9a4a16; }
 .art-caro { --art-a: #1d4f6e; --art-b: #3d8fb8; --art-fg: #f1f8fc; --art-ink: #1d4f6e; }
 .art-cangua { --art-a: #6b2f7a; --art-b: #b25fc0; --art-fg: #fbf0fd; --art-ink: #6b2f7a; }
-.art-maubinh { --art-a: #23305f; --art-b: #4c63b0; --art-fg: #f2f4fd; --art-ink: #23305f; }
-.art-samloc { --art-a: #6e1f3a; --art-b: #c14a70; --art-fg: #fdf0f4; --art-ink: #6e1f3a; }
 .art-colors { --art-a: #b5361e; --art-b: #f0a020; --art-fg: #fffaf0; --art-ink: #b5361e; }
 .art-noitu { --art-a: #0f5e5a; --art-b: #2fa59c; --art-fg: #effbfa; --art-ink: #0f5e5a; }
 .art-wordchain { --art-a: #3b4a1a; --art-b: #7d9a36; --art-fg: #f7fbe9; --art-ink: #3b4a1a; }
@@ -5230,11 +5228,31 @@ main {
   display: grid;
   justify-items: center;
   gap: 8px;
+  padding: 8px 14px;
+  border-radius: 16px;
+  transition: box-shadow 0.2s ease;
+}
+
+/* A seated dealer playing their hand. */
+.xd-dealer.turn {
+  box-shadow: 0 0 0 3px var(--gold), 0 0 18px rgba(224, 172, 69, 0.6);
 }
 
 .xd-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font-weight: 900;
   letter-spacing: 0.04em;
+}
+
+.xd-dealer-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0;
 }
 
 .xd-cards {
