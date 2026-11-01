@@ -615,11 +615,8 @@ export const vi = {
     ticketCount: (n: number) => `${n} vé`,
     firstSoon: 'Sắp xướng số đầu tiên…',
     callCount: (n: number, of: number) => `Số thứ ${n}/${of}`,
-    say: (number: string) => `Số ${number}`,
     board: 'Các số đã xướng',
     voice: 'Đọc số',
-    noVoice: 'Máy chưa có giọng đọc tiếng Việt, nên số sẽ không được đọc (để khỏi bị đọc bằng giọng tiếng Anh). Hãy mở bằng Microsoft Edge, hoặc cài giọng tiếng Việt: Windows vào Cài đặt > Thời gian và ngôn ngữ > Giọng nói > Thêm giọng nói, rồi tải lại trang.',
-    cannotSpeak: 'Trình duyệt này không hỗ trợ đọc thành tiếng',
     soundOff: 'Âm thanh đang tắt: bật loa ở góc trên để nghe đọc số',
     auto: 'Tự dò',
     markHint: 'Chạm vào số trên vé để dò. Đủ 5 số một hàng thì hô Kinh!',
@@ -661,7 +658,7 @@ export const vi = {
       {
         title: 'Dò số',
         items: [
-          'Máy xướng từng số một, theo tốc độ chủ phòng chọn. Bật Đọc số để nghe đọc (nếu trình duyệt có giọng tiếng Việt).',
+          'Máy xướng từng số một, theo tốc độ chủ phòng chọn. Bật Đọc số để nghe máy đọc từng số.',
           'Chạm vào số trên vé để dò. Ai muốn nhàn thì bật Tự dò.',
         ],
       },
@@ -673,6 +670,10 @@ export const vi = {
           'Kinh sai (hàng chưa đủ số) thì bị loại khỏi ván, tiền vé vẫn mất.',
           'Chơi bằng điểm: mỗi tờ vé là 1 điểm. Chơi bằng tiền ảo: giá vé do chủ phòng chọn.',
         ],
+      },
+      {
+        title: 'Giọng đọc',
+        items: ['Giọng đọc số được tạo bằng Piper với giọng vi_VN-vais1000, huấn luyện trên bộ dữ liệu VAIS-1000 (giấy phép CC BY 4.0).'],
       },
     ],
   },

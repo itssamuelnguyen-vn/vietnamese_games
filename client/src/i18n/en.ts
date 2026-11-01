@@ -604,11 +604,8 @@ export const en: Strings = {
     ticketCount: (n: number) => (n === 1 ? '1 ticket' : `${n} tickets`),
     firstSoon: 'The first number is coming…',
     callCount: (n: number, of: number) => `Number ${n} of ${of}`,
-    say: (number: string) => `Số ${number}`,
     board: 'Numbers called',
     voice: 'Read aloud',
-    noVoice: 'This device has no Vietnamese voice, so numbers won’t be read (rather than in an English voice). Open the game in Microsoft Edge, or add a Vietnamese voice (Windows: Settings > Time & language > Speech > Add voices), then reload.',
-    cannotSpeak: 'This browser can’t read aloud',
     soundOff: 'Sound is off: turn on the speaker at the top to hear the numbers',
     auto: 'Auto-mark',
     markHint: 'Tap the numbers on your tickets as they are called. Five in a row: shout Kinh!',
@@ -650,7 +647,7 @@ export const en: Strings = {
       {
         title: 'Marking',
         items: [
-          'Numbers are called one at a time, at the speed the host picked. Turn on Read aloud to hear them (if the browser has a Vietnamese voice).',
+          'Numbers are called one at a time, at the speed the host picked. Turn on Read aloud to hear each one called.',
           'Tap numbers on your tickets to mark them, or turn on Auto-mark.',
         ],
       },
@@ -662,6 +659,10 @@ export const en: Strings = {
           'A wrong kinh (a row not yet complete) puts you out of the round; your tickets are still paid for.',
           'For points, a ticket is 1 point. For play money, the host sets the ticket price.',
         ],
+      },
+      {
+        title: 'Caller’s voice',
+        items: ['The numbers are read with a voice made with Piper (voice vi_VN-vais1000), trained on the VAIS-1000 corpus (CC BY 4.0).'],
       },
     ],
   },

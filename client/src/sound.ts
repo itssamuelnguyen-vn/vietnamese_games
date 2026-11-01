@@ -35,6 +35,18 @@ const NOTES: Record<SoundKind, [number, number, number][]> = {
   lowtime: [[1000, 0, 0.05]],
 };
 
+// The app's one audio context, made on first use and woken if the browser suspended it (as phones
+// do until the page has been touched). Null where Web Audio isn't available.
+export function audioContext(): AudioContext | null {
+  try {
+    ctx ??= new AudioContext();
+    if (ctx.state === 'suspended') void ctx.resume();
+    return ctx;
+  } catch {
+    return null;
+  }
+}
+
 export function playSound(kind: SoundKind): void {
   if (!enabled) return;
   try {

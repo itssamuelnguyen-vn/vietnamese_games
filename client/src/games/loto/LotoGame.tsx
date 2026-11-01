@@ -8,7 +8,8 @@ import { toast } from '../../components/Toaster';
 import { AbsentPlayersNote, ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
 import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
-import { isSoundOn, playSound } from '../../sound';
+import { audioContext, isSoundOn, playSound } from '../../sound';
+import { loadCalls, sayNumber } from './voice';
 import { freshEntries } from '../freshLog';
 import { loadSetting, saveSetting } from '../../settings';
 
@@ -32,38 +33,6 @@ export function vietnameseNumber(n: number): string {
   if (unit === 5) return `${head} lăm`;
   if (unit === 4 && tens > 1) return `${head} tư`;
   return `${head} ${DIGITS[unit]}`;
-}
-
-// The browser's Vietnamese voice, if it has one.
-function vietnameseVoice(): SpeechSynthesisVoice | null {
-  if (typeof speechSynthesis === 'undefined') return null;
-  return speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith('vi')) ?? null;
-}
-
-const CAN_SPEAK = typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined';
-
-// Reads a line out with a Vietnamese voice. Without one, browsers quietly fall back to their
-// default (usually English) voice, which mangles Vietnamese, so then nothing is read at all.
-function speak(text: string, voice: SpeechSynthesisVoice | null): boolean {
-  if (!CAN_SPEAK || !voice) return false;
-  speechSynthesis.cancel();
-  const say = new SpeechSynthesisUtterance(text);
-  say.voice = voice;
-  say.lang = voice.lang;
-  speechSynthesis.speak(say);
-  return true;
-}
-
-function useVoiceReady() {
-  const [voice, setVoice] = useState(vietnameseVoice);
-  useEffect(() => {
-    if (typeof speechSynthesis === 'undefined') return;
-    // Voices load asynchronously in most browsers.
-    const update = () => setVoice(vietnameseVoice());
-    speechSynthesis.addEventListener('voiceschanged', update);
-    return () => speechSynthesis.removeEventListener('voiceschanged', update);
-  }, []);
-  return voice;
 }
 
 function useTicker(active: boolean, ms = 200) {
@@ -135,7 +104,15 @@ export function LotoGame({ room, view, onLeave }: Props) {
   // Dò số: marks are yours alone, kept on this screen; or let the game mark called numbers for you.
   const [auto, setAuto] = useState(() => loadSetting('vg:loto-auto') === 'on');
   const [voiceOn, setVoiceOn] = useState(() => loadSetting('vg:loto-voice') !== 'off');
-  const voice = useVoiceReady();
+  // The caller's recorded voice, loaded once when the screen opens.
+  const [calls, setCalls] = useState<Awaited<ReturnType<typeof loadCalls>>>(null);
+  useEffect(() => {
+    let live = true;
+    void loadCalls().then((c) => live && setCalls(c));
+    return () => {
+      live = false;
+    };
+  }, []);
   const [marks, setMarks] = useState<Set<number>>(new Set());
   const ticketsKey = view.tickets.map((tk) => tk.flat().join(',')).join('|');
   useEffect(() => setMarks(new Set()), [ticketsKey]);
@@ -151,14 +128,14 @@ export function LotoGame({ room, view, onLeave }: Props) {
     });
   }
 
-  // Each new number: read it out (if the browser has a Vietnamese voice), or a tick.
+  // Each new number: read it out, or a tick if the voice is off or couldn't load.
   const seenLog = useRef(view.log);
   useEffect(() => {
     const fresh = freshEntries(seenLog.current, view.log);
     seenLog.current = view.log;
     const call = fresh.filter((e) => e.kind === 'call').at(-1);
     if (call && call.kind === 'call') {
-      if (!(voiceOn && isSoundOn() && speak(T.say(vietnameseNumber(call.number)), voice))) playSound('move');
+      if (!(voiceOn && sayNumber(calls, call.number))) playSound('move');
     }
     if (fresh.some((e) => e.kind === 'kinh')) playSound('end');
     if (fresh.some((e) => e.kind === 'bust')) playSound('capture');
@@ -206,7 +183,8 @@ export function LotoGame({ room, view, onLeave }: Props) {
   else status = auto ? T.autoHint : T.markHint;
 
   return (
-    <div className="tl-layout lt-layout">
+    // Phones keep audio asleep until the page is touched: any tap here wakes it for the calls.
+    <div className="tl-layout lt-layout" onPointerDown={() => audioContext()}>
       <aside className="game-left">
         <RoomCodeCard code={room.code} />
         <PlayersCard
@@ -242,19 +220,18 @@ export function LotoGame({ room, view, onLeave }: Props) {
               {last !== undefined && <span className="muted">{vietnameseNumber(last)}</span>}
             </div>
             <div className="lt-toggles">
-              <label className="lt-toggle" title={CAN_SPEAK ? undefined : T.cannotSpeak}>
+              <label className="lt-toggle">
                 <input
                   type="checkbox"
-                  checked={voiceOn && CAN_SPEAK}
-                  disabled={!CAN_SPEAK}
+                  checked={voiceOn}
                   onChange={(e) => {
                     const on = e.target.checked;
                     setVoiceOn(on);
                     saveSetting('vg:loto-voice', on ? 'on' : 'off');
                     if (!on) return;
-                    // A sample right away, so you know whether you can hear it.
+                    // A sample right away (which also wakes audio on phones).
                     if (!isSoundOn()) return toast(T.soundOff);
-                    if (!speak(T.say(vietnameseNumber(1)), voice)) toast(T.noVoice);
+                    void loadCalls().then((c) => sayNumber(c, view.called.at(-1) ?? 1));
                   }}
                 />
                 🔊 {T.voice}
