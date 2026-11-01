@@ -341,6 +341,8 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
 
   // A bot always grants takebacks, takes a draw only when it's clearly behind, and otherwise
   // searches for its move.
+  heavyBot: true,
+
   botMove(state, playerId, { now, random }) {
     const side = sideOf(state, playerId);
     if (state.result || !side) return null;

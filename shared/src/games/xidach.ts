@@ -91,7 +91,6 @@ export type XiDachLogEntry =
   | { kind: 'round'; round: number }
   | { kind: 'hit'; player: string; cards: number }
   | { kind: 'stand'; player: string; auto: boolean }
-  | { kind: 'bust'; player: string }
   // `player` is the seated dealer (null for the house), `net` what they won or lost this round.
   | { kind: 'dealer'; hand: XdCard[]; value: HandValue; player: string | null; net: number }
   // A seated dealer couldn't cover every win in full: the winners shared what the bank had.
@@ -222,14 +221,14 @@ function reveal(s: XiDachState, now: number): XiDachState {
 }
 
 // The next player who still has to play this round, after `from` in seat order.
-// A seated dealer plays last, unless every player has gone bust already.
+// A seated dealer plays last, even when every player has gone bust: busts stay hidden until the
+// reveal, so the dealer can't tell.
 function nextTurn(s: XiDachState, from: string | null, now: number): XiDachState {
   const order = inRound(s);
   const start = from ? order.indexOf(from) + 1 : 0;
   const up = order.slice(start).find((id) => !s.stood.includes(id));
   if (up) return { ...s, turn: up, deadline: now + XD_TURN_MS };
-  const dealerPlays = s.dealerId !== null && !settled(s.dealer) && order.some((id) => xdHandValue(s.hands[id]).kind !== 'bust');
-  return dealerPlays ? { ...s, turn: s.dealerId, deadline: now + XD_TURN_MS } : reveal(s, now);
+  return s.dealerId !== null && !settled(s.dealer) ? { ...s, turn: s.dealerId, deadline: now + XD_TURN_MS } : reveal(s, now);
 }
 
 function deal(s: XiDachState, now: number, random: () => number): XiDachState {
@@ -275,10 +274,12 @@ function stand(s: XiDachState, id: string, now: number, auto: boolean): XiDachSt
 function hit(s: XiDachState, id: string, now: number): XiDachState {
   const cards = [...cardsOf(s, id), s.deck[0]];
   const dealt = id === s.dealerId ? { dealer: cards } : { hands: { ...s.hands, [id]: cards } };
-  let next = withLog({ ...s, ...dealt, deck: s.deck.slice(1) }, { kind: 'hit', player: id, cards: cards.length });
-  if (xdHandValue(cards).kind === 'bust') next = withLog(next, { kind: 'bust', player: id });
-  // Bust, five cards or a special hand: nothing more to decide.
-  return settled(cards) ? done(next, id, now) : { ...next, deadline: now + XD_TURN_MS };
+  const next = withLog({ ...s, ...dealt, deck: s.deck.slice(1) }, { kind: 'hit', player: id, cards: cards.length });
+  // A player who goes bust keeps it quiet, as at a real table: they still stand (dằn) themselves,
+  // so nobody can tell from the turn moving on. Five cards end the turn either way; a dealer who
+  // goes bust turns over at once.
+  const over = cards.length >= MAX_CARDS || (id === s.dealerId && settled(cards));
+  return over ? done(next, id, now) : { ...next, deadline: now + XD_TURN_MS };
 }
 
 const fail = { ok: false as const, error: 'INVALID_MOVE' as const };

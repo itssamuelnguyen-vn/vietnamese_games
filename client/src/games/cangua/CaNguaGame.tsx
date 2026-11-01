@@ -16,7 +16,7 @@ import { Avatar } from '../../components/Avatar';
 import { Die } from '../../components/Die';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
-import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
+import { AbsentPlayersNote, ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
 import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { loadSetting, saveSetting } from '../../settings';
@@ -456,6 +456,7 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
               label={C.roll}
             />
           </div>
+          <AbsentPlayersNote room={room} />
           {myTurn && turnFraction !== null && <div className="tl-bar" style={{ '--left': turnFraction } as CSSProperties} />}
           {canRoll && (
             <div className="cn-actions">

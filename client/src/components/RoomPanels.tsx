@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
+import { ABANDON_CLAIM_MS, CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -431,5 +431,42 @@ export function XiDachOptionsPicker({ room }: { room: RoomView }) {
       />
       {dealer !== 'house' && <p className="muted small stakes-note">{t.xidach.dealerNote}</p>}
     </>
+  );
+}
+
+// Seated players who dropped off mid-game (of `ids`, by default everyone seated). After a minute
+// anyone at the table can remove them, so they don't hold the game up; they rank last.
+export function AbsentPlayersNote({ room, ids }: { room: RoomView; ids?: string[] }) {
+  const { t } = useI18n();
+  const receivedAt = useMemo(() => performance.now(), [room]);
+  const seated = room.players.some((p) => p.id === room.you);
+  const offline = room.players
+    .filter((p) => p.id !== room.you && !p.bot && !p.connected && p.offlineMs !== null && (!ids || ids.includes(p.id)))
+    .map((p) => ({ name: p.name, ms: p.offlineMs! + (performance.now() - receivedAt) }));
+  const shown = seated && room.status === 'playing' && offline.length > 0;
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!shown) return;
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [shown]);
+  if (!shown) return null;
+  const removable = offline.some((o) => o.ms >= ABANDON_CLAIM_MS);
+  async function remove() {
+    const r = await api.claimWin();
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <div className="offline-note">
+      <strong>{t.room.absent(offline.map((o) => o.name).join(', '))}</strong>
+      <span className="muted small">
+        {removable ? t.room.absentRemoveNow : t.room.absentRemoveIn(Math.ceil((ABANDON_CLAIM_MS - Math.max(...offline.map((o) => o.ms))) / 1000))}
+      </span>
+      {removable && (
+        <button className="btn btn-primary btn-sm" onClick={remove}>
+          {t.room.absentRemove}
+        </button>
+      )}
+    </div>
   );
 }

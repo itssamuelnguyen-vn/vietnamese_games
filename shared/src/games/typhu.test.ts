@@ -4,6 +4,7 @@ import {
   ANIM,
   AUCTION_EXTEND_MS,
   AUCTION_MS,
+  BID_STEP,
   BOARD,
   FORTUNE,
   LOAN_BASE,
@@ -318,6 +319,15 @@ describe('co ti phu', () => {
       expect(s.turn).toBe('b');
     });
 
+    it("doesn't wait for players who couldn't raise the bid even on credit", () => {
+      // c has the opening bid but nothing more, and has borrowed all they can.
+      let s = declined(['a', 'b', 'c']);
+      s = withCash(s, 'c', start, creditLimit(s, 'c'));
+      s = act(s, 'b', { type: 'bid', amount: start + BID_STEP });
+      expect(s.auction).toBeNull();
+      expect(s.businesses.map((b) => b.owner)).toEqual(['b']);
+    });
+
     it('skips the auction when nobody else could afford the opening bid', () => {
       const s = act(withCash(game(), 'b', 0), 'a', { type: 'card', index: 0 });
       expect(act(s, 'a', { type: 'end' }).turn).toBe('b');
@@ -361,6 +371,9 @@ describe('co ti phu', () => {
       expect(ticket.phase).toBe('fly');
       const flown = act(ticket, 'a', { type: 'fly', to: index('dongkhoi') });
       expect(flown.players.a.cash).toBe(START_CASH);
+      // Running out of time instead uses the ticket up, as staying put does.
+      const late = typhuGame.timeout!({ ...ticket, turnDeadline: 0 }, { now: 0 });
+      expect(late.players.a.freeFlight).toBe(false);
     });
 
     it('a free upgrade lifts the cheapest business that can still grow, or pays out', () => {

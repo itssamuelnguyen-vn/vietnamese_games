@@ -50,7 +50,9 @@ export interface ClientToServerEvents {
 
 export interface ServerToClientEvents {
   'room:state': (room: RoomView) => void;
-  'room:closed': () => void;
+  // `gone`: the room no longer exists (the server restarted, or it sat idle), rather than the
+  // player having left it.
+  'room:closed': (reason?: 'gone') => void;
 }
 
 // The token is a per-browser secret; the server derives the public player id from it

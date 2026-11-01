@@ -277,6 +277,33 @@ describe('RoomManager', () => {
       expect((created.room.state as TienLenState).seats.toSorted()).toEqual(['bot:1', 'bot:2']);
     });
 
+    it('a host who watches and then leaves hands the room on, preferring someone online', () => {
+      const online = new Set([A, C]);
+      const rooms = new RoomManager({ isConnected: (id) => online.has(id) });
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.join(B, 'Bob', room.code);
+      rooms.join(C, 'Chi', room.code);
+      expect(rooms.stand(A).ok).toBe(true);
+      // B is seated but offline, so C gets it.
+      rooms.leave(A);
+      expect(room.hostId).toBe(C);
+      expect(rooms.start(C).ok).toBe(true);
+    });
+
+    it('an offline host is replaced by someone online, a spectator too', () => {
+      const online = new Set([B]);
+      const rooms = new RoomManager({ isConnected: (id) => online.has(id) });
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      rooms.join(B, 'Bob', created.room.code, true);
+      expect(rooms.handOffHost(A)?.hostId).toBe(B);
+      // Nobody else online: nothing changes.
+      online.clear();
+      expect(rooms.handOffHost(B)).toBeUndefined();
+    });
+
     it('a free seat after a game goes to those waiting to play, not to those who chose to watch', () => {
       let seed = 1;
       const rooms = new RoomManager({ random: () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646 });
@@ -761,18 +788,61 @@ describe('RoomManager', () => {
       expect((rooms.view(room, A, allOnline).game as TyPhuView).log.some((e) => 'player' in e && e.player === 'bot:1')).toBe(true);
     });
 
-    it('tells spectators when the last person leaves a room of bots', () => {
+    it('a spectator keeps a room of bots open and becomes host when the last seated person leaves', () => {
       vi.useFakeTimers();
-      const closed: string[][] = [];
-      const { rooms, room } = typhuRoom({ onClosed: (ids: string[]) => closed.push(ids) });
+      const { rooms, room } = typhuRoom();
       // Two bots, so the game goes on without the host and the spectator doesn't take a seat.
       rooms.addBot(A);
       rooms.addBot(A);
       rooms.start(A);
       rooms.join(C, 'Chi', room.code);
-      rooms.leave(A);
-      expect(closed).toEqual([[C]]);
+      expect(rooms.leave(A)).toBe(room);
+      expect(rooms.roomOf(C)).toBe(room);
+      expect(room.hostId).toBe(C);
+      // Once the last person goes, the room closes.
+      expect(rooms.leave(C)).toBeUndefined();
       expect(rooms.roomOf(C)).toBeUndefined();
+    });
+
+    it('heavy bot searches run elsewhere, and a move worked out for an old position is dropped', async () => {
+      vi.useFakeTimers();
+      const asked: unknown[] = [];
+      let answer: (pick: { botId: string; move: unknown } | null) => void = () => {};
+      const thinker = (_type: string, state: unknown) => {
+        asked.push(state);
+        return new Promise<{ botId: string; move: unknown } | null>((resolve) => (answer = resolve));
+      };
+      const rooms = new RoomManager({ botDelayMs: 10, thinker });
+      const created = rooms.create(A, 'An', 'chess');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.setOptions(A, { hostColor: 'black', timeControl: 'none' });
+      rooms.addBot(A);
+      rooms.start(A);
+      vi.advanceTimersByTime(10);
+      expect(asked).toHaveLength(1);
+      // The game changes meanwhile (as a draw offer would): the bot's move is for an old position.
+      room.state = { ...(room.state as object) };
+      answer({ botId: 'bot:1', move: { type: 'move', from: 'e2', to: 'e4' } });
+      await vi.advanceTimersByTimeAsync(10);
+      expect((rooms.view(room, A, allOnline).game as ChessView).history).toEqual([]);
+      // So the bot is asked again, and this time its move is played.
+      expect(asked).toHaveLength(2);
+      answer({ botId: 'bot:1', move: { type: 'move', from: 'e2', to: 'e4' } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect((rooms.view(room, A, allOnline).game as ChessView).history).toEqual(['e4']);
+    });
+
+    it('a failing bot worker falls back to thinking on the main thread', async () => {
+      vi.useFakeTimers();
+      const rooms = new RoomManager({ botDelayMs: 10, thinker: () => Promise.reject(new Error('worker died')) });
+      const created = rooms.create(A, 'An', 'xiangqi');
+      if (!created.ok) throw new Error(created.error);
+      rooms.setOptions(A, { hostColor: 'black', timeControl: 'none' });
+      rooms.addBot(A);
+      rooms.start(A);
+      await vi.advanceTimersByTimeAsync(10);
+      expect((rooms.view(created.room, A, allOnline).game as { moves: string[] }).moves).toHaveLength(1);
     });
 
     it('caro: a bot answers every move until the game ends', () => {

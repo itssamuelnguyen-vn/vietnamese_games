@@ -1633,6 +1633,22 @@ main {
   color: var(--text);
 }
 
+/* Shown over a room while the connection to the server is down. */
+.reconnect-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 0 auto 12px;
+  max-width: 520px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--gold-soft);
+  color: var(--text);
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
 .offline-note {
   display: grid;
   gap: 8px;

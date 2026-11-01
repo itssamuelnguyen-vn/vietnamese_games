@@ -68,14 +68,25 @@ describe('xi dach', () => {
     expect(view.dealer).toHaveLength(1);
   });
 
-  it('needs 16 to stand; drawing past 21 is bust and passes the turn', () => {
+  it('needs 16 to stand; a bust stays hidden until the player stands', () => {
     let s = table({ a: hand(10, 4), b: hand(10, 9) }, hand(10, 6), hand(9, 1));
     expect(() => act(s, 'a', { type: 'stand' })).toThrow('INVALID_MOVE');
     expect(() => act(s, 'b', { type: 'hit' })).toThrow('NOT_YOUR_TURN');
     s = act(s, 'a', { type: 'hit' });
     expect(s.hands.a).toHaveLength(3);
+    expect(xdHandValue(s.hands.a).kind).toBe('bust');
+    // Still a's turn, and nothing tells the others: a can't draw again, only stand.
+    expect(s.turn).toBe('a');
+    expect(xiDachGame.playerView(s, 'b', { now: 0 }).log.at(-1)).toEqual({ kind: 'hit', player: 'a', cards: 3 });
+    expect(() => act(s, 'a', { type: 'hit' })).toThrow('INVALID_MOVE');
+    s = act(s, 'a', { type: 'stand' });
     expect(s.turn).toBe('b');
-    expect(s.log.some((e) => e.kind === 'bust' && e.player === 'a')).toBe(true);
+  });
+
+  it('five cards end the turn on their own', () => {
+    const s = act(table({ a: hand(2, 3, 2, 4), b: hand(10, 9) }, hand(10, 6), hand(5)), 'a', { type: 'hit' });
+    expect(xdHandValue(s.hands.a).kind).toBe('ngu-linh');
+    expect(s.turn).toBe('b');
   });
 
   it('the dealer draws to 16, then everyone is paid', () => {
@@ -161,10 +172,11 @@ describe('xi dach', () => {
       expect(s.log).toContainEqual(expect.objectContaining({ kind: 'dealer', player: 'd', net: 0 }));
     });
 
-    it("doesn't play when every player has gone bust", () => {
-      let s = dealerTable({ a: hand(10, 6), b: hand(10, 6) }, hand(10, 2), [c(10), c(10)]);
-      s = act(s, 'a', { type: 'hit' });
-      s = act(s, 'b', { type: 'hit' });
+    it('still plays when every player has gone bust, since busts stay hidden', () => {
+      let s = dealerTable({ a: hand(10, 6), b: hand(10, 6) }, hand(10, 7), [c(10), c(10)]);
+      for (const id of ['a', 'b']) s = act(act(s, id, { type: 'hit' }), id, { type: 'stand' });
+      expect(s).toMatchObject({ phase: 'play', turn: 'd' });
+      s = act(s, 'd', { type: 'stand' });
       expect(s.phase).toBe('reveal');
       expect(s.chips.d).toBe(XD_START_CHIPS + 200);
     });

@@ -5,7 +5,7 @@ import { useI18n, type Strings } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
-import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
+import { AbsentPlayersNote, ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
 import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
@@ -257,6 +257,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
             </p>
             {view.phase === 'bet' && !view.result && <Countdown key={view.round} ms={view.msLeft} since={receivedAt} total={20_000} />}
           </div>
+          <AbsentPlayersNote room={room} />
           {mySeat && !mySeat.out && !view.result && (
             <div className="bc-controls">
               <div className="chip-group" role="group" aria-label={B.chipValue}>

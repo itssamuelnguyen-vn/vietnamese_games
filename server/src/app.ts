@@ -5,6 +5,7 @@ import express from 'express';
 import { Server } from 'socket.io';
 import { ABANDON_CLAIM_MS, type ClientToServerEvents, type ServerToClientEvents, type SocketAuth } from '@vg/shared';
 import { RoomManager, type Room } from './rooms';
+import { createWorkerThinker } from './botThinker';
 
 const ROOM_IDLE_MS = 10 * 60 * 1000;
 // Flood control per connection: at most RATE_MAX events in any RATE_WINDOW_MS.
@@ -26,9 +27,11 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
   const app = express();
   const httpServer = createServer(app);
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer);
+  const thinker = createWorkerThinker();
   const rooms = new RoomManager({
     onAutoUpdate: (room) => broadcast(room),
-    onClosed: (ids) => ids.forEach((id) => io.to(channel(id)).emit('room:closed')),
+    isConnected: (id) => isConnected(id),
+    thinker,
   });
 
   app.get('/healthz', (_req, res) => {
@@ -88,9 +91,12 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     connections.set(playerId, (connections.get(playerId) ?? 0) + 1);
     offlineAt.delete(playerId);
     const room = rooms.roomOf(playerId);
+    // A host who has been gone a while hands the room to whoever turns up, if nobody took it yet.
+    const hostAway = room && room.hostId !== playerId ? offlineSince(room.hostId) : null;
+    if (hostAway !== null && Date.now() - hostAway >= ABANDON_CLAIM_MS) rooms.handOffHost(room!.hostId);
     // After a restart or a sweep the room may be gone; tell the client so it doesn't stay on it.
     if (room) broadcast(room);
-    else socket.emit('room:closed');
+    else socket.emit('room:closed', 'gone');
 
     socket.on('room:create', (p, ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
@@ -196,7 +202,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
         connections.delete(playerId);
         offlineAt.set(playerId, Date.now());
         // If they don't come back, someone else becomes host.
-        setTimeout(() => broadcast(rooms.handOffHost(playerId, isConnected)), ABANDON_CLAIM_MS).unref();
+        setTimeout(() => broadcast(rooms.handOffHost(playerId)), ABANDON_CLAIM_MS).unref();
       }
       broadcast(rooms.roomOf(playerId));
     });
@@ -215,6 +221,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
     close: () =>
       new Promise((resolve) => {
         clearInterval(sweeper);
+        void thinker.close();
         io.close(() => resolve());
       }),
   };

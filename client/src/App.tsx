@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RoomView } from '@vg/shared';
 import { socket } from './socket';
 import { LOCALES, useI18n, type Locale } from './i18n';
 import { useTheme } from './theme';
 import { Lobby } from './components/Lobby';
 import { RoomScreen } from './components/RoomScreen';
-import { Toaster } from './components/Toaster';
+import { Toaster, toast } from './components/Toaster';
 import { Ellipsis } from './components/Ellipsis';
 import { LogoMark, MoonIcon, MuteIcon, SoundIcon, SunIcon } from './components/icons';
 import { isSoundOn, setSoundOn } from './sound';
@@ -22,11 +22,19 @@ export function App() {
   const [connected, setConnected] = useState(socket.connected);
   // Read once at page load: only an invite link should prefill the join box, not a room we just left.
   const [inviteCode, setInviteCode] = useState(roomCodeFromUrl);
+  const inRoom = useRef(false);
+  inRoom.current = room !== null;
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     const onConnect = () => setConnected(true);
     const onDisconnect = () => setConnected(false);
-    const onClosed = () => setRoom(null);
+    // Say why the room vanished when it wasn't the player leaving it.
+    const onClosed = (reason?: 'gone') => {
+      if (reason === 'gone' && inRoom.current) toast(tRef.current.room.roomGone);
+      setRoom(null);
+    };
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('room:state', setRoom);
@@ -106,6 +114,11 @@ export function App() {
         </div>
       </header>
       <main>
+        {room && !connected && (
+          <div className="reconnect-banner" role="status">
+            <Ellipsis text={t.room.reconnecting} />
+          </div>
+        )}
         {room ? <RoomScreen room={room} /> : <Lobby initialCode={inviteCode} connected={connected} />}
       </main>
       <footer className="footer">

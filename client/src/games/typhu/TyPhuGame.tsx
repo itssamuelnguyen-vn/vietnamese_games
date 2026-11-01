@@ -39,7 +39,7 @@ import { Avatar, initials } from '../../components/Avatar';
 import { Die } from '../../components/Die';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
-import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
+import { AbsentPlayersNote, ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
 import { ChevronRightIcon, CloseIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { loadSetting, saveSetting } from '../../settings';
@@ -699,6 +699,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             </p>
             {turnMs !== null && <Countdown ms={turnMs} since={receivedAt} render={(left) => <span className="tl-seconds">{Math.ceil(left / 1000)}s</span>} />}
           </div>
+          <AbsentPlayersNote room={room} />
           {turnMs !== null && view.turnLimitMs && (
             <Countdown ms={turnMs} since={receivedAt} render={(left) => <div className="tl-bar" style={{ '--left': Math.min(1, left / view.turnLimitMs!) } as CSSProperties} />} />
           )}

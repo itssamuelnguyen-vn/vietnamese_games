@@ -207,6 +207,9 @@ export interface GameDefinition<S, M, V> {
   // games whose client animates each move (a rolling die, a walking piece). The pause restarts on
   // every change, so it always counts from the latest move.
   botPace?: number;
+  // The bot's move takes a CPU-heavy search (chess, xiangqi): the server works it out off its
+  // main thread, so other rooms aren't held up meanwhile.
+  heavyBot?: boolean;
   // Until when (absolute ms) clients are still animating the latest change, or null. Bots wait for
   // it before acting, so they don't move while people are still watching the last turn play out.
   busyUntil?(state: S): number | null;
