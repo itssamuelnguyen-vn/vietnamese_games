@@ -102,8 +102,9 @@ export interface Room {
   // The first chat message of the current game: in games with private channels, those from
   // earlier games are open to everyone.
   chatFrom: number;
-  // People in the room's voice chat.
+  // People in the room's voice chat, and each one's voice session (counting up on every join).
   voice: string[];
+  voiceSessions: Record<string, number>;
   lastActivity: number;
 }
 
@@ -211,6 +212,7 @@ export class RoomManager {
       chat: [],
       chatFrom: 0,
       voice: [],
+      voiceSessions: {},
       lastActivity: Date.now(),
     };
     this.rooms.set(room.code, room);
@@ -566,11 +568,14 @@ export class RoomManager {
   }
 
   // Voice chat: any person in the room (not a bot) can join.
-  voiceJoin(playerId: string): Result<{ room: Room }> {
+  // Joining again (a reload, a dropped connection) starts a new session, so the others reconnect.
+  voiceJoin(playerId: string): Result<{ room: Room; session: number }> {
     const room = this.roomOf(playerId);
     if (!room) return { ok: false, error: 'NOT_IN_ROOM' };
     if (!room.voice.includes(playerId)) room.voice = [...room.voice, playerId];
-    return { ok: true, room };
+    const session = (room.voiceSessions[playerId] ?? 0) + 1;
+    room.voiceSessions = { ...room.voiceSessions, [playerId]: session };
+    return { ok: true, room, session };
   }
 
   voiceLeave(playerId: string): Room | undefined {
@@ -634,6 +639,7 @@ export class RoomManager {
         members: room.voice,
         to: room.voice.filter((id) => id !== playerId && this.hears(room, id, playerId)),
         from: room.voice.filter((id) => id !== playerId && this.hears(room, playerId, id)),
+        sessions: Object.fromEntries(room.voice.map((id) => [id, room.voiceSessions[id] ?? 0])),
       },
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
     };

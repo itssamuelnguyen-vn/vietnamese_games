@@ -265,7 +265,7 @@ export function XiDachGame({ room, view, onLeave }: Props) {
                   style={{ '--owner': color(seat.id) } as CSSProperties}
                 >
                   <span className="xd-who">
-                    <Avatar id={seat.id} name={player(seat.id)?.name ?? name(seat.id)} size={28} color={color(seat.id)} />
+                    <Avatar id={seat.id} name={player(seat.id)?.name ?? name(seat.id)} size={28} color={color(seat.id)} live />
                     <span className="xd-name">{name(seat.id)}</span>
                     {seat.bet > 0 && <span className="xd-bet">🪙 {money(seat.bet)}</span>}
                   </span>

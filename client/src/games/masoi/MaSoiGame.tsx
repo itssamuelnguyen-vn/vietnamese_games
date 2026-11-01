@@ -11,6 +11,7 @@ import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
 import { useVoice } from '../../voice';
+import { isNarratorOn, narrate, setNarratorOn, type NarratorLine } from './narrator';
 
 interface Props {
   room: RoomView;
@@ -126,7 +127,7 @@ function lineText(t: Strings, e: Extract<MaSoiLogEntry, { kind: 'say' }>, name: 
 }
 
 export function MaSoiGame({ room, view, onLeave }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const M = t.masoi;
   const P = M.prompt;
   const A = M.actions;
@@ -188,6 +189,23 @@ export function MaSoiGame({ room, view, onLeave }: Props) {
       document.title = t.appName;
     };
   }, [myTurn, view.phase, t]);
+
+  // The narrator announces each new phase (and how the day's vote came out), not what was already
+  // going on when the screen opened, except the deal at the very start.
+  const [narrator, setNarrator] = useState(isNarratorOn);
+  const narrated = useRef<string | null>(view.phase === 'intro' ? null : phaseKey);
+  useEffect(() => {
+    if (narrated.current === phaseKey) return;
+    narrated.current = phaseKey;
+    const last = view.log.at(-1);
+    let line: NarratorLine | null = null;
+    if (view.phase === 'intro') line = 'intro';
+    else if (view.phase === 'over') line = view.result?.winner === 'wolves' ? 'wolves' : 'village';
+    else if (view.phase === 'dawn') line = last?.kind === 'dawn' && last.dead.length > 0 ? 'dawnDead' : 'dawnPeace';
+    else if (view.phase === 'dusk') line = last?.kind === 'verdict' ? (last.hanged ? 'hanged' : 'spared') : 'noLynch';
+    else if (view.phase !== 'witch' || view.lineup.witch) line = view.phase as NarratorLine;
+    if (line) void narrate(locale, line);
+  }, [phaseKey]);
 
   const feedRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
@@ -409,6 +427,19 @@ export function MaSoiGame({ room, view, onLeave }: Props) {
               <p>{M.phases[view.phase]}</p>
             </div>
             {!view.result && view.msLeft > 0 && <Countdown key={phaseKey} ms={view.msLeft} since={receivedAt} total={view.phaseMs} />}
+            <button
+              type="button"
+              className="tool-btn ms-narrator"
+              aria-pressed={narrator}
+              title={narrator ? M.narratorOff : M.narratorOn}
+              aria-label={narrator ? M.narratorOff : M.narratorOn}
+              onClick={() => {
+                setNarratorOn(!narrator);
+                setNarrator(!narrator);
+              }}
+            >
+              {narrator ? '🗣️' : '🤐'}
+            </button>
           </header>
 
           <ul className="ms-seats">
@@ -440,7 +471,7 @@ export function MaSoiGame({ room, view, onLeave }: Props) {
                     aria-pressed={can ? chosen : undefined}
                   >
                     <span className="ms-seat-avatar">
-                      <Avatar id={seat.id} name={p?.name ?? plainName(seat.id)} size={46} online={p?.connected ?? false} />
+                      <Avatar id={seat.id} name={p?.name ?? plainName(seat.id)} size={46} online={p?.connected ?? false} live />
                       {seat.role && (
                         <span className="ms-seat-role" title={M.roles[seat.role]}>
                           {MASOI_ICONS[seat.role]}

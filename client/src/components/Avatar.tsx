@@ -1,3 +1,4 @@
+import { useSpeaking } from '../voice';
 const AVATAR_COLORS = ['#c2410c', '#b91c1c', '#7c3aed', '#0f766e', '#1d4ed8', '#be185d', '#4d7c0f', '#a16207'];
 
 function hash(text: string): number {
@@ -21,9 +22,15 @@ interface Props {
   online?: boolean;
   // Overrides the colour picked from the id, e.g. to match a player's tokens on a board.
   color?: string;
+  // Rings the avatar while this person is talking in the room's voice chat.
+  live?: boolean;
 }
 
-export function Avatar({ id, name, size = 40, online, color }: Props) {
+function SpeakingRing({ id }: { id: string }) {
+  return useSpeaking(id) ? <span className="avatar-speaking" aria-hidden="true" /> : null;
+}
+
+export function Avatar({ id, name, size = 40, online, color, live }: Props) {
   return (
     <span
       className="avatar"
@@ -31,6 +38,7 @@ export function Avatar({ id, name, size = 40, online, color }: Props) {
     >
       {initials(name)}
       {online !== undefined && <span className={`avatar-status ${online ? 'on' : 'off'}`} />}
+      {live && <SpeakingRing id={id} />}
     </span>
   );
 }

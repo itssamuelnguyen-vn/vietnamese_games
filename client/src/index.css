@@ -6451,7 +6451,108 @@ main {
 
 @media (max-width: 560px) {
   .voice-note,
-  .voice-leave-text {
+  .voice-leave-text,
+  .voice-count {
     display: none;
   }
+}
+
+.avatar-speaking {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--ok);
+  animation: voice-pulse 0.9s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes voice-pulse {
+  to {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--ok) 45%, transparent);
+  }
+}
+
+.voice-member {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.voice-member:disabled {
+  cursor: default;
+}
+
+.voice-warn.quiet {
+  background: var(--surface);
+  font-size: 0.55rem;
+}
+
+.voice-silenced {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.voice-panel {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: min(300px, calc(100vw - 24px));
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.voice-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.voice-field {
+  display: grid;
+  gap: 4px;
+}
+
+.voice-field select,
+.voice-field input[type='range'] {
+  width: 100%;
+}
+
+.voice-field select {
+  height: 38px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.voice-meter {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.voice-meter span {
+  display: block;
+  height: 100%;
+  width: calc(var(--level) * 100%);
+  background: linear-gradient(90deg, var(--ok), var(--gold));
+  transition: width 0.1s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar-speaking {
+    animation: none;
+  }
+}
+
+.voice-dock-spacer {
+  height: 64px;
 }

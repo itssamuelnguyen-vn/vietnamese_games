@@ -13,3 +13,11 @@ services:
       # The free plan has a tenth of a CPU for the whole process: one bot worker is plenty.
       - key: BOT_WORKERS
         value: "1"
+      # Optional TURN relay for voice chat on networks that block direct connections; set these in
+      # the Render dashboard (see voiceIceServers in server/src/app.ts).
+      - key: TURN_URLS
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false

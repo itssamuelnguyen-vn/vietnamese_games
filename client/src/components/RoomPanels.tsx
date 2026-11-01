@@ -139,7 +139,7 @@ export function PlayersCard({ room, subtitle, colorOf }: PlayersCardProps) {
       <ul className="player-list">
         {room.players.map((p) => (
           <li key={p.id} className={p.id === room.you ? 'me' : ''}>
-            <Avatar id={p.id} name={p.name} size={40} online={p.connected} color={colorOf?.(p.id)} />
+            <Avatar id={p.id} name={p.name} size={40} online={p.connected} color={colorOf?.(p.id)} live />
             <div className="player-list-text">
               <span className="player-list-name">
                 {p.name} {p.id === room.you && <span className="muted">{t.room.youSuffix}</span>}

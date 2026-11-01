@@ -20,7 +20,7 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 | Bầu cua | Playable: 2-10 players, bets of play chips on six animals over 10 rounds against the house or a player (or bot) the host seats as banker, room play-money wallets, shaken bowl that lifts to show three dice, computer players (bots), in-app rules |
 | Xì dách | Playable: 2-8 players over 10 rounds against the house or a player (or bot) the host seats as dealer, who plays last, can check hands early (xét bài) and pays from their own chips, room play-money wallets, dealer cards face down, busts kept hidden, play-chip stakes, Vietnamese hands (xì bàn, xì dách, ngũ linh, quắc), 16 to stand, dealer draws to 16, others' cards hidden until the reveal, computer players (bots), in-app rules |
 | Lô tô (Vietnamese bingo) | Playable: up to 16 players buy 1-2 tickets (9 rows of 5 numbers), the house calls 1-90 at the host's chosen speed, mark by hand or auto-mark, Vietnamese read-aloud from a recorded call sheet (client/public/audio/loto-vi.mp3, about 430 KB, synthesized with Piper using the vi_VN-vais1000-medium voice, trained on the VAIS-1000 corpus, CC BY 4.0), first to shout Kinh! on a full row takes the pot (ties share, a wrong kinh is out), points or room play money, computer players (bots), in-app rules |
-| Ma sói (werewolf) | Playable: 5-12 players, the game runs itself (no human moderator needed); Werewolves, Villagers and the host's pick of Seer, Guard, Witch and Hunter, with automatic or chosen wolf count; nights (wolves agree on a victim, seer, guard, then the witch's heal or poison), days with discussion, a public vote to accuse, the accused's defense and a hang-or-spare verdict, the hunter's last shot; optional role reveal on death; private chat channels (wolves at night, ghosts, spectators) that open to all when the game ends; bots that use their powers, reason from votes and claims and say a few set lines; detailed in-app rules with every role explained |
+| Ma sói (werewolf) | Playable: 5-12 players, the game runs itself (no human moderator needed); Werewolves, Villagers and the host's pick of Seer, Guard, Witch and Hunter, with automatic or chosen wolf count; nights (wolves agree on a victim, seer, guard, then the witch's heal or poison), days with discussion, a public vote to accuse, the accused's defense and a hang-or-spare verdict, the hunter's last shot; optional role reveal on death; private chat channels (wolves at night, ghosts, spectators) that open to all when the game ends; bots that use their powers, reason from votes and claims and say a few set lines; a narrator announcing each phase (client/public/audio/masoi-vi.mp3 and masoi-en.mp3, about 550 KB together, synthesized with Piper using the vi_VN-vais1000-medium voice, VAIS-1000 corpus, CC BY 4.0, and the en_US-ljspeech-medium voice, LJ Speech dataset, public domain); detailed in-app rules with every role explained |
 
 ## Running locally
 
@@ -83,9 +83,15 @@ same game view as players but cannot move.
 
 Rooms also have voice chat: each member's browser sends its microphone straight to the others
 (a WebRTC mesh; the server only relays the offers and answers over Socket.IO, see
-`client/src/voice.ts`). A public STUN server finds direct routes between most home networks; there
-is no TURN relay yet, so people on networks that block direct connections (some mobile carriers,
-strict office or school firewalls) may not connect. Voice follows the game's chat routing, so in
+`client/src/voice.ts`). Opus is asked for mono speech at about 24 kbps with DTX, so a phone sending
+to 11 others stays light. Dropped connections are rebuilt with growing pauses, and someone who
+rejoins (a reload puts you back in voice) starts a new session that the others reconnect to.
+A public STUN server finds direct routes between most home networks. For networks that block
+direct connections (some mobile carriers, strict office or school firewalls), set a TURN relay
+with the `TURN_URLS` (comma-separated `turn:`/`turns:` URLs), `TURN_USERNAME` and
+`TURN_CREDENTIAL` environment variables (in the Render dashboard); the server hands it to clients
+when they join voice, so anyone in a room can see those credentials. Each player can also pick a
+microphone and test it, and set how loud each other person plays for them. Voice follows the game's chat routing, so in
 ma sói the village is silent at night while the wolves hear each other, and the dead talk only
 among themselves. Microphone access needs https (or localhost).
 
