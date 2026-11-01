@@ -40,8 +40,8 @@ export const GAME_CATALOG: Record<GameType, GameInfo> = {
   noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   wordchain: { type: 'wordchain', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
   masoi: { type: 'masoi', minPlayers: 5, maxPlayers: 12, available: false },
-  baucua: { type: 'baucua', minPlayers: 2, maxPlayers: 10, available: false },
-  xidach: { type: 'xidach', minPlayers: 2, maxPlayers: 8, available: false },
+  baucua: { type: 'baucua', minPlayers: 2, maxPlayers: 10, available: true, bots: true },
+  xidach: { type: 'xidach', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
 };
 
 export type TimeControlId = 'none' | '3+2' | '5+0' | '10+0' | '15+10';

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaNguaView, CaroView, ChessView, WordChainView, TienLenView, TyPhuView } from '@vg/shared';
-import { caNguaGame, tienlenGame, type TienLenState } from '@vg/shared';
+import { caNguaGame, tienlenGame, xdHandValue, type BauCuaView, type TienLenState, type XiDachView } from '@vg/shared';
 import { RoomManager } from './rooms';
 
 const A = 'player-a';
@@ -197,11 +197,14 @@ describe('RoomManager', () => {
     });
 
     it('spectators who arrived mid-game take free seats when it ends', () => {
-      const rooms = new RoomManager();
+      // A fixed deal, so the game can't end at once on an instant win (about 2% of random deals).
+      let seed = 1;
+      const rooms = new RoomManager({ random: () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646 });
       const created = rooms.create(A, 'An', 'tienlen');
       if (!created.ok) throw new Error();
       rooms.join(B, 'Bob', created.room.code);
       rooms.start(A);
+      expect(created.room.status).toBe('playing');
       rooms.join(C, 'Chi', created.room.code);
       expect(created.room.spectators.map((p) => p.id)).toEqual([C]);
       rooms.move(A, { type: 'pass' });
@@ -555,6 +558,41 @@ describe('RoomManager', () => {
         }
         const view = rooms.view(room, A, allOnline).game as { history?: string[]; moves?: string[] };
         expect((view.history ?? view.moves)!.length).toBe(4);
+      }
+    });
+
+    it('bau cua and xi dach: a person and two bots play every round to the end', () => {
+      vi.useFakeTimers();
+      for (const type of ['baucua', 'xidach'] as const) {
+        const rooms = new RoomManager({ botDelayMs: 10 });
+        const created = rooms.create(A, 'An', type);
+        if (!created.ok) throw new Error(created.error);
+        const room = created.room;
+        rooms.addBot(A);
+        rooms.addBot(A);
+        expect(rooms.start(A).ok).toBe(true);
+        // The person stakes the smallest amount and gets ready; in xi dach they draw to 16 and stand.
+        for (let i = 0; i < 20_000 && room.status === 'playing'; i++) {
+          // The parts of both games' views this loop needs.
+          const v = rooms.view(room, A, allOnline).game as {
+            phase: string;
+            turn?: string | null;
+            hands?: XiDachView['hands'];
+            seats: { id: string; chips: number; ready: boolean; out: boolean; staked?: number; bet?: number }[];
+          };
+          const me = v.seats.find((p) => p.id === A)!;
+          if (v.phase === 'bet' && !me.ready && me.chips > 0 && !me.out) {
+            if (type === 'baucua' && me.staked === 0) rooms.move(A, { type: 'bet', symbol: 'cua', amount: 10 });
+            else if (type === 'xidach' && me.bet === 0) rooms.move(A, { type: 'bet', amount: 10 });
+            else rooms.move(A, { type: 'ready' });
+          } else if (type === 'xidach' && v.phase === 'play' && v.turn === A) {
+            const total = xdHandValue(v.hands![A]);
+            rooms.move(A, total.kind === 'points' && total.total < 16 ? { type: 'hit' } : { type: 'stand' });
+          } else vi.advanceTimersByTime(250);
+        }
+        expect(room.status).toBe('finished');
+        const result = (rooms.view(room, A, allOnline).game as BauCuaView).result!;
+        expect(result.ranking.toSorted()).toEqual([A, 'bot:1', 'bot:2'].toSorted());
       }
     });
 

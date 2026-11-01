@@ -12,6 +12,8 @@ import {
   typhuGame,
   caroGame,
   caNguaGame,
+  bauCuaGame,
+  xiDachGame,
   createWordChainGame,
   CARO_SIZE_IDS,
   CANGUA_RULES,
@@ -38,6 +40,8 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   typhu: typhuGame,
   caro: caroGame,
   cangua: caNguaGame,
+  baucua: bauCuaGame,
+  xidach: xiDachGame,
   noitu: createWordChainGame('noitu', loadDictionary('vi', 'noitu-words.txt')),
   wordchain: createWordChainGame('wordchain', loadDictionary('en', 'wordchain-words.txt', 'wordchain-common.txt')),
 };

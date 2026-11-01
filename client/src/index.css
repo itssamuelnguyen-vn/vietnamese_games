@@ -4532,10 +4532,156 @@ main {
 .wc-board {
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 10px;
-  height: min(62vh, 560px);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 12px;
+  height: min(70vh, 620px);
   padding: 16px;
+  transition: box-shadow 0.3s ease;
+}
+
+/* On phones the input below must stay in view. */
+@media (max-width: 860px) {
+  .wc-board {
+    height: min(50vh, 440px);
+  }
+}
+
+/* The last seconds of a turn. */
+.wc-board.urgent {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 55%, transparent), var(--shadow-md);
+}
+
+/* The players across the top. */
+.wc-seats {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+}
+
+.wc-seat {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 64px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.wc-seat.turn {
+  transform: translateY(-2px);
+}
+
+.wc-seat.out {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.wc-seat-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+}
+
+/* Time left on the turn, running out round the avatar. */
+.wc-ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.wc-ring circle {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+
+.wc-seat.urgent .wc-ring circle {
+  stroke: var(--danger);
+}
+
+.wc-seat.urgent .wc-seat-avatar {
+  animation: wc-pulse 0.6s ease-in-out infinite;
+}
+
+.wc-seat-x {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+
+.wc-seat-name {
+  max-width: 80px;
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wc-seat-words {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* The word to follow, big, and the start the next one must have. */
+.wc-now {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 10px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, var(--gold-soft), color-mix(in srgb, var(--gold-soft) 40%, var(--surface)));
+  animation: wc-arrive 0.4s cubic-bezier(0.2, 0.8, 0.3, 1.2);
+}
+
+.wc-current,
+.wc-next {
+  font-size: clamp(1.4rem, 4.5vw, 2.1rem);
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.wc-current mark,
+.wc-next mark {
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--gold);
+  color: #3a2408;
+}
+
+.wc-arrow {
+  color: var(--gold-text);
+  font-size: 1.6rem;
+  font-weight: 900;
+  animation: wc-nudge 1s ease-in-out infinite;
+}
+
+.wc-blank {
+  color: var(--muted);
+  animation: wc-blink 1s steps(2) infinite;
 }
 
 .wc-board-head {
@@ -4548,33 +4694,56 @@ main {
   font-size: 1.05rem;
 }
 
+/* The chain: words coupled one after another like a train, wrapping onto new lines. */
 .wc-feed {
   list-style: none;
   margin: 0;
   padding: 0 4px 0 0;
   overflow-y: auto;
-  display: grid;
-  align-content: start;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: center;
+  row-gap: 10px;
 }
 
 .wc-word {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  animation: pop-in 0.25s ease;
+  gap: 5px;
+  padding-left: 18px;
+  animation: wc-arrive 0.35s ease;
 }
 
-.wc-word.mine {
-  flex-direction: row-reverse;
+/* The coupling between two words. */
+.wc-word::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.wc-feed > .wc-word:first-child,
+.wc-out + .wc-word {
+  padding-left: 0;
+}
+
+.wc-feed > .wc-word:first-child::before,
+.wc-out + .wc-word::before {
+  display: none;
 }
 
 .wc-bubble {
-  padding: 8px 14px;
-  border-radius: 16px;
+  padding: 6px 12px;
+  border-radius: 12px;
   background: var(--surface-2);
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 700;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.06);
 }
 
 .wc-word.mine .wc-bubble {
@@ -4603,12 +4772,13 @@ main {
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .wc-out {
+  flex-basis: 100%;
   justify-self: center;
   padding: 4px 12px;
   border-radius: 999px;
@@ -4616,6 +4786,27 @@ main {
   color: var(--danger);
   font-size: 0.85rem;
   font-weight: 700;
+  text-align: center;
+}
+
+/* Someone just went out. */
+.wc-knockout {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  z-index: 3;
+  max-width: 90%;
+  padding: 14px 22px;
+  border-radius: 16px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  transform: translate(-50%, -50%);
+  animation: wc-knock 2.2s ease forwards;
+  pointer-events: none;
 }
 
 .wc-me .tl-me-head {
@@ -4624,6 +4815,15 @@ main {
 
 .wc-bar {
   flex-basis: 100%;
+}
+
+.tl-me .wc-bar.urgent {
+  background: linear-gradient(90deg, var(--danger) calc(var(--left) * 100%), var(--surface-2) 0);
+}
+
+.tl-seconds.wc-urgent {
+  color: var(--danger);
+  animation: wc-pulse 0.6s ease-in-out infinite;
 }
 
 .wc-form {
@@ -4648,4 +4848,538 @@ main {
 .wc-input:focus {
   outline: none;
   border-color: var(--gold);
+}
+
+/* A refused word: the input shakes and says why. */
+.wc-input.refused {
+  border-color: var(--danger);
+  animation: wc-shake 0.4s ease;
+}
+
+.wc-refusal {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+@keyframes wc-arrive {
+  from { opacity: 0; transform: translateX(14px) scale(0.92); }
+}
+
+@keyframes wc-nudge {
+  50% { transform: translateX(4px); }
+}
+
+@keyframes wc-blink {
+  50% { opacity: 0.2; }
+}
+
+@keyframes wc-pulse {
+  50% { transform: scale(1.08); }
+}
+
+@keyframes wc-shake {
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+@keyframes wc-knock {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  20% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -60%); }
+}
+
+
+/* ---- Bau cua ---- */
+
+.bc-table {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.06) 1px, transparent 0) 0 0 / 10px 10px,
+    radial-gradient(ellipse at center, #b3322a, #7d1d18);
+  color: #fff8ec;
+  box-shadow: inset 0 0 0 6px #6b3f22, inset 0 0 0 8px #e0ac45, var(--shadow-lg);
+}
+
+.bc-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.bc-history {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.bc-history li {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.bc-history li:last-child {
+  box-shadow: 0 0 0 2px #e0ac45;
+}
+
+/* The plate with three dice, and the bowl over it. */
+.bc-plate {
+  position: relative;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: min(62vw, 230px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fffdf6, #e9dcc0 70%, #c9b48a);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), inset 0 0 0 6px #fff;
+}
+
+.bc-dice {
+  display: flex;
+  gap: 8px;
+}
+
+.bc-die {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #fff, #f1e6d2);
+  font-size: 2rem;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.08), 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.bc-plate.open .bc-die {
+  animation: bc-land 0.45s cubic-bezier(0.2, 0.8, 0.3, 1.3) both;
+  animation-delay: calc(var(--i) * 120ms);
+}
+
+.bc-bowl {
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d9584c, #8f1d17 70%);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45), inset 0 -10px 20px rgba(0, 0, 0, 0.3);
+  transition: transform 0.6s cubic-bezier(0.3, 0.7, 0.2, 1), opacity 0.6s ease;
+}
+
+.bc-bowl::after {
+  content: '';
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #f6c96a, #b3801e);
+  transform: translateX(-50%);
+}
+
+.bc-plate.shaking {
+  animation: bc-shake 0.18s ease-in-out infinite;
+}
+
+.bc-plate.open .bc-bowl {
+  opacity: 0;
+  transform: translate(60%, -70%) rotate(25deg);
+}
+
+/* The six animals. */
+.bc-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bc-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-height: 120px;
+  padding: 12px 6px 30px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #fffaf0, #f1e2c2);
+  color: #2b2118;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+}
+
+.bc-tile:disabled {
+  cursor: default;
+}
+
+.bc-tile:not(:disabled):hover {
+  transform: translateY(-3px);
+}
+
+.bc-tile.hit {
+  box-shadow: 0 0 0 4px #e0ac45, 0 0 24px 6px rgba(255, 210, 120, 0.8);
+  animation: bc-win 0.8s ease 2;
+}
+
+.bc-tile.miss {
+  opacity: 0.55;
+}
+
+.bc-icon {
+  font-size: clamp(2rem, 6vw, 2.8rem);
+  line-height: 1;
+}
+
+.bc-name {
+  font-weight: 900;
+}
+
+.bc-hits {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e0ac45;
+  color: #3a2408;
+  font-weight: 900;
+}
+
+/* Your own stake on an animal, and everyone else's as coloured chips. */
+.bc-mine {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--on-brand);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.bc-stakes {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  right: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+}
+
+.bc-stake {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--owner);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.bc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.bc-wallet {
+  font-weight: 800;
+}
+
+/* Casino-style chips. */
+.bc-chip {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 4px dashed rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.bc-chip.v10 { background: #2e86de; }
+.bc-chip.v50 { background: #27ae60; }
+.bc-chip.v100 { background: #c0392b; }
+.bc-chip.v200 { background: #2b2118; }
+
+.bc-chip[aria-pressed='true'] {
+  transform: translateY(-4px) scale(1.08);
+  box-shadow: 0 0 0 3px var(--gold), 0 6px 10px rgba(0, 0, 0, 0.3);
+}
+
+.bc-chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The countdown bar takes a line of its own under the status. */
+.bc-me .tl-me-head,
+.xd-me .tl-me-head {
+  flex-wrap: wrap;
+}
+
+.tl-me .bc-bar {
+  flex-basis: 100%;
+}
+
+.bc-ready {
+  margin-left: 6px;
+}
+
+.bc-float {
+  display: inline-block;
+  margin-left: 6px;
+  font-weight: 900;
+  animation: bc-pop 2.4s ease forwards;
+}
+
+.bc-float.up { color: var(--ok); }
+.bc-float.down { color: var(--danger); }
+
+@keyframes bc-shake {
+  25% { transform: translate(-6px, 2px) rotate(-4deg); }
+  75% { transform: translate(6px, -2px) rotate(4deg); }
+}
+
+@keyframes bc-land {
+  from { opacity: 0; transform: scale(0.3) rotate(-90deg); }
+}
+
+@keyframes bc-win {
+  50% { transform: translateY(-4px) scale(1.03); }
+}
+
+@keyframes bc-pop {
+  0% { opacity: 0; transform: translateY(6px) scale(0.7); }
+  15% { opacity: 1; transform: translateY(0) scale(1.15); }
+  25% { transform: scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (max-width: 560px) {
+  .bc-plate {
+    width: 46vw;
+  }
+
+  .bc-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bc-tile {
+    min-height: 100px;
+  }
+
+  .bc-die {
+    width: 44px;
+    height: 44px;
+    font-size: 1.6rem;
+  }
+}
+
+/* ---- Xi dach ---- */
+
+.xd-table {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  min-height: 420px;
+  padding: 18px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.06) 1px, transparent 0) 0 0 / 10px 10px,
+    radial-gradient(ellipse at center, #2f7a55, #1b4d35);
+  box-shadow: inset 0 0 0 8px #6b3f22, inset 0 0 0 10px #8a5a2b, var(--shadow-lg);
+  color: #fff;
+}
+
+.xd-round {
+  justify-self: center;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  font-weight: 800;
+}
+
+.xd-dealer {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.xd-label {
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.xd-cards {
+  display: flex;
+  justify-content: center;
+  min-height: 60px;
+}
+
+.xd-cards > * + * {
+  margin-left: -18px;
+}
+
+.xd-card {
+  --w: 48px;
+  animation: xd-deal 0.35s ease both;
+  animation-delay: calc(var(--i) * 80ms);
+}
+
+.xd-back {
+  width: 48px;
+  height: calc(48px * 1.4);
+  border-radius: 7px;
+  border: 2px solid #fff;
+  background: repeating-linear-gradient(45deg, #a3201b 0 4px, #c8463a 4px 8px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  animation: xd-deal 0.35s ease both;
+  animation-delay: calc(var(--i) * 80ms);
+}
+
+.xd-value {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  font-weight: 900;
+}
+
+.xd-value.xi-ban,
+.xd-value.xi-dach,
+.xd-value.ngu-linh {
+  background: #e0ac45;
+  color: #3a2408;
+}
+
+.xd-value.bust {
+  background: var(--danger);
+  color: #fff;
+}
+
+.tl-me .xd-value {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.tl-me .xd-value.big {
+  font-size: 1.1rem;
+}
+
+.xd-seats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xd-seat {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 140px;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.22);
+  transition: box-shadow 0.2s ease;
+}
+
+.xd-seat.turn {
+  box-shadow: 0 0 0 3px var(--gold), 0 0 18px rgba(224, 172, 69, 0.6);
+}
+
+.xd-seat.me {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.xd-seat.out {
+  opacity: 0.5;
+}
+
+.xd-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.xd-name {
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xd-bet {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e0ac45;
+  color: #3a2408;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.xd-tag {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.xd-result {
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-weight: 900;
+  animation: pop-in 0.3s ease;
+}
+
+.xd-result.win { background: var(--ok); }
+.xd-result.lose { background: var(--danger); }
+.xd-result.push { background: rgba(255, 255, 255, 0.25); }
+
+@keyframes xd-deal {
+  from { opacity: 0; transform: translateY(-30px) rotate(-8deg); }
+}
+
+@media (max-width: 560px) {
+  .xd-seat {
+    min-width: 0;
+    flex: 1 1 140px;
+  }
+
+  .xd-card {
+    --w: 40px;
+  }
+
+  .xd-back {
+    width: 40px;
+    height: calc(40px * 1.4);
+  }
 }

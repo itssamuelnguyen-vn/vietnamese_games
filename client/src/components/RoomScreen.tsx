@@ -1,4 +1,4 @@
-import { GAME_CATALOG, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type BauCuaView, type XiDachView, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { ChessGame } from '../games/ChessGame';
@@ -7,6 +7,8 @@ import { TienLenGame } from '../games/tienlen/TienLenGame';
 import { TyPhuGame } from '../games/typhu/TyPhuGame';
 import { CaroGame } from '../games/caro/CaroGame';
 import { CaNguaGame } from '../games/cangua/CaNguaGame';
+import { BauCuaGame } from '../games/baucua/BauCuaGame';
+import { XiDachGame } from '../games/xidach/XiDachGame';
 import { WordChainGame } from '../games/wordchain/WordChainGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
@@ -37,6 +39,8 @@ export function RoomScreen({ room }: Props) {
   if (room.gameType === 'cangua') return <CaNguaGame room={room} view={room.game as CaNguaView} onLeave={leave} />;
   if (room.gameType === 'caro') return <CaroGame room={room} view={room.game as CaroView} onLeave={leave} />;
   if (room.gameType === 'typhu') return <TyPhuGame room={room} view={room.game as TyPhuView} onLeave={leave} />;
+  if (room.gameType === 'baucua') return <BauCuaGame room={room} view={room.game as BauCuaView} onLeave={leave} />;
+  if (room.gameType === 'xidach') return <XiDachGame room={room} view={room.game as XiDachView} onLeave={leave} />;
   return null;
 }
 
