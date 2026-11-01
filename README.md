@@ -9,8 +9,8 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 
 | Game | Status |
 |---|---|
-| Chess | Playable: clocks, draw offers, takebacks, premoves, promotion picker, move review, opening names, PGN/FEN export, sounds |
-| Xiangqi | Playable: own rules engine (perft-verified), Asian rules (no legal moves loses, perpetual check loses, repetition and 60-move draws), Vietnamese and WXF notation, file numbers, opening names, captured pieces, FEN/PGN export, Chinese or letter piece labels, handicap (odds) games, same clocks/draws/takebacks as chess |
+| Chess | Playable: clocks, draw offers, takebacks, premoves, promotion picker, move review, opening names, PGN/FEN export, sounds, computer players (bots) |
+| Xiangqi | Playable: own rules engine (perft-verified), Asian rules (no legal moves loses, perpetual check loses, repetition and 60-move draws), Vietnamese and WXF notation, file numbers, opening names, captured pieces, FEN/PGN export, Chinese or letter piece labels, handicap (odds) games, same clocks/draws/takebacks as chess, computer players (bots) |
 | Tiến lên miền Nam | Playable: 2-4 players, house rules shown in-app (Luật chơi), chops, instant wins, full ranking, per-turn timer, optional house rules and scoring, room scoreboard, hints, drag-to-arrange hand, computer players (bots) |
 | Cờ tỉ phú (property-trading game) | Playable: original design on a 28-square loop through 16 Ho Chi Minh City streets, 2-6 players; win by holding three whole routes, or be the last player not bankrupt (3-year limit); auctions for declined slots, takeovers (landmarks are safe), luck and opportunity cards, monthly city events and yearly fee growth, business chains, dice or scarce move cards, credit limits and forced sales, player trades, paced animations, computer players (bots), in-app rules |
 | Caro (gomoku) | Playable: 15×15 or 19×19 board, optional Vietnamese blocked-ends rule, chess-style clocks, draws, takebacks, move review, a bot to play against, in-app rules |

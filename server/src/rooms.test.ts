@@ -474,7 +474,8 @@ describe('RoomManager', () => {
       expect(room.players.map((p) => p.id)).toContain('bot:1');
 
       const chess = rooms.create(C, 'Chi', 'chess');
-      expect(chess.ok && rooms.addBot(C)).toEqual({ ok: false, error: 'GAME_UNAVAILABLE' });
+      // Every playable game now has bots, two-player games included.
+      expect(chess.ok && rooms.addBot(C).ok).toBe(true);
     });
 
     it('fills the table up to the maximum and not past it', () => {
@@ -529,6 +530,32 @@ describe('RoomManager', () => {
       expect(room.status).toBe('finished');
       const result = (rooms.view(room, A, allOnline).game as TienLenView).result!;
       expect(result.ranking.toSorted()).toEqual([A, 'bot:1', 'bot:2'].toSorted());
+    });
+
+    // Each bot move searches until its node cap (about 1.5 s) here, as fake timers freeze the clock.
+    it('chess and xiangqi: a bot answers each move, even with the clock frozen by fake timers', { timeout: 30_000 }, () => {
+      vi.useFakeTimers();
+      for (const [type, moves] of [
+        ['chess', [{ from: 'e2', to: 'e4' }, { from: 'g1', to: 'f3' }]],
+        ['xiangqi', [{ from: 'h2', to: 'e2' }, { from: 'h0', to: 'g2' }]],
+      ] as const) {
+        const rooms = new RoomManager({ botDelayMs: 10 });
+        const created = rooms.create(A, 'An', type);
+        if (!created.ok) throw new Error(created.error);
+        const room = created.room;
+        rooms.setOptions(A, { hostColor: 'white', timeControl: 'none' });
+        rooms.addBot(A);
+        expect(rooms.start(A).ok).toBe(true);
+        for (const move of moves) {
+          const before = JSON.stringify(room.state);
+          expect(rooms.move(A, { type: 'move', ...move }).ok).toBe(true);
+          vi.advanceTimersByTime(20);
+          // The bot has replied: it's the person's turn again.
+          expect(JSON.stringify(room.state)).not.toBe(before);
+        }
+        const view = rooms.view(room, A, allOnline).game as { history?: string[]; moves?: string[] };
+        expect((view.history ?? view.moves)!.length).toBe(4);
+      }
     });
 
     it('people keep sending moves, yet bots still get to act', () => {

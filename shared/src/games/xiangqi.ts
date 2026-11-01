@@ -10,7 +10,10 @@ import {
   type MatchClock,
   duelPoints,
   refundIncrements,
+  BOT_DRAW_BELOW,
+  botThinkMs,
 } from './match';
+import { xiangqiBotMove, xiangqiScore } from './xiangqi-bot';
 import { START_FEN, Xiangqi, type XSide } from './xiangqi-engine';
 
 export type XiangqiEndReason =
@@ -334,6 +337,26 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
 
   points(state) {
     return state.result ? duelPoints([state.red, state.black], state.result.winner) : null;
+  },
+
+  // A bot always grants takebacks, takes a draw only when it's clearly behind, and otherwise
+  // searches for its move.
+  botMove(state, playerId, { now, random }) {
+    const side = sideOf(state, playerId);
+    if (state.result || !side) return null;
+    const opponent = opponentOf(state, side);
+    if (state.takebackRequest === opponent) return { type: 'accept-takeback' };
+    // Replay the game, counting positions so the bot can steer clear of repetitions.
+    const game = new Xiangqi(state.startFen);
+    const seen = new Map([[game.positionKey(), 1]]);
+    for (const m of state.moves) {
+      game.move(m);
+      seen.set(game.positionKey(), (seen.get(game.positionKey()) ?? 0) + 1);
+    }
+    if (state.drawOffer === opponent) return { type: xiangqiScore(game, side) < BOT_DRAW_BELOW ? 'accept-draw' : 'decline-draw' };
+    if (game.turn() !== side) return null;
+    const move = xiangqiBotMove(game, seen, { timeMs: botThinkMs(state.clock, side, now), random });
+    return move && { type: 'move', ...move };
   },
 
   playerView(state, playerId, { now }) {
