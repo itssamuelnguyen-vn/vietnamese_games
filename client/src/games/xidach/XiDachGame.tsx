@@ -149,6 +149,14 @@ export function XiDachGame({ room, view, onLeave }: Props) {
   async function send(move: XiDachMove) {
     const r = await api.move(move);
     if (!r.ok) toast(t.errors[r.error]);
+    return r.ok;
+  }
+
+  // The stake from the round before, to bet the same again in one tap.
+  const lastBet = useRef(0);
+  if (view.phase === 'play' && mySeat && mySeat.bet > 0) lastBet.current = mySeat.bet;
+  async function betAgain() {
+    if (await send({ type: 'bet', amount: lastBet.current })) await send({ type: 'ready' });
   }
 
   async function rematch() {
@@ -348,6 +356,11 @@ export function XiDachGame({ room, view, onLeave }: Props) {
               <button className="btn btn-primary" disabled={!mySeat!.bet} onClick={() => send({ type: 'ready' })}>
                 🃏 {X.ready}
               </button>
+              {lastBet.current > 0 && !mySeat!.bet && view.betValues.includes(lastBet.current) && (
+                <button className="btn btn-secondary" disabled={mySeat!.chips < lastBet.current} onClick={betAgain}>
+                  ↻ {X.betAgain(money(lastBet.current))}
+                </button>
+              )}
             </div>
           )}
           {myTurn && myValue && (

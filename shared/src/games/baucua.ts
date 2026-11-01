@@ -48,6 +48,8 @@ export interface BauCuaState {
   // Chips not on the table; stakes move here from bets when the round is settled.
   chips: Record<string, number>;
   bets: Record<string, Bets>;
+  // Each player's bets in the last round rolled, so they can place the same again.
+  lastBets: Record<string, Bets>;
   ready: string[];
   out: string[];
   round: number;
@@ -60,10 +62,13 @@ export interface BauCuaState {
   result: BauCuaResult | null;
 }
 
-export type BauCuaMove = { type: 'bet'; symbol: BauCuaSymbol; amount: number } | { type: 'clear' } | { type: 'ready' };
+// `repeat`: place the same bets as last round, if nothing is down yet and they can be afforded.
+export type BauCuaMove = { type: 'bet'; symbol: BauCuaSymbol; amount: number } | { type: 'clear' } | { type: 'ready' } | { type: 'repeat' };
 
 export interface BauCuaView {
   chipValues: number[];
+  // What you bet last round (to bet the same again).
+  lastBets: Bets;
   dealerId: string | null;
   seats: { id: string; chips: number; staked: number; ready: boolean; out: boolean }[];
   bets: Record<string, Bets>;
@@ -103,7 +108,8 @@ function finish(s: BauCuaState): BauCuaState {
 
 function roll(s: BauCuaState, now: number, random: () => number): BauCuaState {
   const dice = [0, 1, 2].map(() => BAUCUA_SYMBOLS[Math.floor(random() * BAUCUA_SYMBOLS.length)]) as Dice;
-  let next: BauCuaState = { ...s, phase: 'reveal', dice, history: [...s.history, dice].slice(-HISTORY), deadline: now + BC_REVEAL_MS };
+  const lastBets = Object.fromEntries(Object.entries(s.bets).filter(([, b]) => staked(b) > 0));
+  let next: BauCuaState = { ...s, lastBets, phase: 'reveal', dice, history: [...s.history, dice].slice(-HISTORY), deadline: now + BC_REVEAL_MS };
   next = withLog(next, { kind: 'roll', round: s.round, dice });
   const chips = { ...next.chips };
   // Each player's net: what the dice bring back minus what they staked.
@@ -167,6 +173,7 @@ export const bauCuaGame: GameDefinition<BauCuaState, BauCuaMove, BauCuaView> = {
       dealerId: playerIds.includes(options.dealer ?? '') ? options.dealer : null,
       chips: Object.fromEntries(playerIds.map((id) => [id, wallets?.[id] ?? BC_START_CHIPS])),
       bets: {},
+      lastBets: {},
       ready: [],
       out: [],
       round: 1,
@@ -195,6 +202,12 @@ export const bauCuaGame: GameDefinition<BauCuaState, BauCuaMove, BauCuaView> = {
           bets: { ...state.bets, [playerId]: { ...bets, [move.symbol]: (bets[move.symbol] ?? 0) + move.amount } },
         };
         return { ok: true, state: next };
+      }
+      case 'repeat': {
+        const last = state.lastBets[playerId] ?? {};
+        const total = staked(last);
+        if (state.ready.includes(playerId) || staked(bets) > 0 || total === 0 || total > state.chips[playerId]) return fail;
+        return { ok: true, state: { ...state, chips: { ...state.chips, [playerId]: state.chips[playerId] - total }, bets: { ...state.bets, [playerId]: { ...last } } } };
       }
       case 'clear': {
         if (state.ready.includes(playerId) || staked(bets) === 0) return fail;
@@ -226,8 +239,9 @@ export const bauCuaGame: GameDefinition<BauCuaState, BauCuaMove, BauCuaView> = {
     return state.result !== null;
   },
 
-  playerView(state, _playerId, { now }) {
+  playerView(state, playerId, { now }) {
     return {
+      lastBets: state.lastBets[playerId] ?? {},
       chipValues: state.chipValues,
       dealerId: state.dealerId,
       seats: state.seats.map((id) => ({
