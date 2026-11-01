@@ -6,6 +6,7 @@ import { RoomManager } from './rooms';
 const A = 'player-a';
 const B = 'player-b';
 const C = 'player-c';
+const D = 'player-d';
 const allOnline = () => true;
 
 function roomWithTwo() {
@@ -233,6 +234,65 @@ describe('RoomManager', () => {
       const second = rooms.requestRematch(A);
       expect(second.ok && second.room.status).toBe('playing');
       expect(second.ok && second.room.rematchVotes).toEqual([]);
+    });
+  });
+
+  describe('watching', () => {
+    it('joining to watch takes no seat, even a free one', () => {
+      const rooms = new RoomManager();
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      expect(rooms.join(B, 'Bob', created.room.code, true).ok).toBe(true);
+      expect(created.room.players.map((p) => p.id)).toEqual([A]);
+      expect(created.room.spectators.map((p) => p.id)).toEqual([B]);
+    });
+
+    it('spectators sit and players stand only between games, and only with a seat free', () => {
+      const rooms = new RoomManager();
+      const created = rooms.create(A, 'An', 'chess');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.join(B, 'Bob', room.code, true);
+      rooms.join(C, 'Chi', room.code, true);
+      expect(rooms.sit(B).ok).toBe(true);
+      // Chess has two seats.
+      expect(rooms.sit(C)).toEqual({ ok: false, error: 'ROOM_FULL' });
+      expect(rooms.sit(A)).toEqual({ ok: false, error: 'INVALID_MOVE' });
+      rooms.start(A);
+      expect(rooms.stand(B)).toEqual({ ok: false, error: 'GAME_IN_PROGRESS' });
+      rooms.move(A, { type: 'resign' });
+      expect(rooms.stand(B).ok).toBe(true);
+      expect(room.players.map((p) => p.id)).toEqual([A]);
+      expect(rooms.stand(C)).toEqual({ ok: false, error: 'NOT_A_PLAYER' });
+    });
+
+    it('a host who gets up to watch can still start a game for the others', () => {
+      const rooms = new RoomManager();
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      rooms.addBot(A);
+      rooms.addBot(A);
+      expect(rooms.stand(A).ok).toBe(true);
+      expect(rooms.start(A).ok).toBe(true);
+      expect((created.room.state as TienLenState).seats.toSorted()).toEqual(['bot:1', 'bot:2']);
+    });
+
+    it('a free seat after a game goes to those waiting to play, not to those who chose to watch', () => {
+      let seed = 1;
+      const rooms = new RoomManager({ random: () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646 });
+      const created = rooms.create(A, 'An', 'tienlen');
+      if (!created.ok) throw new Error(created.error);
+      const room = created.room;
+      rooms.join(B, 'Bob', room.code);
+      rooms.join(C, 'Chi', room.code, true);
+      rooms.start(A);
+      expect(room.status).toBe('playing');
+      // D arrives mid-game, so watches for now; then B leaves and the game ends.
+      rooms.join(D, 'Dan', room.code);
+      rooms.leave(B);
+      expect(room.status).toBe('finished');
+      expect(room.players.map((p) => p.id)).toEqual([A, D]);
+      expect(room.spectators.map((p) => p.id)).toEqual([C]);
     });
   });
 

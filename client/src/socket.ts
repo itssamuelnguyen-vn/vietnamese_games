@@ -35,8 +35,10 @@ async function call<T>(send: () => Promise<T>): Promise<T | { ok: false; error: 
 export const api = {
   create: (gameType: GameType, name: string) =>
     call(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:create', { gameType, name })),
-  join: (code: string, name: string) =>
-    call(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:join', { code, name })),
+  join: (code: string, name: string, watch = false) =>
+    call(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:join', { code, name, watch })),
+  sit: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:sit')),
+  stand: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:stand')),
   start: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:start')),
   move: (move: unknown) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('game:move', move)),
   options: (options: Partial<RoomOptions>) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:options', options)),

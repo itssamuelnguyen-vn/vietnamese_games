@@ -123,7 +123,7 @@ export function PlayersCard({ room, subtitle, colorOf }: PlayersCardProps) {
         </button>
       )}
       <p className="spectator-line muted small">
-        {t.room.spectators} · {room.spectators.length ? room.spectators.map((s) => s.name).join(', ') : t.room.noSpectators}
+        {t.room.spectators} · {room.spectators.length ? room.spectators.map((s) => s.name).join(', ') : t.room.noSpectators} <SeatToggle room={room} />
       </p>
     </section>
   );
@@ -271,6 +271,26 @@ function ChipGroup<T extends string>({ label, options, value, labelOf, disabled,
         ))}
       </div>
     </div>
+  );
+}
+
+// Between games: a spectator can take a free seat, and a player can get up to watch.
+export function SeatToggle({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  if (room.status === 'playing') return null;
+  const seated = room.players.some((p) => p.id === room.you);
+  const watching = room.spectators.some((p) => p.id === room.you);
+  const full = room.players.length >= GAME_CATALOG[room.gameType].maxPlayers;
+  const broke = room.wallets !== null && (room.wallets[room.you] ?? 1) <= 0;
+  if (!seated && !(watching && !full && !broke)) return null;
+  async function toggle() {
+    const r = seated ? await api.stand() : await api.sit();
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <button className="btn btn-ghost btn-sm seat-toggle" onClick={toggle}>
+      {seated ? `👀 ${t.room.stand}` : `🪑 ${t.room.sit}`}
+    </button>
   );
 }
 

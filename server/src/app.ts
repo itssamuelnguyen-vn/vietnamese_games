@@ -103,7 +103,7 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
 
     socket.on('room:join', (p, ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);
-      const r = rooms.join(playerId, p?.name, String(p?.code ?? ''));
+      const r = rooms.join(playerId, p?.name, String(p?.code ?? ''), p?.watch === true);
       if (!r.ok) return reply(r);
       broadcast(r.left);
       reply({ ok: true, code: r.room.code });
@@ -155,6 +155,16 @@ export function createGameServer({ clientDist }: GameServerOptions = {}): GameSe
       reply({ ok: true });
       broadcast(r.room);
     });
+
+    for (const event of ['room:sit', 'room:stand'] as const) {
+      socket.on(event, (ack) => {
+        const reply = safe<Parameters<typeof ack>[0]>(ack);
+        const r = event === 'room:sit' ? rooms.sit(playerId) : rooms.stand(playerId);
+        if (!r.ok) return reply(r);
+        reply({ ok: true });
+        broadcast(r.room);
+      });
+    }
 
     socket.on('room:add-bot', (ack) => {
       const reply = safe<Parameters<typeof ack>[0]>(ack);

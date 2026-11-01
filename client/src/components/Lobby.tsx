@@ -42,7 +42,7 @@ export function Lobby({ initialCode, connected }: Props) {
   }
 
   const create = (type: GameType) => run(() => api.create(type, trimmedName));
-  const join = () => run(() => api.join(code, trimmedName));
+  const join = (watch = false) => run(() => api.join(code, trimmedName, watch));
 
   // Opening an invite link with a name remembered from an earlier visit joins straight away.
   // Only the remembered name counts: a name typed before the socket connects shouldn't auto-join.
@@ -109,6 +109,15 @@ export function Lobby({ initialCode, connected }: Props) {
               <CodeInput value={code} onChange={setCode} />
               <button type="submit" className="btn btn-primary" disabled={busy || !connected || code.length !== CODE_LENGTH}>
                 {t.lobby.join}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy || !connected || code.length !== CODE_LENGTH}
+                title={t.lobby.watchHint}
+                onClick={() => join(true)}
+              >
+                👀 {t.lobby.watch}
               </button>
             </div>
           </form>
