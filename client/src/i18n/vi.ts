@@ -410,10 +410,11 @@ export const vi = {
     home: 'Về đích',
     homeCount: (n: number) => `${n}/4 lên chuồng`,
     rulesLabel: 'Luật thêm (bấm để bật/tắt)',
-    rules: { jump: 'Được nhảy qua đầu ngựa', 'fast-home': 'Lên chuồng nhanh' } satisfies Record<CaNguaRuleId, string>,
+    rules: { jump: 'Được nhảy qua đầu ngựa', 'fast-home': 'Lên chuồng nhanh', 'one-out': 'Ra quân bằng 1 hoặc 6' } satisfies Record<CaNguaRuleId, string>,
     ruleDetails: {
       jump: 'Được nhảy qua đầu ngựa: ngựa đi qua được ô có ngựa khác, chỉ không được dừng trên ngựa của mình.',
       'fast-home': 'Lên chuồng nhanh: trong dãy về chuồng, gieo bao nhiêu thì leo bấy nhiêu bậc (miễn là không vượt quá bậc 6 và không nhảy qua ngựa mình).',
+      'one-out': 'Ra quân bằng 1 hoặc 6: gieo được 1 cũng được đưa một ngựa ra chuồng. Chỉ gieo 6 mới được gieo thêm lượt.',
     } satisfies Record<CaNguaRuleId, string>,
     resultTitle: 'Kết thúc ván',
     youWon: 'Bạn thắng rồi!',

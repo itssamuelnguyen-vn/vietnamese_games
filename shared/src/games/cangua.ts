@@ -5,7 +5,8 @@ import { CANGUA_RULES, TURN_TIMERS, type CaNguaRuleId, type GameDefinition } fro
 // not jump over other horses; landing on an opponent's horse kicks it back to its stable. A horse
 // must stop exactly at its home gate, then climbs the home column one numbered step at a time.
 // The first player with all four horses on the top four steps (3 to 6) wins.
-// Optional rules: horses may jump over others ('jump'), and climb home by the full roll ('fast-home').
+// Optional rules: horses may jump over others ('jump'), climb home by the full roll ('fast-home'),
+// and come out on a 1 as well as a 6 ('one-out'; only a 6 rolls again).
 
 export const TRACK = 52;
 export const ARM = TRACK / 4;
@@ -109,7 +110,7 @@ export function choicesFor(s: CaNguaState, player: string, die: number): CaNguaC
   };
   mine.forEach((p, horse) => {
     if (p === STABLE) {
-      if (die !== 6) return;
+      if (die !== 6 && !(die === 1 && s.rules.includes('one-out'))) return;
       const land = landing(squareOf(color, 0));
       if (land.ok) out.push({ horse, to: 0, kicks: land.kicks });
       return;

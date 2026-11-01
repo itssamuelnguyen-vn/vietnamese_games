@@ -58,6 +58,12 @@ describe('co ca ngua', () => {
     expect(s.log.at(-1)).toEqual({ kind: 'sixes', player: 'a' });
   });
 
+  it('only a 6 brings a horse out, or a 1 too under one-out', () => {
+    const s = table(all(STABLE), all(STABLE));
+    expect(choicesFor(s, 'a', 1)).toEqual([]);
+    expect(choicesFor({ ...s, rules: ['one-out'] }, 'a', 1).map((c) => c.to)).toEqual([0, 0, 0, 0]);
+  });
+
   it('horses move by the roll but cannot jump over another horse', () => {
     const s = table([0, 3, STABLE, STABLE], all(STABLE));
     const roll5 = act(s, 'a', { type: 'roll' }, die(5));

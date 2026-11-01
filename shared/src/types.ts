@@ -74,9 +74,10 @@ export const HOUSE_RULES: HouseRuleId[] = ['no-two-finish', 'no-stack-chop', 'fo
 export type CaroSizeId = '15' | '19';
 export const CARO_SIZE_IDS: CaroSizeId[] = ['15', '19'];
 
-// Optional cờ cá ngựa rules: jumping over other horses, and climbing home by the full roll.
-export type CaNguaRuleId = 'jump' | 'fast-home';
-export const CANGUA_RULES: CaNguaRuleId[] = ['jump', 'fast-home'];
+// Optional cờ cá ngựa rules: jumping over other horses, climbing home by the full roll, and
+// bringing a horse out on a 1 as well as a 6.
+export type CaNguaRuleId = 'jump' | 'fast-home' | 'one-out';
+export const CANGUA_RULES: CaNguaRuleId[] = ['jump', 'fast-home', 'one-out'];
 
 // Settings the host picks before starting a game.
 // How a room keeps score from game to game: points, or a play-money wallet per player (made-up

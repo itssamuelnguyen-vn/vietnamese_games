@@ -402,10 +402,11 @@ export const en: Strings = {
     home: 'Home',
     homeCount: (n: number) => `${n}/4 home`,
     rulesLabel: 'House rules (tap to toggle)',
-    rules: { jump: 'Horses may jump', 'fast-home': 'Fast climb home' },
+    rules: { jump: 'Horses may jump', 'fast-home': 'Fast climb home', 'one-out': 'Out on a 1 or a 6' },
     ruleDetails: {
       jump: 'Horses may jump: a horse can pass squares with other horses on them; it just can’t stop on one of its own.',
       'fast-home': 'Fast climb home: in the home column a horse climbs as many steps as the roll (without going past step 6 or over its own horses).',
+      'one-out': 'Out on a 1 or a 6: rolling a 1 also brings a horse out of the stable. Only a 6 rolls again.',
     },
     resultTitle: 'Game over',
     youWon: 'You won!',
