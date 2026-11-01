@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { ChatMessage, RoomView } from '@vg/shared';
 import { api } from '../socket';
@@ -98,6 +98,7 @@ function ChatBody({ room, recipient, text, setText }: ChatProps & { text: string
   );
 }
 
+
 // ---- Floating chat ----
 
 const FAB = 56;
@@ -129,11 +130,14 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(n, lo), M
 function useViewport() {
   const read = () => {
     const vv = window.visualViewport;
-    const width = document.documentElement.clientWidth;
-    const height = vv ? vv.height : window.innerHeight;
-    // How much of the layout viewport the keyboard covers at the bottom.
-    const keyboard = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-    return { width, height: window.innerHeight, visible: height, keyboard };
+    // The layout viewport, which fixed elements are placed in. window.innerHeight is no good here:
+    // mobile browsers shrink it along with the visual viewport when the keyboard opens.
+    const { clientWidth: width, clientHeight: height } = document.documentElement;
+    const visible = vv ? vv.height : height;
+    // How much of the layout viewport the keyboard covers at the bottom. Zero where the browser
+    // shrinks the page for the keyboard instead (interactive-widget=resizes-content in index.html).
+    const keyboard = vv ? Math.max(0, height - vv.height - vv.offsetTop) : 0;
+    return { width, height, visible, keyboard };
   };
   const [viewport, setViewport] = useState(read);
   useEffect(() => {
@@ -150,6 +154,22 @@ function useViewport() {
   return viewport;
 }
 
+// Click handlers that only act on a press that started on the element itself, or on the keyboard
+// (a keyboard click has detail 0). The tap that opens the sheet still delivers its click to whatever
+// now sits under the finger, such as the close button, and that echo must not close it again.
+function useOwnClick(action: () => void) {
+  const pressed = useRef(false);
+  return {
+    onPointerDown: () => {
+      pressed.current = true;
+    },
+    onClick: (e: MouseEvent) => {
+      if (pressed.current || e.detail === 0) action();
+      pressed.current = false;
+    },
+  };
+}
+
 function FloatingChat({ room, children }: { room: RoomView; children: ReactNode }) {
   const { t } = useI18n();
   const viewport = useViewport();
@@ -160,7 +180,6 @@ function FloatingChat({ room, children }: { room: RoomView; children: ReactNode 
   // A tap opens the chat on pointerup (a click doesn't always follow a touch, e.g. right after a
   // drag), so a click arriving just after is ignored; keyboard Enter/Space still opens via click.
   const ignoreClickUntil = useRef(0);
-  const backdropPressed = useRef(false);
   const fabRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -196,6 +215,9 @@ function FloatingChat({ room, children }: { room: RoomView; children: ReactNode 
     setOpen(false);
     fabRef.current?.focus();
   }
+
+  const closeButton = useOwnClick(closeChat);
+  const backdrop = useOwnClick(closeChat);
 
   useEffect(() => {
     if (!open) return;
@@ -291,15 +313,7 @@ function FloatingChat({ room, children }: { room: RoomView; children: ReactNode 
       )}
       {open && (
         <>
-          {/* Only a press that starts on the backdrop closes it, not the tail of the tap that opened it. */}
-          <div
-            className="chat-sheet-backdrop"
-            onPointerDown={() => (backdropPressed.current = true)}
-            onClick={() => {
-              if (backdropPressed.current) closeChat();
-              backdropPressed.current = false;
-            }}
-          />
+          <div className="chat-sheet-backdrop" {...backdrop} />
           <section
             className="card chat-sheet"
             role="dialog"
@@ -308,7 +322,7 @@ function FloatingChat({ room, children }: { room: RoomView; children: ReactNode 
           >
             <header className="chat-sheet-head">
               <h2>{t.chat.title}</h2>
-              <button ref={closeRef} type="button" className="btn btn-ghost btn-square" onClick={closeChat} aria-label={t.chat.close}>
+              <button ref={closeRef} type="button" className="btn btn-ghost btn-square" {...closeButton} aria-label={t.chat.close}>
                 <CloseIcon />
               </button>
             </header>
