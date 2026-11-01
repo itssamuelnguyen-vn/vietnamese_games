@@ -6,8 +6,9 @@ import type { BotLevel } from '../types';
 // - Medium reads the real threats along each line, gaps included: fives, fours (one way to finish),
 //   open fours (two ways), open threes (one move from an open four, like _XXX_ or _X_XX_), and the
 //   double threats they combine into (four-four, four-three, three-three).
-// - Hard adds a threat search on top: a win by continuous fours (VCF) when it has one, and before
-//   moving, a check over its best candidates that the opponent isn't left with one.
+// - Hard adds a threat search on top: a forced win by continuous fours (VCF) or by threes and fours
+//   (VCT) when it has one, and before moving, a check over its best candidates that the opponent
+//   isn't left with one. It takes up to about half a second, so caro bots think on a worker thread.
 
 // Board cells: 0 empty, 1 X, 2 O.
 type Board = Int8Array;
