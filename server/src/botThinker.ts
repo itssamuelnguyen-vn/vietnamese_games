@@ -1,32 +1,53 @@
 import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
-import type { GameContext, GameDefinition, GameType } from '@vg/shared';
+import type { BotLevel, GameContext, GameDefinition, GameType } from '@vg/shared';
 
 export interface BotPick {
   botId: string;
   move: unknown;
 }
 
+// A room's bot, with its level in games whose bots have levels.
+export interface BotSeat {
+  id: string;
+  level?: BotLevel;
+}
+
 // Works out the next bot move for a room somewhere other than the main thread.
-export type BotThinker = (gameType: GameType, state: unknown, botIds: string[], now: number) => Promise<BotPick | null>;
+export type BotThinker = (gameType: GameType, state: unknown, bots: BotSeat[], now: number) => Promise<BotPick | null>;
 
 export interface BotRequest {
   id: number;
   gameType: GameType;
   state: unknown;
-  botIds: string[];
+  bots: BotSeat[];
   now: number;
 }
 
 export type BotReply = { id: number; pick: BotPick | null } | { id: number; error: string };
 
-// The first bot that has something to do, and its move.
-export function pickBotMove(game: GameDefinition<unknown, unknown, unknown>, state: unknown, botIds: string[], ctx: GameContext): BotPick | null {
-  for (const botId of botIds) {
-    const move = game.botMove?.(state, botId, ctx);
-    if (move) return { botId, move };
+// The first bot that has something to do, and its move. Each bot thinks at its own level.
+export function pickBotMove(game: GameDefinition<unknown, unknown, unknown>, state: unknown, bots: BotSeat[], ctx: GameContext): BotPick | null {
+  for (const { id, level } of bots) {
+    const move = game.botMove?.(state, id, level ? { ...ctx, botLevel: level } : ctx);
+    if (move) return { botId: id, move };
   }
   return null;
+}
+
+// What a bot worker does with a request: the reply to post back.
+export function answerBotRequest(
+  games: Partial<Record<GameType, GameDefinition<unknown, unknown, unknown>>>,
+  { id, gameType, state, bots, now }: BotRequest,
+  random: () => number,
+): BotReply {
+  try {
+    const game = games[gameType];
+    if (!game) throw new Error(`no bot worker for ${gameType}`);
+    return { id, pick: pickBotMove(game, state, bots, { now, random }) };
+  } catch (e) {
+    return { id, error: String(e) };
+  }
 }
 
 // A small pool of worker threads, started on first use. A worker that crashes fails its pending
@@ -66,7 +87,7 @@ export function createWorkerThinker(size = Math.max(1, Math.min(2, availablePara
     return worker;
   }
 
-  const think: BotThinker = (gameType, state, botIds, now) =>
+  const think: BotThinker = (gameType, state, bots, now) =>
     new Promise((resolve, reject) => {
       // The least busy worker takes it; each one works through its requests in order.
       const slot = load.indexOf(Math.min(...load));
@@ -74,7 +95,7 @@ export function createWorkerThinker(size = Math.max(1, Math.min(2, availablePara
       pending.set(id, { slot, resolve, reject });
       load[slot]++;
       try {
-        workerAt(slot).postMessage({ id, gameType, state, botIds, now } satisfies BotRequest);
+        workerAt(slot).postMessage({ id, gameType, state, bots, now } satisfies BotRequest);
       } catch (e) {
         pending.delete(id);
         load[slot]--;

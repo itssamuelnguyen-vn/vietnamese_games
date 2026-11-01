@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { ABANDON_CLAIM_MS, CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
+import { ABANDON_CLAIM_MS, BOT_LEVELS, DEFAULT_BOT_LEVEL, type BotLevel, type PlayerInfo, CANGUA_RULES, CARO_SIZE_IDS, GAME_CATALOG, STAKES, STAKES_PER_POINT, WALLET_STARTS, type CaNguaRuleId, HANDICAPS, HOUSE_RULES, TIME_CONTROLS, TURN_TIMERS, type HostColor, type HouseRuleId, type RoomOptions, type RoomView, type TimeControlId, type TurnTimerId } from '@vg/shared';
 import { api } from '../socket';
 import { useI18n, type Strings } from '../i18n';
 import { Avatar } from './Avatar';
@@ -9,9 +9,54 @@ import { ChevronRightIcon, CopyIcon, CrownIcon, QrIcon } from './icons';
 import { loadSetting, saveSetting } from '../settings';
 
 // The host fills or frees seats with bots between games.
-export async function addBot(t: Strings) {
-  const r = await api.addBot();
+export async function addBot(t: Strings, level?: BotLevel) {
+  const r = await api.addBot(level);
   if (!r.ok) toast(t.errors[r.error]);
+}
+
+const BOT_LEVEL_KEY = 'vg-bot-level';
+
+// The "add a bot" button; in games whose bots have levels, with a pick of how strong (remembered
+// from the last bot added).
+export function AddBotButton({ room }: { room: RoomView }) {
+  const { t } = useI18n();
+  const [level, setLevel] = useState<BotLevel>(() => {
+    const saved = loadSetting(BOT_LEVEL_KEY) as BotLevel | null;
+    return saved && BOT_LEVELS.includes(saved) ? saved : DEFAULT_BOT_LEVEL;
+  });
+  const button = (
+    <button className="btn btn-secondary btn-sm" onClick={() => addBot(t, GAME_CATALOG[room.gameType].botLevels ? level : undefined)}>
+      🤖 {t.room.addBot}
+    </button>
+  );
+  if (!GAME_CATALOG[room.gameType].botLevels) return button;
+  function pick(next: BotLevel) {
+    setLevel(next);
+    saveSetting(BOT_LEVEL_KEY, next);
+  }
+  return (
+    <div className="add-bot">
+      <div className="chip-group bot-levels" role="group" aria-label={t.room.botLevel}>
+        {BOT_LEVELS.map((l) => (
+          <button key={l} className="chip chip-sm" aria-pressed={level === l} onClick={() => pick(l)}>
+            {t.room.botLevels[l]}
+          </button>
+        ))}
+      </div>
+      {button}
+    </div>
+  );
+}
+
+// "🤖 Bot", with its level in games whose bots have levels: "🤖 Bot · Hard".
+export function BotTag({ player }: { player: PlayerInfo }) {
+  const { t } = useI18n();
+  return (
+    <span className="tag">
+      🤖 {t.room.botTag}
+      {player.botLevel && ` · ${t.room.botLevels[player.botLevel]}`}
+    </span>
+  );
 }
 
 export async function removeBot(t: Strings, id: string) {
@@ -106,7 +151,7 @@ export function PlayersCard({ room, subtitle, colorOf }: PlayersCardProps) {
                     <CrownIcon /> {t.room.host}
                   </span>
                 )}
-                {p.bot && <span className="tag">🤖 {t.room.botTag}</span>}
+                {p.bot && <BotTag player={p} />}
               </span>
             </div>
             {p.bot && room.hostId === room.you && room.status !== 'playing' && (
@@ -117,11 +162,7 @@ export function PlayersCard({ room, subtitle, colorOf }: PlayersCardProps) {
           </li>
         ))}
       </ul>
-      {info.bots && room.hostId === room.you && room.status !== 'playing' && room.players.length < info.maxPlayers && (
-        <button className="btn btn-secondary btn-sm" onClick={() => addBot(t)}>
-          🤖 {t.room.addBot}
-        </button>
-      )}
+      {info.bots && room.hostId === room.you && room.status !== 'playing' && room.players.length < info.maxPlayers && <AddBotButton room={room} />}
       <p className="spectator-line muted small">
         {t.room.spectators} · {room.spectators.length ? room.spectators.map((s) => s.name).join(', ') : t.room.noSpectators} <SeatToggle room={room} />
       </p>

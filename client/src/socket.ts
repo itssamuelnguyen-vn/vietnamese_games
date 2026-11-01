@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import type { Ack, ClientToServerEvents, ErrorCode, GameType, RoomOptions, ServerToClientEvents } from '@vg/shared';
+import type { Ack, BotLevel, ClientToServerEvents, ErrorCode, GameType, RoomOptions, ServerToClientEvents } from '@vg/shared';
 import { loadSetting, saveSetting } from './settings';
 
 function randomId(): string {
@@ -44,7 +44,7 @@ export const api = {
   options: (options: Partial<RoomOptions>) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:options', options)),
   rematch: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:rematch')),
   claimWin: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('game:claim-win')),
-  addBot: () => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:add-bot')),
+  addBot: (level?: BotLevel) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:add-bot', level)),
   removeBot: (botId: string) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('room:remove-bot', botId)),
   chat: (text: string) => call<Ack>(() => socket.timeout(TIMEOUT_MS).emitWithAck('chat:send', text)),
   leave: () => socket.emit('room:leave'),

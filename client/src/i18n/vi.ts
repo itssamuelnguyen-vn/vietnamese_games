@@ -1,4 +1,4 @@
-import type { BizType, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, SpecialKind, StreetId, Area, Deck, FortuneId, BauCuaSymbol, HandKind, Stakes, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
+import type { BizType, BotLevel, CaNguaRuleId, CaroEndReason, CaroSizeId, ChessEndReason, ComboType, ErrorCode, EventId, GameType, HandicapId, HostColor, HouseRuleId, InstantWinKind, PenaltyKind, SpecialKind, StreetId, Area, Deck, FortuneId, BauCuaSymbol, HandKind, Stakes, TurnTimerId, TimeControlId, XPieceType, XiangqiEndReason } from '@vg/shared';
 import type { NotationStyle } from '../games/xiangqi/notation';
 import type { XqOpeningId } from '../games/xiangqi/openings';
 import type { OpeningId } from '../games/chessOpenings';
@@ -111,6 +111,8 @@ export const vi = {
     addBot: 'Thêm máy',
     removeBot: 'Bỏ máy này',
     botTag: 'Máy',
+    botLevel: 'Độ khó của máy',
+    botLevels: { easy: 'Dễ', medium: 'Vừa', hard: 'Khó' } satisfies Record<BotLevel, string>,
     scoreboard: 'Bảng điểm',
     scoreGames: 'Ván',
     scoreWins: 'Nhất',

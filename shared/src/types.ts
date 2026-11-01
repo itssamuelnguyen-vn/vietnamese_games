@@ -21,16 +21,23 @@ export interface GameInfo {
   available: boolean;
   // Whether the host can fill seats with computer players.
   bots?: boolean;
+  // Whether those bots come in levels of strength (BOT_LEVELS) for the host to pick from.
+  botLevels?: boolean;
 }
+
+// How strong a bot plays, in games whose bots have levels.
+export type BotLevel = 'easy' | 'medium' | 'hard';
+export const BOT_LEVELS: BotLevel[] = ['easy', 'medium', 'hard'];
+export const DEFAULT_BOT_LEVEL: BotLevel = 'medium';
 
 // Games shown in the lobby. Flip `available` once a game has both rules and a UI.
 // Display names live in the client locale files.
 export const GAME_CATALOG: Record<GameType, GameInfo> = {
-  chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
-  xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
+  chess: { type: 'chess', minPlayers: 2, maxPlayers: 2, available: true, bots: true, botLevels: true },
+  xiangqi: { type: 'xiangqi', minPlayers: 2, maxPlayers: 2, available: true, bots: true, botLevels: true },
   tienlen: { type: 'tienlen', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
   typhu: { type: 'typhu', minPlayers: 2, maxPlayers: 6, available: true, bots: true },
-  caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true },
+  caro: { type: 'caro', minPlayers: 2, maxPlayers: 2, available: true, bots: true, botLevels: true },
   cangua: { type: 'cangua', minPlayers: 2, maxPlayers: 4, available: true, bots: true },
   colors: { type: 'colors', minPlayers: 2, maxPlayers: 8, available: false },
   noitu: { type: 'noitu', minPlayers: 2, maxPlayers: 8, available: true, bots: true },
@@ -135,6 +142,8 @@ export interface PlayerInfo {
   offlineMs: number | null;
   // A computer player added by the host.
   bot: boolean;
+  // How strong that bot plays, in games whose bots have levels.
+  botLevel?: BotLevel;
 }
 
 // An opponent offline this long can be beaten by claiming the win.
@@ -186,6 +195,9 @@ export interface GameContext {
   now: number;
   // Source of randomness for shuffling; the server passes a cryptographic one.
   random?: () => number;
+  // For botMove in games whose bots have levels: how strong the bot asked to move plays
+  // (DEFAULT_BOT_LEVEL when absent).
+  botLevel?: BotLevel;
 }
 
 // Each game is a set of pure functions: the server owns the real state,

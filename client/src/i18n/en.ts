@@ -98,6 +98,8 @@ export const en: Strings = {
     addBot: 'Add a bot',
     removeBot: 'Remove this bot',
     botTag: 'Bot',
+    botLevel: 'Bot strength',
+    botLevels: { easy: 'Easy', medium: 'Medium', hard: 'Hard' },
     scoreboard: 'Scoreboard',
     scoreGames: 'Games',
     scoreWins: 'Wins',

@@ -9,7 +9,7 @@ import {
   stopClock as stopMatchClock,
   type ClockView,
   type MatchClock, BOT_DRAW_BELOW, botThinkMs, duelPoints, refundIncrements } from './match';
-import { chessBotMove, chessScore } from './chess-bot';
+import { chessBotMove, chessScore, seenPositions } from './chess-bot';
 
 export type ChessColor = 'w' | 'b';
 
@@ -334,7 +334,7 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
   // searches for its move.
   heavyBot: true,
 
-  botMove(state, playerId, { now, random }) {
+  botMove(state, playerId, { now, random, botLevel }) {
     const color = colorOf(state, playerId);
     if (state.result || !color) return null;
     const opponent = opponentOf(state, color);
@@ -345,7 +345,9 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
       return { type: score < BOT_DRAW_BELOW ? 'accept-draw' : 'decline-draw' };
     }
     if (chess.turn() !== color) return null;
-    const move = chessBotMove(chess.fen(), { timeMs: botThinkMs(state.clock, color, now), random });
+    const level = botLevel ?? 'medium';
+    const timeMs = botThinkMs(state.clock, color, now, level);
+    const move = chessBotMove(chess.fen(), { timeMs, random, level, seen: seenPositions(chess) });
     return move && { type: 'move', ...move };
   },
 

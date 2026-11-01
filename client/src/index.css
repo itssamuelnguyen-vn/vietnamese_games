@@ -1118,6 +1118,23 @@ main {
   opacity: 0.6;
 }
 
+.chip.chip-sm {
+  padding: 3px 9px;
+  font-size: 0.75rem;
+}
+
+.add-bot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-bot .chip-group {
+  justify-content: center;
+  gap: 4px;
+}
+
 .chip.static {
   cursor: default;
   background: var(--surface-2);
