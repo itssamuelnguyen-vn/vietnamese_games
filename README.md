@@ -1,7 +1,7 @@
 # Vietnamese Games
 
 A website for playing classic games online with friends: chess, xiangqi (Chinese chess),
-Tiến lên miền Nam (Vietnamese card game) and cờ tỉ phú (a property-trading game set across Vietnam),
+Tiến lên miền Nam (Vietnamese card game) and cờ tỉ phú (a property-trading game set on the streets of Ho Chi Minh City),
 with more board, card, word and party games on the way.
 Create a room, share the 4-character code or invite link, and play.
 
@@ -12,7 +12,7 @@ The UI is available in Vietnamese and English; all code, comments and docs are i
 | Chess | Playable: clocks, draw offers, takebacks, premoves, promotion picker, move review, opening names, PGN/FEN export, sounds |
 | Xiangqi | Playable: own rules engine (perft-verified), Asian rules (no legal moves loses, perpetual check loses, repetition and 60-move draws), Vietnamese and WXF notation, file numbers, opening names, captured pieces, FEN/PGN export, Chinese or letter piece labels, handicap (odds) games, same clocks/draws/takebacks as chess |
 | Tiến lên miền Nam | Playable: 2-4 players, house rules shown in-app (Luật chơi), chops, instant wins, full ranking, per-turn timer, optional house rules and scoring, room scoreboard, hints, drag-to-arrange hand |
-| Cờ tỉ phú (property-trading game) | Playable: original design on a road through Vietnam's 34 provinces, 2-6 players, last player not bankrupt wins (3-year limit), monthly events and yearly fee growth, shared provinces with business chains, dice or scarce move cards, credit limits and forced sales, player trades, computer players (bots), in-app rules |
+| Cờ tỉ phú (property-trading game) | Playable: original design on a 28-square loop through 16 Ho Chi Minh City streets, 2-6 players; win by holding three whole routes, or be the last player not bankrupt (3-year limit); auctions for declined slots, takeovers (landmarks are safe), luck and opportunity cards, monthly city events and yearly fee growth, business chains, dice or scarce move cards, credit limits and forced sales, player trades, paced animations, computer players (bots), in-app rules |
 | Caro (gomoku) | Playable: 15×15 or 19×19 board, optional Vietnamese blocked-ends rule, chess-style clocks, draws, takebacks, move review, a bot to play against, in-app rules |
 | Cờ cá ngựa (horse race) | Playable: 2-4 players, traditional Vietnamese rules (a 6 to come out and roll again, no jumping, kicking, exact home gate, numbered home steps), optional jumping and fast climb home, bots, in-app rules |
 | Nối từ tiếng Việt (word chain) | Playable: 2-8 players, two-syllable words linked by syllable (either tone-mark placement, hoà or hòa, is accepted), turn timer, knock-outs, bots that know part of the dictionary. Word list: about 18,000 words from Wiktionary via kaikki.org, CC BY-SA 4.0 (server/data/noitu-words.txt) |

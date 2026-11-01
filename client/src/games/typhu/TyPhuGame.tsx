@@ -1,20 +1,31 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   AIRPORT_FEE,
+  ANIM,
+  BID_STEP,
   BOARD,
   LOAN_STEP,
+  MAX_LEVEL,
   MAX_MONTHS,
+  ROUTES,
+  ROUTES_TO_WIN,
   YEAR,
   bizPrice,
+  deckOf,
   eventFactor,
   freeTypes,
+  heldRoutes,
+  routeOf,
+  salePrice,
+  takeoverPrice,
   upgradable,
   upgradePrice,
-  salePrice,
   visitFee,
   yearFactor,
   type Business,
   type BizType,
+  type Deck,
+  type EventId,
   type RoomView,
   type Square,
   type TradeOffer,
@@ -25,6 +36,7 @@ import {
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
 import { Avatar, initials } from '../../components/Avatar';
+import { Die } from '../../components/Die';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
 import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
@@ -40,20 +52,35 @@ interface Props {
   onLeave: () => void;
 }
 
-// The road winds across the board in rows of seven, alternating direction.
-const COLS = 7;
-function cellOf(i: number) {
-  const row = Math.floor(i / COLS);
-  return { row, col: row % 2 === 0 ? i % COLS : COLS - 1 - (i % COLS) };
+// The loop runs round the edge of an 8×8 board, clockwise from the top-left corner; the middle
+// 6×6 is the stage for the dice, what just happened, auctions and the month's banner.
+const SIDE = 8;
+function cellOf(i: number): { row: number; col: number } {
+  if (i < SIDE) return { row: 0, col: i };
+  if (i < 2 * SIDE - 2) return { row: i - (SIDE - 1), col: SIDE - 1 };
+  if (i < 3 * SIDE - 2) return { row: SIDE - 1, col: 3 * SIDE - 3 - i };
+  return { row: 4 * SIDE - 4 - i, col: 0 };
 }
+// Which edge a square sits on, so its route colour faces the middle of the board.
+const edgeOf = (i: number) => {
+  const { row, col } = cellOf(i);
+  if (row === 0) return 'top';
+  if (col === SIDE - 1) return 'right';
+  if (row === SIDE - 1) return 'bottom';
+  return 'left';
+};
 
 const BIZ_ICON: Record<BizType, string> = { food: '🍜', inn: '🏨', shop: '🛍️' };
-const SPECIAL_ICON: Record<string, string> = { start: '🚌', market: '🧺', rest: '☕', bank: '🏦', airport: '✈️', festival: '🎉' };
+const SPECIAL_ICON: Record<string, string> = { start: '🚩', market: '🎟️', deal: '💡', rest: '🚌', bank: '🏦', airport: '✈️', festival: '🎉', tax: '🧾' };
+const DECK_ICON: Record<Deck, string> = { luck: '🎟️', deal: '💡' };
 const SEAT_COLORS = ['#d64541', '#2e86de', '#27ae60', '#e67e22', '#8e44ad', '#16a085'];
+const ROUTE_COLORS = ['#9b6b43', '#5c9ccc', '#d97a2b', '#c0392b', '#2c9a6f', '#b54d9b', '#e0a91d', '#2f4f9e'];
 
 function squareName(t: Strings, sq: Square): string {
-  return sq.kind === 'province' ? t.typhu.provinces[sq.id] : t.typhu.specials[sq.kind];
+  return sq.kind === 'street' ? t.typhu.streets[sq.id] : t.typhu.specials[sq.kind];
 }
+
+const routeLabel = (t: Strings, r: number) => t.typhu.routeName(...(ROUTES[r].map((i) => squareName(t, BOARD[i])) as [string, string]));
 
 // Re-renders periodically while `active`, for countdowns.
 function useTicker(active: boolean, ms = 250) {
@@ -71,41 +98,67 @@ function Countdown({ ms, since, render }: { ms: number; since: number; render: (
   return <>{render(Math.max(0, ms - (performance.now() - since)))}</>;
 }
 
-// Shows each token walking square by square after a roll or a move card.
-function useShownPositions(view: TyPhuView): Record<string, number> {
-  const target = useMemo(() => Object.fromEntries(view.seats.map((s) => [s.id, s.position])), [view.seats]);
-  const [shown, setShown] = useState(target);
-  const shownRef = useRef(shown);
-  shownRef.current = shown;
-  const key = view.seats.map((s) => s.position).join(',') + JSON.stringify(view.lastMove);
-  useEffect(() => {
-    const move = view.lastMove;
-    const walking = move && move.value > 0 && shownRef.current[move.player] === move.from && target[move.player] === move.to;
-    if (!walking) {
-      setShown(target);
-      return;
-    }
-    let pos = move.from;
-    setShown({ ...target, [move.player]: pos });
-    const id = setInterval(() => {
-      pos = (pos + 1) % BOARD.length;
-      setShown((s) => ({ ...s, [move.player]: pos }));
-      if (pos === move.to) clearInterval(id);
-    }, 120);
-    return () => clearInterval(id);
-  }, [key]);
-  return shown;
+// What the middle of the board shows after something happens.
+interface StageCard {
+  key: string;
+  tone: 'good' | 'bad' | 'info' | 'big';
+  icon: string;
+  title: string;
+  text?: string;
+  deck?: Deck;
 }
 
-function Die({ value }: { value: number }) {
-  const pips: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-  return (
-    <span className="tp-die" aria-label={String(value)}>
-      {Array.from({ length: 9 }, (_, i) => (
-        <span key={i} className={pips[value]?.includes(i) ? 'pip' : ''} />
-      ))}
-    </span>
-  );
+// Picks the most telling thing that just happened, for the card in the middle of the board.
+function stageCard(t: Strings, fresh: TyPhuLogEntry[], name: (id: string) => string): StageCard | null {
+  const T = t.typhu;
+  const S = T.stage;
+  const m = T.money;
+  const place = (i: number) => squareName(t, BOARD[i]);
+  const order: TyPhuLogEntry['kind'][] = ['route', 'bankrupt', 'takeover', 'fortune', 'auctionWon', 'auctionNone', 'pay', 'upgrade', 'buy', 'tax', 'festival', 'bank', 'rest', 'fly'];
+  const e = order.map((k) => fresh.findLast((x) => x.kind === k)).find(Boolean);
+  if (!e) return null;
+  const key = JSON.stringify(e);
+  switch (e.kind) {
+    case 'route':
+      return { key, tone: 'big', icon: '🏆', title: S.route, text: S.routeText(name(e.player), routeLabel(t, e.route), e.count, ROUTES_TO_WIN) };
+    case 'bankrupt':
+      return { key, tone: 'bad', icon: '💥', title: S.bankrupt, text: name(e.player) };
+    case 'takeover':
+      return { key, tone: 'big', icon: '🤝', title: S.tookOver, text: S.tookOverText(name(e.player), T.biz[e.biz], name(e.from), m(e.price)) };
+    case 'fortune': {
+      const card = T.cards[e.card];
+      const deck = deckOf(e.card);
+      return { key, tone: e.amount < 0 ? 'bad' : 'good', icon: DECK_ICON[deck], title: card.title, text: card.text, deck };
+    }
+    case 'auctionWon':
+      return { key, tone: 'good', icon: '🔨', title: S.auctionWon, text: T.log.auctionWon(name(e.player), T.biz[e.biz], place(e.square), m(e.price)) };
+    case 'auctionNone':
+      return { key, tone: 'info', icon: '🔨', title: S.auctionNone, text: T.log.auctionNone(T.biz[e.biz], place(e.square)) };
+    case 'pay':
+      return { key, tone: 'bad', icon: '💸', title: S.pay, text: `${S.payText(name(e.player), m(e.total))} ${S.paidTo(e.owners.map((o) => name(o.id)).join(', '))}` };
+    case 'upgrade':
+      return {
+        key,
+        tone: 'good',
+        icon: e.level >= MAX_LEVEL ? '⭐' : '⬆️',
+        title: e.level >= MAX_LEVEL ? S.landmark : S.upgraded,
+        text: T.log.upgrade(name(e.player), T.biz[e.biz], place(e.square), e.level),
+      };
+    case 'buy':
+      return { key, tone: 'good', icon: BIZ_ICON[e.biz], title: S.bought, text: T.log.buy(name(e.player), T.biz[e.biz], place(e.square), m(e.price)) };
+    case 'tax':
+      return { key, tone: 'bad', icon: '🧾', title: S.tax, text: S.taxText(name(e.player), m(e.amount)) };
+    case 'festival':
+      return { key, tone: 'good', icon: '🎉', title: S.festival, text: T.log.festival(name(e.player), m(e.total)) };
+    case 'bank':
+      return { key, tone: 'good', icon: '🏦', title: S.bank, text: T.log.bank(name(e.player), e.bonus === null ? null : m(e.bonus)) };
+    case 'rest':
+      return { key, tone: 'info', icon: '🚌', title: S.rest, text: T.log.rest(name(e.player), e.drew) };
+    case 'fly':
+      return { key, tone: 'info', icon: '✈️', title: S.fly, text: T.log.fly(name(e.player), place(e.to)) };
+    default:
+      return null;
+  }
 }
 
 function describe(t: Strings, e: TyPhuLogEntry, name: (id: string) => string): string {
@@ -123,14 +176,28 @@ function describe(t: Strings, e: TyPhuLogEntry, name: (id: string) => string): s
       return L.buy(name(e.player), t.typhu.biz[e.biz], place(e.square), m(e.price));
     case 'upgrade':
       return L.upgrade(name(e.player), t.typhu.biz[e.biz], place(e.square), e.level);
-    case 'market':
-      return L.market(name(e.player), e.drew);
+    case 'takeover':
+      return L.takeover(name(e.player), t.typhu.biz[e.biz], place(e.square), name(e.from), m(e.price));
+    case 'fortune':
+      return L.fortune(name(e.player), t.typhu.decks[deckOf(e.card)], t.typhu.cards[e.card].title);
+    case 'rest':
+      return L.rest(name(e.player), e.drew);
+    case 'tax':
+      return L.tax(name(e.player), m(e.amount));
     case 'bank':
       return L.bank(name(e.player), e.bonus === null ? null : m(e.bonus));
     case 'fly':
       return L.fly(name(e.player), place(e.to));
     case 'festival':
       return L.festival(name(e.player), m(e.total));
+    case 'auction':
+      return L.auction(t.typhu.biz[e.biz], place(e.square), m(e.start));
+    case 'auctionWon':
+      return L.auctionWon(name(e.player), t.typhu.biz[e.biz], place(e.square), m(e.price));
+    case 'auctionNone':
+      return L.auctionNone(t.typhu.biz[e.biz], place(e.square));
+    case 'route':
+      return L.route(name(e.player), routeLabel(t, e.route), e.count);
     case 'loan':
       return (e.auto ? L.autoLoan : L.loan)(name(e.player), m(e.amount));
     case 'repay':
@@ -151,10 +218,117 @@ function describe(t: Strings, e: TyPhuLogEntry, name: (id: string) => string): s
 }
 
 function logTone(e: TyPhuLogEntry): string {
-  if (e.kind === 'bankrupt' || (e.kind === 'sell' && e.forced)) return 'chop';
-  if (e.kind === 'pay' || e.kind === 'interest') return 'pass';
-  if (e.kind === 'buy' || e.kind === 'upgrade' || e.kind === 'trade') return 'finish';
+  if (e.kind === 'bankrupt' || (e.kind === 'sell' && e.forced) || e.kind === 'takeover') return 'chop';
+  if (e.kind === 'pay' || e.kind === 'interest' || e.kind === 'tax') return 'pass';
+  if (e.kind === 'buy' || e.kind === 'upgrade' || e.kind === 'trade' || e.kind === 'route' || e.kind === 'auctionWon') return 'finish';
   return '';
+}
+
+const logPlayer = (e: TyPhuLogEntry): string | null => ('player' in e ? e.player : 'from' in e ? e.from : null);
+
+// Plays each change out at the pace the server allows for it: the dice tumble, the token walks
+// square by square, then the result shows in the middle of the board with money floating off
+// each player, and a new month gets its banner. Move choices wait until it's all over.
+function useStage(view: TyPhuView, t: Strings, name: (id: string) => string) {
+  const positions = useMemo(() => Object.fromEntries(view.seats.map((s) => [s.id, s.position])), [view.seats]);
+  const [shown, setShown] = useState(positions);
+  const [rolling, setRolling] = useState(false);
+  const [card, setCard] = useState<StageCard | null>(null);
+  const [banner, setBanner] = useState<{ month: number; event: EventId } | null>(null);
+  const [floats, setFloats] = useState<{ id: string; amount: number; key: number }[]>([]);
+  const [busyUntil, setBusyUntil] = useState(0);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // The token being walked right now, which other updates must leave alone until it arrives.
+  const walk = useRef<{ player: string; until: number } | null>(null);
+  const latest = useRef(positions);
+  latest.current = positions;
+  const seenLog = useRef(view.log);
+  const lastCash = useRef(Object.fromEntries(view.seats.map((s) => [s.id, s.cash])));
+  const floatKey = useRef(0);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const later = (ms: number, fn: () => void) => {
+    timers.current.push(setTimeout(fn, ms));
+  };
+  // Puts every token where the server has it, except one still walking.
+  const settleTokens = () =>
+    setShown((s) => {
+      const w = walk.current && performance.now() < walk.current.until ? walk.current.player : null;
+      return w ? { ...latest.current, [w]: s[w] } : latest.current;
+    });
+
+  useEffect(() => {
+    const fresh = freshEntries(seenLog.current, view.log);
+    seenLog.current = view.log;
+    const cashNow = Object.fromEntries(view.seats.map((s) => [s.id, s.cash]));
+    const deltas = view.seats.map((s) => ({ id: s.id, amount: s.cash - (lastCash.current[s.id] ?? s.cash) })).filter((d) => d.amount !== 0);
+    lastCash.current = cashNow;
+    if (fresh.length === 0) {
+      settleTokens();
+      return;
+    }
+    const move = view.lastMove;
+    const stepped = fresh.find((e) => e.kind === 'roll' || e.kind === 'card');
+    const flew = fresh.some((e) => e.kind === 'fly');
+    // When the outcome shows: after the dice and the walk, or the flight.
+    let landAt = 0;
+    if (stepped && move && move.value > 0) {
+      const delay = stepped.kind === 'roll' ? ANIM.roll : 0;
+      if (stepped.kind === 'roll') {
+        setRolling(true);
+        later(ANIM.roll, () => setRolling(false));
+      }
+      landAt = delay + move.value * ANIM.step;
+      // A card may have moved the player on (a jam, an express bus): they slide there once it's been read.
+      const moved = positions[move.player] !== move.to;
+      walk.current = { player: move.player, until: performance.now() + landAt + (moved ? ANIM.result : 0) };
+      // Everyone else's token is where it is; the mover starts from where the move began.
+      setShown({ ...positions, [move.player]: move.from });
+      for (let k = 1; k <= move.value; k++) later(delay + k * ANIM.step, () => setShown((s) => ({ ...s, [move.player]: (move.from + k) % BOARD.length })));
+      later(delay, () => playSound('move'));
+      later(landAt + (moved ? ANIM.result : 0) + 10, settleTokens);
+    } else {
+      if (flew) {
+        landAt = ANIM.fly;
+        later(0, () => playSound('move'));
+      }
+      settleTokens();
+    }
+    const next = stageCard(t, fresh, name);
+    const month = fresh.findLast((e) => e.kind === 'month');
+    const settle = landAt + (next ? (stepped || flew ? ANIM.result : ANIM.action) : 0);
+    later(landAt, () => {
+      if (next) {
+        setCard(next);
+        playSound(next.tone === 'bad' || next.tone === 'big' ? 'capture' : 'notify');
+      }
+      if (deltas.length) {
+        setFloats(deltas.map((d) => ({ ...d, key: ++floatKey.current })));
+        later(1800, () => setFloats([]));
+      }
+    });
+    if (next) later(settle + 1200, () => setCard((c) => (c?.key === next.key ? null : c)));
+    if (month && month.kind === 'month') {
+      // The banner takes over the stage from whatever card was showing.
+      later(settle, () => {
+        setCard(null);
+        setBanner({ month: month.month, event: month.event });
+      });
+      later(settle + ANIM.month, () => setBanner(null));
+    }
+    const until = performance.now() + settle + (month ? ANIM.month : 0);
+    setBusyUntil((b) => Math.max(b, until));
+    // Only the log drives this; the other values are read as of the same update.
+  }, [view.log]);
+
+  const [, rerender] = useState(0);
+  useEffect(() => {
+    const left = busyUntil - performance.now();
+    if (left <= 0) return;
+    const id = setTimeout(() => rerender((n) => n + 1), left + 10);
+    return () => clearTimeout(id);
+  }, [busyUntil]);
+  const busy = performance.now() < busyUntil;
+  return { shown, rolling, card, banner, floats, busy };
 }
 
 export function TyPhuGame({ room, view, onLeave }: Props) {
@@ -175,7 +349,8 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   const initial = (id: string) => initials(player(id)?.name ?? name(id));
   const bizLabel = (b: Business) => `${BIZ_ICON[b.type]} ${T.biz[b.type]} · ${squareName(t, BOARD[b.square])} (${T.level(b.level)})`;
 
-  const shown = useShownPositions(view);
+  const stage = useStage(view, t, name);
+  const ready = !stage.busy;
   const [selected, setSelected] = useState<number | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
   // The card buttons can disappear under the pointer (e.g. an automatic roll), so clear the preview.
@@ -197,18 +372,9 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
     if (!r.ok) toast(t.errors[r.error]);
   }
 
-  // Sounds for moves, our turn and the end of the game.
-  // Logs keep only recent entries, so new ones are found by content, not by length.
-  const seenLog = useRef(view.log);
   useEffect(() => {
-    const fresh = freshEntries(seenLog.current, view.log);
-    seenLog.current = view.log;
-    if (fresh.some((e) => e.kind === 'roll' || e.kind === 'card' || e.kind === 'fly')) playSound('move');
-    else if (fresh.some((e) => e.kind === 'buy' || e.kind === 'upgrade' || e.kind === 'trade')) playSound('capture');
-  }, [view.log]);
-  useEffect(() => {
-    if (myTurn) playSound('notify');
-  }, [myTurn]);
+    if (myTurn && ready) playSound('notify');
+  }, [myTurn, ready]);
   const incoming = view.offers.filter((o) => o.to === me);
   const incomingKey = incoming.map((o) => o.id).join(',');
   useEffect(() => {
@@ -240,13 +406,23 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   const here = mySeat ? mySeat.position : 0;
   const hereSquare = BOARD[here];
   const cash = mySeat?.cash ?? 0;
+  const pressedOwners = new Set(view.seats.filter((s) => s.pressed).map((s) => s.id));
+  const feeOf = (b: Business, event = view.event) => visitFee(view.businesses, b, event, view.month, pressedOwners.has(b.owner));
   // Repay everything if possible, otherwise as much as cash allows in steps of 50.
   const repayable = !mySeat ? 0 : cash >= mySeat.debt ? mySeat.debt : Math.floor(cash / LOAN_STEP) * LOAN_STEP;
-  const flyTarget = myTurn && view.phase === 'fly' && selected !== null && BOARD[selected].kind !== 'airport' ? selected : null;
+  const flyFee = mySeat?.freeFlight ? 0 : AIRPORT_FEE;
+  const canAct = myTurn && ready;
+  const flyTarget = canAct && view.phase === 'fly' && selected !== null && BOARD[selected].kind !== 'airport' ? selected : null;
   const highlight = preview ?? flyTarget;
+  // Rivals' businesses here that could be taken over: not landmarks, owner not shielded.
+  const takeovers = view.businesses.filter((b) => {
+    const owner = view.seats.find((s) => s.id === b.owner);
+    return b.square === here && b.owner !== me && b.level < MAX_LEVEL && owner && !owner.out && !owner.shielded;
+  });
+  const routesOf = (id: string) => heldRoutes(view.businesses, id);
 
   function pickSquare(i: number) {
-    setSelected((s) => (s === i && !(myTurn && view.phase === 'fly') ? null : i));
+    setSelected((s) => (s === i && !(canAct && view.phase === 'fly') ? null : i));
   }
 
   let status: string;
@@ -254,11 +430,16 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   else if (mySeat?.bankrupt) status = T.youBankrupt;
   else if (!seated) status = view.turn ? T.turnOf(name(view.turn)) : T.spectating;
   else if (!myTurn) status = view.turn ? T.turnOf(name(view.turn)) + '…' : '';
+  else if (!ready) status = T.watching;
   else if (view.phase === 'move') status = T.movePrompt;
-  else if (view.phase === 'fly') status = T.flyPrompt;
+  else if (view.phase === 'fly') status = mySeat?.freeFlight ? T.flyPrompt : T.flyPromptFee(money(AIRPORT_FEE));
+  else if (view.phase === 'auction') status = T.auctionTitle;
   else status = T.actPrompt(squareName(t, hereSquare));
 
   const myPlace = view.result ? view.result.ranking.indexOf(me) + 1 : 0;
+  const winner = view.result?.ranking[0];
+  // Routes someone holds, by square, for marking them on the board.
+  const routeHolder = (r: number) => view.seats.find((s) => !s.out && routesOf(s.id).includes(r))?.id;
 
   return (
     <div className="tl-layout tp-layout">
@@ -274,6 +455,10 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             return (
               <>
                 <span className="tp-owner-dot" style={{ '--owner': color(id) } as CSSProperties} /> {T.worth} {money(seat.worth)}
+                <span className="tp-routes-pill">🛣️ {T.routesShort(routesOf(id).length, ROUTES_TO_WIN)}</span>
+                {seat.shielded && <span className="tp-perk">{T.perks.shielded}</span>}
+                {seat.pressed && <span className="tp-perk">{T.perks.pressed}</span>}
+                {seat.discount && <span className="tp-perk">{T.perks.discount}</span>}
               </>
             );
           }}
@@ -285,86 +470,136 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
       </aside>
 
       <section className="tl-main">
-        <div className="tp-calendar card">
-          <div className="tp-month">
-            <span className="tp-month-num">{T.month(view.month)}</span>
-            {yearFactor(view.month) > 1 && <span className="tp-year-fees">{T.yearFees(money(yearFactor(view.month)))}</span>}
-            {view.month > MAX_MONTHS - YEAR && !view.result && <span className="tag tag-gold">{T.finalYear}</span>}
-          </div>
-          <div className={`tp-event ev-${view.event}`}>
-            <span className="eyebrow">{T.thisMonth}</span>
-            <strong>{T.events[view.event]}</strong>
-            <span className="muted small">{T.eventDetails[view.event]}</span>
-          </div>
-          {view.nextEvent && (
-            <div className={`tp-event next ev-${view.nextEvent}`}>
-              <span className="eyebrow">{T.nextMonth}</span>
-              <strong>{T.events[view.nextEvent]}</strong>
-              <span className="muted small">{T.eventDetails[view.nextEvent]}</span>
-            </div>
-          )}
-        </div>
-
         <div className="tp-board-wrap">
-          <div className={`tp-board ${myTurn && view.phase === 'fly' ? 'picking' : ''}`}>
+          <div className={`tp-board ${canAct && view.phase === 'fly' ? 'picking' : ''}`}>
             {BOARD.map((sq, i) => {
               const { row, col } = cellOf(i);
-              const here = view.seats.filter((s) => !s.out && shown[s.id] === i);
+              const tokens = view.seats.filter((s) => !s.out && stage.shown[s.id] === i);
+              const floats = stage.floats.filter((f) => tokens.some((s) => s.id === f.id));
               const businesses = view.businesses.filter((b) => b.square === i);
-              const factor = sq.kind === 'province' ? eventFactor(view.event, sq) : 1;
-              const turnEnd = col === (row % 2 === 0 ? COLS - 1 : 0) && i < BOARD.length - 1;
+              const factor = sq.kind === 'street' ? eventFactor(view.event, sq) : 1;
+              const route = sq.kind === 'street' ? routeOf(i) : -1;
+              const holder = route >= 0 ? routeHolder(route) : undefined;
+              const corner = (row === 0 || row === SIDE - 1) && (col === 0 || col === SIDE - 1);
               return (
                 <button
                   key={i}
                   type="button"
                   className={[
                     'tp-square',
-                    sq.kind === 'province' ? `region-${sq.region}` : `special sp-${sq.kind}`,
+                    `edge-${edgeOf(i)}`,
+                    sq.kind === 'street' ? `street area-${sq.area}` : `special sp-${sq.kind}`,
+                    corner ? 'corner' : '',
                     highlight === i ? 'target' : '',
                     factor > 1 ? 'boost' : factor < 1 ? 'cut' : '',
                     selected === i ? 'selected' : '',
-                    turnEnd ? (row % 2 === 0 ? 'bend-right' : 'bend-left') : '',
+                    holder ? 'held' : '',
                   ].join(' ')}
-                  style={{ gridRow: row + 1, gridColumn: col + 1 }}
+                  style={
+                    {
+                      gridRow: row + 1,
+                      gridColumn: col + 1,
+                      '--route': route >= 0 ? ROUTE_COLORS[route] : undefined,
+                      '--holder': holder ? color(holder) : undefined,
+                    } as CSSProperties
+                  }
                   onClick={() => pickSquare(i)}
                   aria-label={squareName(t, sq)}
                 >
-                  <span className="tp-sq-name">
-                    {sq.kind !== 'province' && <span className="tp-sq-icon">{SPECIAL_ICON[sq.kind]}</span>}
-                    {squareName(t, sq)}
-                  </span>
-                  {sq.kind === 'province' && (
-                    <span className="tp-slots">
-                      {Array.from({ length: sq.slots }, (_, k) => {
-                        const b = businesses[k];
-                        return b ? (
-                          <span key={k} className="tp-slot taken" style={{ '--owner': color(b.owner) } as CSSProperties} title={`${name(b.owner)} · ${T.biz[b.type]} ${T.level(b.level)}`}>
-                            {BIZ_ICON[b.type]}
-                            {b.level > 1 && <sup>{b.level}</sup>}
-                          </span>
-                        ) : (
-                          <span key={k} className="tp-slot" />
-                        );
-                      })}
-                    </span>
+                  {sq.kind === 'street' ? (
+                    <>
+                      <span className="tp-band">{holder && <span title={name(holder)}>👑</span>}</span>
+                      <span className="tp-sq-name">{T.streets[sq.id]}</span>
+                      <span className="tp-sq-sub">{T.districts[sq.id]}</span>
+                      <span className="tp-slots">
+                        {Array.from({ length: sq.slots }, (_, k) => {
+                          const b = businesses[k];
+                          return b ? (
+                            <span
+                              key={k}
+                              className={`tp-slot taken ${b.level >= MAX_LEVEL ? 'landmark' : ''}`}
+                              style={{ '--owner': color(b.owner) } as CSSProperties}
+                              title={`${name(b.owner)} · ${T.biz[b.type]} ${T.level(b.level)}`}
+                            >
+                              {BIZ_ICON[b.type]}
+                              {b.level > 1 && <sup>{b.level >= MAX_LEVEL ? '★' : b.level}</sup>}
+                            </span>
+                          ) : (
+                            <span key={k} className="tp-slot" />
+                          );
+                        })}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="tp-sq-icon">{SPECIAL_ICON[sq.kind]}</span>
+                      <span className="tp-sq-name">{T.specials[sq.kind]}</span>
+                    </>
                   )}
-                  {here.length > 0 && (
+                  {tokens.length > 0 && (
                     <span className="tp-tokens">
-                      {here.map((s) => (
-                        <span
-                          key={s.id}
-                          className={`tp-token ${view.turn === s.id ? 'turn' : ''}`}
-                          style={{ '--owner': color(s.id) } as CSSProperties}
-                          title={name(s.id)}
-                        >
+                      {tokens.map((s) => (
+                        <span key={s.id} className={`tp-token ${view.turn === s.id ? 'turn' : ''}`} style={{ '--owner': color(s.id) } as CSSProperties} title={name(s.id)}>
                           {initial(s.id)}
                         </span>
                       ))}
                     </span>
                   )}
+                  {floats.map((f) => (
+                    <span key={f.key} className={`tp-float ${f.amount > 0 ? 'up' : 'down'}`} style={{ '--owner': color(f.id) } as CSSProperties}>
+                      {f.amount > 0 ? '+' : '−'}
+                      {money(Math.abs(f.amount))}
+                    </span>
+                  ))}
                 </button>
               );
             })}
+
+            <div className="tp-stage">
+              <header className="tp-stage-head">
+                <span className="tp-month-num">{T.month(view.month)}</span>
+                <span className={`tp-event-pill ev-${view.event}`} title={T.eventDetails[view.event]}>
+                  {T.events[view.event]}
+                </span>
+                {yearFactor(view.month) > 1 && <span className="tp-year-fees">{T.yearFees(money(yearFactor(view.month)))}</span>}
+                {view.month > MAX_MONTHS - YEAR && !view.result && <span className="tag tag-gold">{T.finalYear}</span>}
+              </header>
+              <p className="tp-stage-event muted small">{T.eventDetails[view.event]}</p>
+
+              <div className="tp-stage-main">
+                {view.auction ? (
+                  <AuctionPanel view={view} me={me} seated={seated} name={name} since={receivedAt} onSend={send} />
+                ) : stage.card ? (
+                  <div key={stage.card.key} className={`tp-card-reveal tone-${stage.card.tone} ${stage.card.deck ? `deck-${stage.card.deck}` : ''}`}>
+                    {stage.card.deck && <span className="eyebrow">{T.decks[stage.card.deck]}</span>}
+                    <span className="tp-card-icon">{stage.card.icon}</span>
+                    <strong>{stage.card.title}</strong>
+                    {stage.card.text && <span className="tp-card-text">{stage.card.text}</span>}
+                  </div>
+                ) : (
+                  view.lastMove?.dice && (
+                    <span className="tp-dice" title={name(view.lastMove.player)}>
+                      <Die value={view.lastMove.dice[0]} rolling={stage.rolling} durationMs={ANIM.roll} color={color(view.lastMove.player)} className="tp-die" />
+                      <Die value={view.lastMove.dice[1]} rolling={stage.rolling} durationMs={ANIM.roll} color={color(view.lastMove.player)} className="tp-die" />
+                    </span>
+                  )
+                )}
+              </div>
+
+              {view.nextEvent && (
+                <footer className="tp-stage-next muted small">
+                  {T.nextMonth}: <strong>{T.events[view.nextEvent]}</strong>
+                </footer>
+              )}
+
+              {stage.banner && (
+                <div className={`tp-banner ev-${stage.banner.event}`} key={stage.banner.month}>
+                  <span className="eyebrow">{T.month(stage.banner.month)}</span>
+                  <strong>{T.events[stage.banner.event]}</strong>
+                  <span>{T.eventDetails[stage.banner.event]}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {view.result && (
@@ -382,7 +617,9 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                     <TrophyIcon />
                   </span>
                   <h2>{myPlace === 1 ? T.youWon : myPlace ? T.youPlaced(myPlace) : T.resultTitle}</h2>
-                  <p className="muted">{view.seats.filter((s) => !s.out).length > 1 ? T.timeUp : T.lastStanding}</p>
+                  <p className="muted">
+                    {view.result.reason === 'routes' && winner ? T.routesWin(name(winner)) : view.result.reason === 'time' ? T.timeUp : T.lastStanding}
+                  </p>
                 </header>
                 <ol className="tl-podium">
                   {view.result.ranking.map((id, i) => {
@@ -397,7 +634,7 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                         <span className="tl-podium-text">
                           <strong>{name(id)}</strong>
                           <span className="muted small">
-                            {T.cash} {money(seat.cash)} · {T.debt} {money(seat.debt)} · 🏠 {owned}
+                            {T.cash} {money(seat.cash)} · {T.debt} {money(seat.debt)} · 🏠 {owned} · 🛣️ {routesOf(id).length}
                           </span>
                         </span>
                         {tag ? <span className="tag tag-danger tl-points">{tag}</span> : <span className="tl-points up">{money(view.result!.worth[id])}</span>}
@@ -429,11 +666,12 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             me={me}
             name={name}
             color={color}
+            feeOf={feeOf}
             onClose={() => setSelected(null)}
             onSell={(id) => send({ type: 'sell', id })}
             flyButton={
               flyTarget !== null && (
-                <button className="btn btn-primary" disabled={cash < AIRPORT_FEE} onClick={() => send({ type: 'fly', to: flyTarget })}>
+                <button className="btn btn-primary" disabled={cash < flyFee} onClick={() => send({ type: 'fly', to: flyTarget })}>
                   ✈️ {T.flyTo(squareName(t, BOARD[flyTarget]))}
                 </button>
               )
@@ -441,25 +679,19 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
           />
         )}
 
-        <div className={`tl-me card tp-me ${myTurn ? 'turn' : ''}`}>
+        <div className={`tl-me card tp-me ${canAct ? 'turn' : ''}`}>
           <div className="tl-me-head">
             {seated && <Avatar id={me} name={player(me)?.name ?? '?'} size={36} online color={color(me)} />}
             <p className="tl-status">
               <Ellipsis text={status} />
             </p>
-            {view.lastMove?.dice && (
-              <span className="tp-dice" key={JSON.stringify(view.lastMove)} title={name(view.lastMove.player)}>
-                <Die value={view.lastMove.dice[0]} />
-                <Die value={view.lastMove.dice[1]} />
-              </span>
-            )}
             {turnMs !== null && <Countdown ms={turnMs} since={receivedAt} render={(left) => <span className="tl-seconds">{Math.ceil(left / 1000)}s</span>} />}
           </div>
           {turnMs !== null && view.turnLimitMs && (
-            <Countdown ms={turnMs} since={receivedAt} render={(left) => <div className="tl-bar" style={{ '--left': left / view.turnLimitMs! } as CSSProperties} />} />
+            <Countdown ms={turnMs} since={receivedAt} render={(left) => <div className="tl-bar" style={{ '--left': Math.min(1, left / view.turnLimitMs!) } as CSSProperties} />} />
           )}
 
-          {myTurn && view.phase === 'move' && (
+          {canAct && view.phase === 'move' && (
             <div className="tp-move">
               <button className="btn btn-primary btn-lg" onClick={() => send({ type: 'roll' })}>
                 🎲 {T.roll}
@@ -488,53 +720,66 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             </div>
           )}
 
-          {myTurn && view.phase === 'act' && hereSquare.kind === 'province' && (
-            <div className="tp-choices">
-              {freeTypes(view, here).map((type) => {
-                const price = bizPrice(hereSquare, type, view.event);
-                const candidate = { id: '', square: here, owner: me, type, level: 1, invested: 0 };
-                const fee = visitFee([...view.businesses, candidate], candidate, 'normal', view.month);
-                return (
-                  <button key={type} className="btn btn-secondary tp-choice" disabled={cash < price} onClick={() => send({ type: 'buy', biz: type })}>
+          {canAct && view.phase === 'act' && hereSquare.kind === 'street' && (
+            <>
+              <div className="tp-choices">
+                {freeTypes(view, here).map((type) => {
+                  const full = bizPrice(hereSquare, type, view.event);
+                  const price = mySeat?.discount ? Math.round(full / 20) * 10 : full;
+                  const candidate = { id: '', square: here, owner: me, type, level: 1, invested: 0 };
+                  const fee = visitFee([...view.businesses, candidate], candidate, 'normal', view.month);
+                  return (
+                    <button key={type} className="btn btn-secondary tp-choice" disabled={cash < price} onClick={() => send({ type: 'buy', biz: type })}>
+                      <span>
+                        {BIZ_ICON[type]} {T.open(T.biz[type])}
+                      </span>
+                      <span className="tp-choice-sub">
+                        {money(price)}
+                        {mySeat?.discount ? ` (${T.halfPrice})` : ''} · {T.feeEach(money(fee))}
+                      </span>
+                    </button>
+                  );
+                })}
+                {upgradable(view, here, me).map((b) => {
+                  const price = upgradePrice(hereSquare, b.type, view.event);
+                  const fee = visitFee(view.businesses, { ...b, level: b.level + 1 }, 'normal', view.month);
+                  return (
+                    <button key={b.id} className="btn btn-secondary tp-choice" disabled={cash < price} onClick={() => send({ type: 'upgrade', id: b.id })}>
+                      <span>
+                        {b.level + 1 >= MAX_LEVEL ? '⭐' : '⬆️'} {T.upgradeTo(T.biz[b.type], b.level + 1)}
+                        {b.level + 1 >= MAX_LEVEL ? ` · ${T.landmark}` : ''}
+                      </span>
+                      <span className="tp-choice-sub">
+                        {money(price)} · {T.feeEach(money(fee))}
+                      </span>
+                    </button>
+                  );
+                })}
+                {takeovers.map((b) => (
+                  <button key={b.id} className="btn btn-secondary tp-choice takeover" disabled={cash < takeoverPrice(b)} onClick={() => send({ type: 'takeover', id: b.id })}>
                     <span>
-                      {BIZ_ICON[type]} {T.open(T.biz[type])}
+                      🤝 {T.takeover(T.biz[b.type], name(b.owner))}
                     </span>
                     <span className="tp-choice-sub">
-                      {money(price)} · {T.feeEach(money(fee))}
+                      {money(takeoverPrice(b))} · {T.feeEach(money(feeOf(b, 'normal')))}
                     </span>
                   </button>
-                );
-              })}
-              {upgradable(view, here, me).map((b) => {
-                const price = upgradePrice(hereSquare, b.type, view.event);
-                const fee = visitFee(view.businesses, { ...b, level: b.level + 1 }, 'normal', view.month);
-                return (
-                  <button key={b.id} className="btn btn-secondary tp-choice" disabled={cash < price} onClick={() => send({ type: 'upgrade', id: b.id })}>
-                    <span>
-                      ⬆️ {T.upgradeTo(T.biz[b.type], b.level + 1)}
-                    </span>
-                    <span className="tp-choice-sub">
-                      {money(price)} · {T.feeEach(money(fee))}
-                    </span>
-                  </button>
-                );
-              })}
-              <button className="btn btn-ghost" onClick={() => send({ type: 'end' })}>
-                {T.skip}
-              </button>
-            </div>
+                ))}
+                <button className="btn btn-ghost" onClick={() => send({ type: 'end' })}>
+                  {freeTypes(view, here).length > 0 ? T.skipAuction : T.skip}
+                </button>
+              </div>
+              {freeTypes(view, here).every((type) => cash < bizPrice(hereSquare, type, view.event)) &&
+                upgradable(view, here, me).every((b) => cash < upgradePrice(hereSquare, b.type, view.event)) &&
+                takeovers.every((b) => cash < takeoverPrice(b)) && <p className="tl-hint error">{T.needCash}</p>}
+            </>
           )}
-          {myTurn &&
-            view.phase === 'act' &&
-            hereSquare.kind === 'province' &&
-            freeTypes(view, here).length + upgradable(view, here, me).length > 0 &&
-            freeTypes(view, here).every((type) => cash < bizPrice(hereSquare, type, view.event)) &&
-            upgradable(view, here, me).every((b) => cash < upgradePrice(hereSquare, b.type, view.event)) && <p className="tl-hint error">{T.needCash}</p>}
 
-          {myTurn && view.phase === 'fly' && (
+          {canAct && view.phase === 'fly' && (
             <div className="tp-choices">
+              {mySeat?.freeFlight && <span className="tag tag-gold">🎫 {T.freeFlight}</span>}
               {flyTarget !== null && (
-                <button className="btn btn-primary" disabled={cash < AIRPORT_FEE} onClick={() => send({ type: 'fly', to: flyTarget })}>
+                <button className="btn btn-primary" disabled={cash < flyFee} onClick={() => send({ type: 'fly', to: flyTarget })}>
                   ✈️ {T.flyTo(squareName(t, BOARD[flyTarget]))}
                 </button>
               )}
@@ -602,18 +847,19 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
             <p className="muted small">{T.noHistory}</p>
           ) : logOpen ? (
             <ol className="tl-log" id="tp-log" ref={logRef}>
-              {view.log.map((entry, i) =>
-                entry.kind === 'month' ? (
+              {view.log.map((entry, i) => {
+                const who = logPlayer(entry);
+                return entry.kind === 'month' || !who ? (
                   <li key={i} className="tl-log-round">
                     {describe(t, entry, name)}
                   </li>
                 ) : (
-                  <li key={i} className={`tl-log-row ${'player' in entry && entry.player === me ? 'mine' : ''} ${logTone(entry)}`}>
-                    <Avatar id={'player' in entry ? entry.player : entry.from} name={player('player' in entry ? entry.player : entry.from)?.name ?? '?'} size={22} color={color('player' in entry ? entry.player : entry.from)} />
+                  <li key={i} className={`tl-log-row ${who === me ? 'mine' : ''} ${logTone(entry)}`}>
+                    <Avatar id={who} name={player(who)?.name ?? '?'} size={22} color={color(who)} />
                     <span className="tl-log-text">{describe(t, entry, name)}</span>
                   </li>
-                ),
-              )}
+                );
+              })}
             </ol>
           ) : (
             <p className="tl-log-latest muted small">{describe(t, view.log.at(-1)!, name)}</p>
@@ -628,12 +874,62 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
   );
 }
 
+// The auction in the middle of the board: everyone but the player who turned the slot down may bid.
+function AuctionPanel({
+  view,
+  me,
+  seated,
+  name,
+  since,
+  onSend,
+}: {
+  view: TyPhuView;
+  me: string;
+  seated: boolean;
+  name: (id: string) => string;
+  since: number;
+  onSend: (move: TyPhuMove) => Promise<boolean>;
+}) {
+  const { t } = useI18n();
+  const T = t.typhu;
+  const a = view.auction!;
+  const cash = view.seats.find((s) => s.id === me)?.cash ?? 0;
+  const least = a.leader ? a.bid + BID_STEP : a.bid;
+  const steps = [least, (a.leader ? a.bid : a.bid - BID_STEP) + 50, (a.leader ? a.bid : a.bid - BID_STEP) + 100].filter((n, i, all) => n >= least && all.indexOf(n) === i);
+  const canBid = seated && me !== a.from && !a.passed.includes(me) && a.leader !== me;
+  return (
+    <div className="tp-auction">
+      <span className="eyebrow">🔨 {T.auctionTitle}</span>
+      <strong className="tp-auction-what">
+        {BIZ_ICON[a.type]} {T.auctionFor(T.biz[a.type], squareName(t, BOARD[a.square]))}
+      </strong>
+      <span className="tp-auction-bid">{a.leader ? T.auctionLeader(name(a.leader), T.money(a.bid)) : T.auctionOpening(T.money(a.bid))}</span>
+      <Countdown ms={a.msLeft} since={since} render={(left) => <div className="tl-bar tp-auction-bar" style={{ '--left': Math.min(1, left / 10_000) } as CSSProperties} />} />
+      {canBid ? (
+        <div className="tp-auction-actions">
+          {steps.map((n) => (
+            <button key={n} className="btn btn-primary btn-sm" disabled={cash < n} onClick={() => onSend({ type: 'bid', amount: n })}>
+              {T.bid(T.money(n))}
+            </button>
+          ))}
+          <button className="btn btn-ghost btn-sm" onClick={() => onSend({ type: 'pass' })}>
+            {T.pass}
+          </button>
+        </div>
+      ) : seated ? (
+        <span className="muted small">{a.leader === me ? T.youLead : me === a.from ? T.sellerWaits : T.youPassed}</span>
+      ) : null}
+    </div>
+  );
+}
+
 function SquareDetails({
   index,
   view,
   me,
   name,
   color,
+  feeOf,
   onClose,
   onSell,
   flyButton,
@@ -643,6 +939,7 @@ function SquareDetails({
   me: string;
   name: (id: string) => string;
   color: (id: string) => string | undefined;
+  feeOf: (b: Business) => number;
   onClose: () => void;
   onSell: (id: string) => void;
   flyButton: ReactNode;
@@ -651,14 +948,16 @@ function SquareDetails({
   const T = t.typhu;
   const sq = BOARD[index];
   const businesses = view.businesses.filter((b) => b.square === index);
+  const partner = sq.kind === 'street' ? ROUTES[routeOf(index)].find((i) => i !== index) : undefined;
   return (
     <section className="card tp-details">
       <header className="tp-details-head">
         <div>
-          <h3>{sq.kind === 'province' ? T.provinces[sq.id] : `${SPECIAL_ICON[sq.kind]} ${T.specials[sq.kind]}`}</h3>
-          {sq.kind === 'province' && (
+          <h3>{sq.kind === 'street' ? T.streets[sq.id] : `${SPECIAL_ICON[sq.kind]} ${T.specials[sq.kind]}`}</h3>
+          {sq.kind === 'street' && (
             <span className="muted small">
-              {T.regions[sq.region]} · {T.tierLabel(sq.tier)} · {T.slots(businesses.length, sq.slots)}
+              {T.districts[sq.id]} · {T.areas[sq.area]} · {T.tierLabel(sq.tier)} · {T.slots(businesses.length, sq.slots)}
+              {partner !== undefined && ` · ${T.routeWith(squareName(t, BOARD[partner]))}`}
             </span>
           )}
         </div>
@@ -666,7 +965,7 @@ function SquareDetails({
           <CloseIcon />
         </button>
       </header>
-      {sq.kind !== 'province' ? (
+      {sq.kind !== 'street' ? (
         <p className="muted">{T.specialDetails[sq.kind]}</p>
       ) : (
         <ul className="tp-details-list">
@@ -674,10 +973,11 @@ function SquareDetails({
             <li key={b.id}>
               <span className="tp-owner-dot" style={{ '--owner': color(b.owner) } as CSSProperties} />
               <span>
-                {BIZ_ICON[b.type]} {T.biz[b.type]} · {T.level(b.level)} · {b.owner === me ? t.room.you : name(b.owner)}
+                {BIZ_ICON[b.type]} {T.biz[b.type]} · {b.level >= MAX_LEVEL ? `⭐ ${T.landmark}` : T.level(b.level)} · {b.owner === me ? t.room.you : name(b.owner)}
               </span>
               <span className="muted small">
-                {T.fee} {T.money(visitFee(view.businesses, b, view.event, view.month))}
+                {T.fee} {T.money(feeOf(b))}
+                {b.level < MAX_LEVEL && b.owner !== me && ` · ${T.takeoverPrice} ${T.money(takeoverPrice(b))}`}
               </span>
               {b.owner === me && !view.result && (
                 <button className="btn btn-ghost btn-sm tp-sell" title={T.sellHint} onClick={() => onSell(b.id)}>

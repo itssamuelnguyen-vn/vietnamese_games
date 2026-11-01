@@ -13,6 +13,7 @@ import {
 import { api } from '../../socket';
 import { useI18n, type Strings } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
+import { Die } from '../../components/Die';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
 import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
@@ -83,39 +84,6 @@ function useTicker(active: boolean, ms = 250) {
     const id = setInterval(() => setTick((n) => n + 1), ms);
     return () => clearInterval(id);
   }, [active, ms]);
-}
-
-const PIPS: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-
-// While rolling the die flicks through random faces before landing on the real one.
-function Die({ value, rolling, color, onRoll, label }: { value: number | null; rolling: boolean; color?: string; onRoll?: () => void; label: string }) {
-  const [face, setFace] = useState(value);
-  useEffect(() => {
-    if (!rolling) return;
-    // Faces flick by quickly at first, then slow down as the die comes to rest.
-    const start = performance.now();
-    let id: ReturnType<typeof setTimeout>;
-    const flick = () => {
-      setFace((f) => 1 + ((f ?? 0) + Math.floor(Math.random() * 5)) % 6);
-      const elapsed = (performance.now() - start) / ROLL_MS;
-      id = setTimeout(flick, 60 + 260 * elapsed * elapsed);
-    };
-    flick();
-    return () => clearTimeout(id);
-  }, [rolling]);
-  const shown = rolling ? face : value;
-  const pips = Array.from({ length: 9 }, (_, i) => <span key={i} className={shown && PIPS[shown].includes(i) ? 'pip' : ''} />);
-  const style = { '--die-c': color } as CSSProperties;
-  const className = `cn-die ${rolling ? 'rolling' : ''}`;
-  return onRoll ? (
-    <button type="button" className={`${className} can-roll`} style={style} onClick={onRoll} aria-label={label} title={label}>
-      {pips}
-    </button>
-  ) : (
-    <span className={className} style={style} aria-label={value ? String(value) : ''}>
-      {pips}
-    </span>
-  );
 }
 
 // How long the die tumbles; move choices stay hidden until it lands.
@@ -479,6 +447,7 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
               key={rollKey}
               value={view.die ?? (lastRoll?.kind === 'roll' ? lastRoll.value : null)}
               rolling={rolling}
+              durationMs={ROLL_MS}
               color={lastRoll?.kind === 'roll' ? COLORS[colorOf(lastRoll.player)] : undefined}
               onRoll={canRoll ? () => send({ type: 'roll' }) : undefined}
               label={C.roll}

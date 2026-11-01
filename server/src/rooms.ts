@@ -100,6 +100,7 @@ const CHAT_HISTORY = 50;
 // Chat flood control: at most CHAT_BURST messages per CHAT_WINDOW_MS per person.
 const CHAT_BURST = 5;
 const CHAT_WINDOW_MS = 10_000;
+const DEFAULT_BOT_DELAY_MS = 900;
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
@@ -107,6 +108,8 @@ export class RoomManager {
 
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
   private botTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  // Per room, the latest busyUntil that bots have already waited for.
+  private botWaitedFor = new Map<string, number>();
   private chatTimes = new Map<string, number[]>();
   private nextMessageId = 1;
   private readonly clock: () => number;
@@ -121,7 +124,7 @@ export class RoomManager {
     onAutoUpdate = () => {},
     maxRooms = 1000,
     random = secureRandom,
-    botDelayMs = 900,
+    botDelayMs = DEFAULT_BOT_DELAY_MS,
     onClosed = () => {},
   }: RoomManagerOptions = {}) {
     this.clock = clock;
@@ -534,7 +537,8 @@ export class RoomManager {
   // pause is kept rather than restarted, so a stream of moves from people can't hold bots back;
   // the bot decides on the state as it is when the pause ends. Paced games (strictly turn-based, with
   // animated moves) restart the pause instead, so a bot never acts while the last move still plays out.
-  private scheduleBots(room: Room): void {
+  // Games that report when clients finish animating (busyUntil) also hold bots until then.
+  private scheduleBots(room: Room, delay?: number): void {
     const game = GAMES[room.gameType]!;
     if (game.botPace && this.botTimers.has(room.code)) {
       clearTimeout(this.botTimers.get(room.code));
@@ -544,6 +548,9 @@ export class RoomManager {
     const timer = setTimeout(() => {
       this.botTimers.delete(room.code);
       if (this.rooms.get(room.code) !== room || room.status !== 'playing') return;
+      // A change during the pause may have started a new animation (a roll, a new month): wait for it too.
+      const busy = this.busyWait(room);
+      if (busy > 0) return this.scheduleBots(room, busy);
       for (const bot of room.players.filter((p) => p.bot)) {
         let move: unknown;
         try {
@@ -556,9 +563,18 @@ export class RoomManager {
           return;
         }
       }
-    }, this.botDelayMs * (game.botPace ?? 1));
+    }, Math.max(delay ?? this.botDelayMs * (game.botPace ?? 1), this.busyWait(room)));
     timer.unref?.();
     this.botTimers.set(room.code, timer);
+  }
+
+  // How much longer bots should wait for clients to finish animating, if they haven't waited for
+  // this animation yet. Scaled like the bot pause, so tests that shorten the pause aren't held up.
+  private busyWait(room: Room): number {
+    const until = GAMES[room.gameType]!.busyUntil?.(room.state) ?? null;
+    if (until === null || until <= (this.botWaitedFor.get(room.code) ?? -Infinity)) return 0;
+    this.botWaitedFor.set(room.code, until);
+    return Math.max(0, until - this.clock()) * (this.botDelayMs / DEFAULT_BOT_DELAY_MS);
   }
 
   private deleteRoom(room: Room): void {
@@ -566,6 +582,7 @@ export class RoomManager {
     this.timers.delete(room.code);
     clearTimeout(this.botTimers.get(room.code));
     this.botTimers.delete(room.code);
+    this.botWaitedFor.delete(room.code);
     this.rooms.delete(room.code);
   }
 
