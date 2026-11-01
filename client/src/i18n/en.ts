@@ -1015,8 +1015,8 @@ export const en: Strings = {
       bonus: { title: 'Sales bonus', text: 'Receive 30 for each business you own.' },
       scholarship: { title: 'A new map', text: 'Draw an extra move card.' },
       investor: { title: 'An investor steps in', text: 'The next business you open costs half.' },
-      press: { title: 'In the papers', text: 'Your businesses charge ×1.5 until the month ends.' },
-      shield: { title: 'A good lawyer', text: 'Until the month ends, nobody can take over your businesses.' },
+      press: { title: 'In the papers', text: 'Your businesses charge ×1.5 until your next turn.' },
+      shield: { title: 'A good lawyer', text: 'Until your next turn, nobody can take over your businesses.' },
       bus: { title: 'Express bus', text: 'Go straight to Ben Thanh and draw a move card.' },
       ticket: { title: 'Free plane ticket', text: 'Fly to any square, free of charge.' },
       upgrade: { title: 'Free makeover', text: 'Your cheapest business goes up a level for free (or receive 100 if you have none).' },
@@ -1027,6 +1027,8 @@ export const en: Strings = {
     thisMonth: 'This month',
     nextMonth: 'Next month',
     finalYear: 'Final year!',
+    routePending: (who: string) => `🏆 ${who} win${who === 'You' ? '' : 's'} at month end unless a route is broken`,
+    orderLine: (names: string) => `Turn order: ${names}`,
     cash: 'Cash',
     debt: 'Debt',
     worth: 'Worth',
@@ -1111,6 +1113,10 @@ export const en: Strings = {
     sendOffer: 'Send offer',
     noBusinesses: 'No businesses yet',
     emptyOffer: 'Pick at least one thing to trade',
+    tradeNoBusiness: 'A trade needs at least one business',
+    tradeOneSided: 'Both sides must give something: no gifts',
+    tradeAskMore: (amount: string) => `Ask for at least ${amount} more: the bank would pay that for what you hand over`,
+    tradeOfferMore: (amount: string) => `Offer at least ${amount} more: the bank would pay that for what you ask for`,
     offers: 'Trade offers',
     offerFrom: (who: string) => `${who} offers`,
     offerTo: (who: string) => `Your offer to ${who}`,
@@ -1168,7 +1174,7 @@ export const en: Strings = {
     },
     rulesTitle: 'Tycoon rules',
     rulesIntro:
-      'A business race along 16 famous streets of Ho Chi Minh City. Take three whole routes and you win at once. Otherwise whoever can’t pay their debts goes bankrupt and the last one standing is the tycoon; if several are left after 3 years (36 months), the richest wins.',
+      'A business race along 16 famous streets of Ho Chi Minh City. Hold three whole routes at the end of a month and you win. Otherwise whoever can’t pay their debts goes bankrupt and the last one standing is the tycoon; if several are left after 3 years (36 months), the richest wins.',
     rules: [
       {
         title: 'Each turn',
@@ -1176,6 +1182,7 @@ export const en: Strings = {
           'Roll two dice, or play a move card to move exactly that many squares. Played cards are gone: you only get more by passing Ben Thanh, stopping at a bus stop or drawing an opportunity card (hold up to 5).',
           'Stop on a street: pay a fee to every business owner there, then do one thing: open a new business, upgrade one of yours, or take over someone else’s.',
           'The board is a 28-square loop round the city, back to Ben Thanh.',
+          'Turn order reverses every month: whoever went last starts the next month (two turns in a row), so going early or late evens out.',
         ],
       },
       {
@@ -1191,7 +1198,9 @@ export const en: Strings = {
         title: 'Routes and winning early',
         items: [
           'Streets come in pairs called routes (for example Dong Khoi – Nguyen Hue). With a business on both streets of a route, your fees there are doubled.',
-          'Hold three whole routes and you win straight away.',
+          'Hold three whole routes when a month ends, once everyone has had their turn, and you win. Until then the others can still break one up with a takeover.',
+          'If several players hold three routes then, the one with the most routes wins; if that’s a tie, the richest.',
+          'A business you got by trade only counts towards this from the next month on.',
         ],
       },
       {
@@ -1232,6 +1241,7 @@ export const en: Strings = {
         title: 'Trades, time-outs and bots',
         items: [
           'Send someone a trade offer: cash and businesses change hands both ways. They have 30 seconds to accept or decline.',
+          'Trades must be roughly fair: at least one business changes hands, both sides give something, and whoever hands over businesses gets back at least what the bank would pay for them (half of what was put in), in cash or in businesses counted the same way.',
           'A player in debt can only hand over cash beyond what they owe, so borrowed money can’t be passed on.',
           'Out of time: you roll automatically, pass on your square (which may start an auction) or stay at the airport.',
           'The host can add bots to empty seats in the waiting room. Bots play, bid and trade on their own and always agree to a rematch.',
@@ -1240,7 +1250,7 @@ export const en: Strings = {
     ],
     summaryTitle: 'Rules in brief',
     summary: [
-      'Take three whole routes to win at once; otherwise the last one standing (or the richest after 3 years) wins.',
+      'Hold three whole routes at the end of a month to win; otherwise the last one standing (or the richest after 3 years) wins.',
       'Roll the dice or play a move card; wherever you stop, pay the owners there.',
       'Open eateries, hotels and shops; at level 3 they become landmarks nobody can take over.',
       'Turn a slot down and it goes to auction; stop on a rival’s business and you may pay double to take it over.',
@@ -1274,5 +1284,6 @@ export const en: Strings = {
     WORD_UNKNOWN: 'That word isn’t in the dictionary',
     WORD_USED: 'That word has already been used',
     WORD_DEAD_END: 'Nothing can follow that word, pick another one',
+    TRADE_UNFAIR: 'That trade isn’t fair: a business must go for at least what the bank would pay, and both sides must give something',
   },
 };

@@ -1040,8 +1040,8 @@ export const vi = {
       bonus: { title: 'Thưởng doanh thu', text: 'Nhận 30 cho mỗi cơ sở bạn có.' },
       scholarship: { title: 'Bản đồ mới', text: 'Nhận thêm 1 thẻ Đi đường.' },
       investor: { title: 'Nhà đầu tư rót vốn', text: 'Cơ sở tiếp theo bạn mở chỉ tốn nửa giá.' },
-      press: { title: 'Lên báo', text: 'Cơ sở của bạn thu phí ×1,5 tới hết tháng.' },
-      shield: { title: 'Luật sư giỏi', text: 'Tới hết tháng, không ai thâu tóm được cơ sở của bạn.' },
+      press: { title: 'Lên báo', text: 'Cơ sở của bạn thu phí ×1,5 tới lượt sau của bạn.' },
+      shield: { title: 'Luật sư giỏi', text: 'Tới lượt sau của bạn, không ai thâu tóm được cơ sở của bạn.' },
       bus: { title: 'Xe buýt tốc hành', text: 'Đi thẳng về Bến Thành, nhận 1 thẻ Đi đường.' },
       ticket: { title: 'Vé máy bay miễn phí', text: 'Bay tới bất kỳ ô nào, không mất phí.' },
       upgrade: { title: 'Cải tạo miễn phí', text: 'Nâng cấp miễn phí cơ sở rẻ nhất của bạn (chưa có thì nhận 100).' },
@@ -1052,6 +1052,8 @@ export const vi = {
     thisMonth: 'Tháng này',
     nextMonth: 'Tháng sau',
     finalYear: 'Năm cuối!',
+    routePending: (who: string) => `🏆 ${who} sẽ thắng khi hết tháng nếu không ai phá được tuyến`,
+    orderLine: (names: string) => `Thứ tự đi tháng này: ${names}`,
     cash: 'Tiền mặt',
     debt: 'Nợ',
     worth: 'Tài sản',
@@ -1138,6 +1140,10 @@ export const vi = {
     sendOffer: 'Gửi đề nghị',
     noBusinesses: 'Chưa có cơ sở nào',
     emptyOffer: 'Chọn ít nhất một thứ để trao đổi',
+    tradeNoBusiness: 'Giao dịch phải có ít nhất một cơ sở',
+    tradeOneSided: 'Hai bên đều phải đưa gì đó, không cho không',
+    tradeAskMore: (amount: string) => `Đòi thêm ít nhất ${amount}: ngân hàng cũng trả chừng đó cho thứ bạn giao đi`,
+    tradeOfferMore: (amount: string) => `Trả thêm ít nhất ${amount}: ngân hàng cũng trả chừng đó cho thứ bạn đòi`,
     offers: 'Đề nghị mua bán',
     offerFrom: (who: string) => `${who} đề nghị`,
     offerTo: (who: string) => `Bạn đề nghị ${who}`,
@@ -1195,7 +1201,7 @@ export const vi = {
     },
     rulesTitle: 'Luật chơi Cờ tỉ phú',
     rulesIntro:
-      'Cuộc đua làm ăn trên 16 con đường nổi tiếng của TP.HCM. Chiếm trọn 3 tuyến đường thì thắng ngay. Không thì ai không trả nổi nợ sẽ phá sản, người trụ lại cuối cùng là tỉ phú; sau 3 năm (36 tháng) mà còn nhiều người thì ai giàu nhất thắng.',
+      'Cuộc đua làm ăn trên 16 con đường nổi tiếng của TP.HCM. Hết tháng mà đang chiếm trọn 3 tuyến đường thì thắng. Không thì ai không trả nổi nợ sẽ phá sản, người trụ lại cuối cùng là tỉ phú; sau 3 năm (36 tháng) mà còn nhiều người thì ai giàu nhất thắng.',
     rules: [
       {
         title: 'Mỗi lượt',
@@ -1203,6 +1209,7 @@ export const vi = {
           'Gieo 2 xúc xắc, hoặc đánh 1 thẻ Đi đường để đi đúng số ô ghi trên thẻ. Thẻ đánh rồi là mất: chỉ được thêm thẻ khi đi qua Bến Thành, ghé Trạm xe buýt hoặc bốc được thẻ Thời cơ (cầm tối đa 5 thẻ).',
           'Dừng ở một con đường: trả phí ghé cho từng chủ cơ sở ở đó, rồi chọn 1 việc: mở cơ sở mới, nâng cấp cơ sở của mình, hoặc thâu tóm cơ sở của người khác.',
           'Bàn là một vòng 28 ô quanh thành phố, đi hết lại về Bến Thành.',
+          'Thứ tự đi đảo ngược mỗi tháng: người đi cuối tháng này đi đầu tháng sau (được 2 lượt liền), nên đi trước hay đi sau đều như nhau.',
         ],
       },
       {
@@ -1218,7 +1225,9 @@ export const vi = {
         title: 'Tuyến đường và thắng sớm',
         items: [
           'Các con đường đi theo cặp, gọi là tuyến (ví dụ Đồng Khởi – Nguyễn Huệ). Có cơ sở trên cả 2 đường của một tuyến thì phí ghé của bạn ở tuyến đó ×2.',
-          'Chiếm trọn 3 tuyến đường thì thắng ngay lập tức.',
+          'Hết tháng (khi mọi người đã đi đủ lượt) mà đang chiếm trọn 3 tuyến đường thì thắng. Trước đó người khác vẫn có thể thâu tóm một cơ sở để phá tuyến.',
+          'Nếu lúc đó nhiều người cùng có 3 tuyến, ai nhiều tuyến hơn thắng; bằng nhau thì ai giàu hơn.',
+          'Cơ sở có được nhờ mua bán chỉ được tính vào điều kiện này từ tháng sau.',
         ],
       },
       {
@@ -1259,6 +1268,7 @@ export const vi = {
         title: 'Mua bán, hết giờ và máy',
         items: [
           'Gửi đề nghị mua bán cho người khác: tiền và cơ sở hai bên đưa cho nhau. Người nhận có 30 giây để đồng ý hoặc từ chối.',
+          'Mua bán phải tương đối công bằng: phải có ít nhất một cơ sở đổi chủ, hai bên đều phải đưa gì đó, và ai giao cơ sở đi phải nhận lại ít nhất bằng giá ngân hàng mua lại (nửa số tiền đã đầu tư), bằng tiền hoặc bằng cơ sở tính theo cùng cách.',
           'Người đang nợ chỉ được đưa phần tiền mặt vượt quá số nợ, để tiền vay không bị chuyển sang người khác.',
           'Hết giờ lượt: tự gieo xúc xắc, bỏ qua ô đang đứng (có thể thành đấu giá) hoặc ở lại sân bay.',
           'Chủ phòng có thể thêm máy (bot) vào chỗ trống ở phòng chờ. Máy tự chơi, tự đấu giá, tự mua bán và luôn đồng ý chơi ván mới.',
@@ -1267,7 +1277,7 @@ export const vi = {
     ],
     summaryTitle: 'Tóm tắt luật',
     summary: [
-      'Chiếm trọn 3 tuyến đường thì thắng ngay; không thì người trụ lại cuối cùng (hoặc giàu nhất sau 3 năm) thắng.',
+      'Hết tháng mà chiếm trọn 3 tuyến đường thì thắng; không thì người trụ lại cuối cùng (hoặc giàu nhất sau 3 năm) thắng.',
       'Gieo xúc xắc hoặc đánh thẻ Đi đường; dừng ở đường nào thì trả phí cho chủ ở đó.',
       'Mở Quán ăn, Khách sạn, Cửa hàng; nâng lên cấp 3 thành Thương hiệu, không ai thâu tóm được.',
       'Không mua thì ô đó đem ra đấu giá; dừng ở cơ sở người khác thì có thể trả gấp đôi để thâu tóm.',
@@ -1301,6 +1311,7 @@ export const vi = {
     WORD_UNKNOWN: 'Từ này không có trong từ điển',
     WORD_USED: 'Từ này đã được dùng rồi',
     WORD_DEAD_END: 'Không có từ nào nối tiếp được từ này, hãy chọn từ khác',
+    TRADE_UNFAIR: 'Giao dịch chưa công bằng: cơ sở phải đổi lấy ít nhất giá ngân hàng mua lại, và hai bên đều phải đưa gì đó',
   } satisfies Record<ErrorCode, string>,
 };
 

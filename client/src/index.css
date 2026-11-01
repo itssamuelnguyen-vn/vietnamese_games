@@ -3963,7 +3963,20 @@ main {
 
 .tp-trade-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.tp-trade-hint {
+  flex: 1 1 200px;
+}
+
+.tp-pending-win {
+  max-width: 92%;
+  font-size: 1.9cqw;
+  text-align: center;
 }
 
 @media (max-width: 560px) {

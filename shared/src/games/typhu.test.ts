@@ -21,11 +21,16 @@ import {
   heldRoutes,
   moveMs,
   netWorth,
+  routeWinner,
   salePrice,
   takeoverPrice,
+  tradeProblem,
+  tradeShortfall,
+  turnOrder,
   typhuGame,
   upgradePrice,
   visitFee,
+  winningRoutes,
   type Business,
   type Deck,
   type FortuneId,
@@ -76,9 +81,12 @@ const biz = (owner: string, name: string, type: Business['type'], level = 1): Bu
   level,
   invested: bizPrice(street(name), type),
 });
-// Plays the move card that lands `player` exactly on `square`, from one square before it.
-const landOn = (s: TyPhuState, player: string, square: number, random?: () => number, now?: number) =>
-  act(at(s, player, (square - 1 + BOARD.length) % BOARD.length), player, { type: 'card', index: 0 }, random, now);
+// Plays a 1 card that lands `player` exactly on `square`, from one square before it.
+const landOn = (s: TyPhuState, player: string, square: number, random?: () => number, now?: number) => {
+  const placed = at(s, player, (square - 1 + BOARD.length) % BOARD.length);
+  const hand = [1, ...placed.players[player].hand.slice(1)];
+  return act({ ...placed, players: { ...placed.players, [player]: { ...placed.players[player], hand } } }, player, { type: 'card', index: 0 }, random, now);
+};
 
 describe('co ti phu', () => {
   it('is a loop of 28 squares: 16 streets in 8 routes of two, and 12 special squares', () => {
@@ -220,21 +228,71 @@ describe('co ti phu', () => {
       expect(visitFee(both, both[0], 'normal')).toBe(2 * visitFee(one, one[0], 'normal'));
     });
 
-    it('completing a third route wins the game outright', () => {
-      const businesses = [
-        biz('a', 'phanvantri', 'food'),
-        biz('a', 'quangtrung', 'food'),
-        biz('a', 'phamvandong', 'food'),
-        biz('a', 'vovanngan', 'food'),
-        biz('a', 'xvnt', 'food'),
-      ];
-      const s = landOn(game(['a', 'b', 'c'], { businesses }), 'a', index('dienbienphu'));
+    const twoRoutes = (owner: string) => [
+      biz(owner, 'phanvantri', 'food'),
+      biz(owner, 'quangtrung', 'food'),
+      biz(owner, 'phamvandong', 'food'),
+      biz(owner, 'vovanngan', 'food'),
+    ];
+
+    it('a third route wins once the month is over, if it still stands', () => {
+      const businesses = [...twoRoutes('a'), biz('a', 'xvnt', 'food')];
+      let s = landOn(game(['a', 'b', 'c'], { businesses }), 'a', index('dienbienphu'));
       expect(ROUTES_TO_WIN).toBe(3);
-      const won = act(s, 'a', { type: 'buy', biz: 'food' });
-      expect(won.result).toMatchObject({ reason: 'routes' });
-      expect(won.result!.ranking[0]).toBe('a');
-      expect(won.log.filter((e) => e.kind === 'route')).toEqual([{ kind: 'route', player: 'a', route: 2, count: 3 }]);
+      s = act(s, 'a', { type: 'buy', biz: 'food' });
+      expect(s.log.filter((e) => e.kind === 'route')).toEqual([{ kind: 'route', player: 'a', route: 2, count: 3 }]);
+      // Not yet: everyone gets their turn this month first.
+      expect(s.result).toBeNull();
+      expect(winningRoutes(s, 'a')).toHaveLength(3);
+      s = landOn(s, 'b', special('bank'));
+      expect(s.result).toBeNull();
+      s = landOn(s, 'c', special('bank'));
+      expect(s.result).toMatchObject({ reason: 'routes' });
+      expect(s.result!.ranking[0]).toBe('a');
     });
+
+    it('a later player can break the routes up before the month ends', () => {
+      const businesses = [...twoRoutes('a'), biz('a', 'xvnt', 'food')];
+      let s = act(landOn(game(['a', 'b', 'c'], { businesses }), 'a', index('dienbienphu')), 'a', { type: 'buy', biz: 'food' });
+      s = landOn(s, 'b', index('quangtrung'));
+      s = act(s, 'b', { type: 'takeover', id: businesses[1].id });
+      s = landOn(s, 'c', special('bank'));
+      expect(s.result).toBeNull();
+      expect(s.month).toBe(2);
+    });
+
+    it('several winners at month end: the most routes, then the highest net worth', () => {
+      const a = [...twoRoutes('a'), biz('a', 'xvnt', 'food'), biz('a', 'dienbienphu', 'food')];
+      const b = [biz('b', 'tranhungdao', 'food'), biz('b', 'nguyentrai', 'food'), biz('b', 'namkykhoinghia', 'food'), biz('b', 'vovantan', 'food'), biz('b', 'xuanthuy', 'food'), biz('b', 'quochuong', 'food')];
+      const s = game(['a', 'b', 'c'], { businesses: [...a, ...b] });
+      expect(routeWinner(s)).toBe('b');
+      expect(routeWinner(withCash(s, 'a', START_CASH + 1000))).toBe('a');
+      const more = { ...s, businesses: [...s.businesses, biz('b', 'buivien', 'food'), biz('b', 'phamngulao', 'food')] };
+      expect(routeWinner(withCash(more, 'a', START_CASH + 2000))).toBe('b');
+      expect(routeWinner({ ...s, businesses: a.slice(1) })).toBeNull();
+    });
+  });
+
+  it('turn order reverses every month, so whoever went last starts the next one', () => {
+    let s = game(['a', 'b', 'c']);
+    expect(turnOrder(s)).toEqual(['a', 'b', 'c']);
+    s = landOn(s, 'a', special('bank'));
+    s = landOn(s, 'b', special('bank'));
+    s = landOn(s, 'c', special('bank'));
+    expect(s.month).toBe(2);
+    expect(turnOrder(s)).toEqual(['c', 'b', 'a']);
+    expect(s.turn).toBe('c');
+    s = landOn(s, 'c', special('bank'));
+    expect(s.turn).toBe('b');
+    s = landOn(landOn(s, 'b', special('bank')), 'a', special('bank'));
+    expect(s.month).toBe(3);
+    expect(s.turn).toBe('a');
+    // Players who are out are skipped.
+    const left = typhuGame.forfeit({ ...s, month: 2, turn: 'b' }, 'a', { now: 0 }, 'left');
+    expect(left.result).toBeNull();
+    const next = landOn(left, 'b', special('bank'));
+    expect(next.month).toBe(3);
+    expect(next.turn).toBe('b');
   });
 
   describe('takeovers', () => {
@@ -260,9 +318,25 @@ describe('co ti phu', () => {
 
       const plain = biz('b', 'quangtrung', 'food');
       const shielded = game(['a', 'b'], { businesses: [plain] });
-      const guarded = { ...shielded, players: { ...shielded.players, b: { ...shielded.players.b, shieldMonth: 1 } } };
+      const guarded = { ...shielded, players: { ...shielded.players, b: { ...shielded.players.b, shielded: true } } };
       const landed = act(guarded, 'a', { type: 'card', index: 1 });
       expect(() => act(landed, 'a', { type: 'takeover', id: plain.id })).toThrow('INVALID_MOVE');
+    });
+
+    it('a lawyer lasts a full round, into the next month, until the owner’s next turn', () => {
+      const plain = biz('a', 'quangtrung', 'food');
+      let s = landOn(stack(game(['a', 'b'], { businesses: [plain] }), 'deal', 'shield'), 'a', special('deal'));
+      expect(s.players.a.shielded).toBe(true);
+      s = landOn(s, 'b', special('bank'));
+      // Month 2 starts with b, who still can't touch a's business.
+      expect(s).toMatchObject({ month: 2, turn: 'b' });
+      expect(typhuGame.playerView(s, 'b', { now: 0 }).seats.find((p) => p.id === 'a')?.shielded).toBe(true);
+      const landed = landOn(s, 'b', plain.square);
+      expect(() => act(landed, 'b', { type: 'takeover', id: plain.id })).toThrow('INVALID_MOVE');
+      // Once a's next turn starts, it's over.
+      s = landOn(s, 'b', special('bank'));
+      expect(s.turn).toBe('a');
+      expect(s.players.a.shielded).toBe(false);
     });
 
     it('drop trade offers that involved the business', () => {
@@ -498,41 +572,100 @@ describe('co ti phu', () => {
     expect(s.players.a.cash).toBe(START_CASH + SALARY);
     expect(s.players.b.cash).toBe(1000 + SALARY - 50);
     expect(s.log.some((e) => e.kind === 'interest' && e.player === 'b' && e.amount === 50)).toBe(true);
-    expect(s.turn).toBe('a');
+    // The order reverses for month 2.
+    expect(s.turn).toBe('b');
 
-    let end: TyPhuState = { ...s, month: MAX_MONTHS, players: { a: { ...s.players.a, hand: [1] }, b: { ...s.players.b, hand: [1] } } };
-    end = act(landOn(end, 'a', special('airport')), 'a', { type: 'stay' });
+    let end: TyPhuState = { ...s, month: MAX_MONTHS };
     end = act(landOn(end, 'b', special('airport')), 'b', { type: 'stay' });
+    end = act(landOn(end, 'a', special('airport')), 'a', { type: 'stay' });
     expect(end.result).toMatchObject({ ranking: ['a', 'b'], reason: 'time' });
     expect(end.result?.worth.a).toBe(netWorth(end, 'a'));
     expect(typhuGame.points!(end)).toEqual({ a: { place: 1, points: 1 }, b: { place: 2, points: -1 } });
   });
 
   describe('trades', () => {
+    const businesses = [biz('a', 'dongkhoi', 'food'), biz('b', 'xvnt', 'inn')];
+    const [dongkhoi, xvnt] = businesses;
+
     it('a player in debt can only hand over cash beyond what they owe', () => {
-      const s = withCash(game(['a', 'b']), 'a', 1000, 800);
-      const big = act(s, 'a', { type: 'offer', to: 'b', giveCash: 500, getCash: 0, give: [], get: [] });
+      const s = withCash(game(['a', 'b'], { businesses }), 'a', 1000, 800);
+      const big = act(s, 'a', { type: 'offer', to: 'b', giveCash: 500, getCash: 0, give: [], get: [xvnt.id] });
       expect(() => act(big, 'b', { type: 'accept', id: big.offers[0].id })).toThrow('INVALID_MOVE');
-      const small = act(s, 'a', { type: 'offer', to: 'b', giveCash: 200, getCash: 0, give: [], get: [] });
+      const small = act(s, 'a', { type: 'offer', to: 'b', giveCash: 200, getCash: 0, give: [], get: [xvnt.id] });
       expect(act(small, 'b', { type: 'accept', id: small.offers[0].id }).players.b.cash).toBe(START_CASH + 200);
     });
 
     it('an offer can no longer be accepted once its time is up', () => {
-      const s = act(game(['a', 'b']), 'a', { type: 'offer', to: 'b', giveCash: 50, getCash: 0, give: [], get: [] });
+      const s = act(game(['a', 'b'], { businesses }), 'a', { type: 'offer', to: 'b', giveCash: 100, getCash: 0, give: [], get: [xvnt.id] });
       expect(() => act(s, 'b', { type: 'accept', id: s.offers[0].id }, undefined, 30_000)).toThrow('INVALID_MOVE');
     });
 
-    const businesses = [biz('a', 'dongkhoi', 'food'), biz('b', 'xvnt', 'inn')];
-
     it('swap businesses and cash when accepted', () => {
-      let s = act(game(['a', 'b'], { businesses }), 'a', { type: 'offer', to: 'b', giveCash: 100, getCash: 0, give: [businesses[0].id], get: [businesses[1].id] });
+      let s = act(game(['a', 'b'], { businesses }), 'a', { type: 'offer', to: 'b', giveCash: 0, getCash: 100, give: [dongkhoi.id], get: [xvnt.id] });
       expect(typhuGame.playerView(s, 'b', { now: 0 }).offers).toHaveLength(1);
       expect(() => act(s, 'a', { type: 'accept', id: s.offers[0].id })).toThrow('INVALID_MOVE');
       s = act(s, 'b', { type: 'accept', id: s.offers[0].id });
       expect(s.businesses.map((b) => b.owner)).toEqual(['b', 'a']);
-      expect(s.players.a.cash).toBe(START_CASH - 100);
-      expect(s.players.b.cash).toBe(START_CASH + 100);
+      expect(s.businesses.map((b) => b.tradedMonth)).toEqual([1, 1]);
+      expect(s.players.a.cash).toBe(START_CASH + 100);
+      expect(s.players.b.cash).toBe(START_CASH - 100);
       expect(s.offers).toEqual([]);
+    });
+
+    it('must be roughly fair: no gifts, and a business goes for at least what the bank would pay', () => {
+      const s = game(['a', 'b'], { businesses });
+      const offer = (giveCash: number, getCash: number, give: string[], get: string[]) => () => act(s, 'a', { type: 'offer', to: 'b', giveCash, getCash, give, get });
+      expect(salePrice(xvnt)).toBe(90);
+      expect(salePrice(dongkhoi)).toBe(160);
+      // Handing over a business, or cash, for nothing.
+      expect(offer(0, 0, [dongkhoi.id], [])).toThrow('TRADE_UNFAIR');
+      expect(offer(0, 0, [], [xvnt.id])).toThrow('TRADE_UNFAIR');
+      expect(offer(300, 0, [], [])).toThrow('TRADE_UNFAIR');
+      expect(offer(300, 100, [], [])).toThrow('TRADE_UNFAIR');
+      // Below the bank's price, either way round.
+      expect(offer(80, 0, [], [xvnt.id])).toThrow('TRADE_UNFAIR');
+      expect(offer(0, 150, [dongkhoi.id], [])).toThrow('TRADE_UNFAIR');
+      expect(offer(90, 0, [], [xvnt.id])).not.toThrow();
+      expect(offer(0, 160, [dongkhoi.id], [])).not.toThrow();
+      // A swap: whoever hands over the pricier business is made up for in cash.
+      expect(offer(0, 0, [dongkhoi.id], [xvnt.id])).toThrow('TRADE_UNFAIR');
+      expect(tradeShortfall(s.businesses, { giveCash: 0, getCash: 0, give: [dongkhoi.id], get: [xvnt.id] })).toEqual({ from: 70, to: 0 });
+      expect(offer(0, 70, [dongkhoi.id], [xvnt.id])).not.toThrow();
+      expect(tradeProblem(s.businesses, { giveCash: 0, getCash: 0, give: [], get: [] })).toBe('noBusiness');
+      expect(tradeProblem(s.businesses, { giveCash: 0, getCash: 0, give: [], get: [xvnt.id] })).toBe('oneSided');
+      expect(tradeProblem(s.businesses, { giveCash: 10, getCash: 0, give: [], get: [xvnt.id] })).toBe('underpriced');
+      expect(tradeProblem(s.businesses, { giveCash: 1000, getCash: 0, give: [], get: [xvnt.id] })).toBeNull();
+    });
+
+    it('an offer that became too cheap after an upgrade can no longer be accepted', () => {
+      const s = act(game(['a', 'b'], { businesses }), 'a', { type: 'offer', to: 'b', giveCash: 90, getCash: 0, give: [], get: [xvnt.id] });
+      const upgraded = { ...s, businesses: s.businesses.map((b) => (b.id === xvnt.id ? { ...b, level: 2, invested: b.invested + 100 } : b)) };
+      expect(() => act(upgraded, 'b', { type: 'accept', id: s.offers[0].id })).toThrow('TRADE_UNFAIR');
+    });
+
+    it('a business received by trade only counts towards a route win from the next month', () => {
+      // a holds two routes and half a third; b sells them the missing street at a fair price.
+      const owned = [biz('a', 'phanvantri', 'food'), biz('a', 'quangtrung', 'food'), biz('a', 'phamvandong', 'food'), biz('a', 'vovanngan', 'food'), biz('a', 'xvnt', 'food')];
+      const key = biz('b', 'dienbienphu', 'food');
+      let s = act(game(['a', 'b'], { businesses: [...owned, key] }), 'a', { type: 'offer', to: 'b', giveCash: 500, getCash: 0, give: [], get: [key.id] });
+      s = act(s, 'b', { type: 'accept', id: s.offers[0].id });
+      expect(heldRoutes(s.businesses, 'a')).toHaveLength(3);
+      expect(winningRoutes(s, 'a')).toHaveLength(2);
+      s = landOn(landOn(s, 'a', special('bank')), 'b', special('bank'));
+      expect(s.result).toBeNull();
+      expect(s.month).toBe(2);
+      expect(winningRoutes(s, 'a')).toHaveLength(3);
+      // Still holding them at the end of month 2: a wins.
+      s = landOn(landOn(s, 'b', special('bank')), 'a', special('bank'));
+      expect(s.result).toMatchObject({ reason: 'routes', ranking: ['a', 'b'] });
+    });
+
+    it('a takeover counts at once, even for a business that was just traded', () => {
+      const traded = { ...biz('b', 'quangtrung', 'food'), tradedMonth: 1 };
+      let s = landOn(game(['a', 'b'], { businesses: [traded] }), 'a', traded.square);
+      s = act(s, 'a', { type: 'takeover', id: traded.id });
+      expect(s.businesses[0].owner).toBe('a');
+      expect(s.businesses[0].tradedMonth).toBeUndefined();
     });
 
     it('reject offers for businesses the other side does not own', () => {
@@ -540,7 +673,7 @@ describe('co ti phu', () => {
     });
 
     it('can be declined, cancelled, or lapse after 30 seconds', () => {
-      const s = act(game(['a', 'b'], { businesses }), 'a', { type: 'offer', to: 'b', giveCash: 50, getCash: 0, give: [], get: [businesses[1].id] });
+      const s = act(game(['a', 'b'], { businesses }), 'a', { type: 'offer', to: 'b', giveCash: 100, getCash: 0, give: [], get: [xvnt.id] });
       expect(act(s, 'b', { type: 'decline', id: s.offers[0].id }).offers).toEqual([]);
       expect(act(s, 'a', { type: 'cancel', id: s.offers[0].id }).offers).toEqual([]);
       expect(typhuGame.deadline!(s)).toBe(30_000);
@@ -586,6 +719,14 @@ describe('co ti phu', () => {
     const businesses = [biz('bot', 'quangtrung', 'food'), biz('bot', 'xvnt', 'food'), biz('bot', 'dongkhoi', 'food'), biz('bot', 'vovanngan', 'shop'), biz('bot', 'tranhungdao', 'shop')];
     const s = { ...at(game(['bot', 'b'], { businesses }), 'bot', index('buivien')), phase: 'act' as const };
     expect(typhuGame.botMove!(s, 'bot', { now: 0 })).toEqual({ type: 'buy', biz: 'shop' });
+  });
+
+  it('bots break up the routes of someone about to win at month end, whatever it costs them', () => {
+    const businesses = [biz('a', 'phanvantri', 'food'), biz('a', 'quangtrung', 'food'), biz('a', 'phamvandong', 'food'), biz('a', 'vovanngan', 'food'), biz('a', 'xvnt', 'food'), biz('a', 'dienbienphu', 'food')];
+    const s = { ...at(game(['a', 'bot'], { businesses, turn: 'bot' }), 'bot', index('quangtrung')), phase: 'act' as const };
+    // Just enough cash for the takeover, nothing to spare.
+    const poor = withCash(s, 'bot', takeoverPrice(businesses[1]) + 20);
+    expect(typhuGame.botMove!(poor, 'bot', { now: 0 })).toEqual({ type: 'takeover', id: businesses[1].id });
   });
 
   it('bots take over a business to break a rival’s route', () => {

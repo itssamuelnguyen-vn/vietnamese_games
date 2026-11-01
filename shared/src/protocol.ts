@@ -27,7 +27,9 @@ export type ErrorCode =
   | 'WORD_LINK'
   | 'WORD_UNKNOWN'
   | 'WORD_USED'
-  | 'WORD_DEAD_END';
+  | 'WORD_DEAD_END'
+  // Co ti phu: a trade offer that isn't fair enough (see tradeProblem).
+  | 'TRADE_UNFAIR';
 
 export type Ack<T = object> = ({ ok: true } & T) | { ok: false; error: ErrorCode };
 

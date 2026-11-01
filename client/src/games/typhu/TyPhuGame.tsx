@@ -18,9 +18,13 @@ import {
   routeOf,
   salePrice,
   takeoverPrice,
+  tradeProblem,
+  tradeShortfall,
+  turnOrder,
   upgradable,
   upgradePrice,
   visitFee,
+  winningRoutes,
   yearFactor,
   type Business,
   type BizType,
@@ -432,6 +436,15 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
     return b.square === here && b.owner !== me && b.level < MAX_LEVEL && owner && !owner.out && !owner.shielded;
   });
   const routesOf = (id: string) => heldRoutes(view.businesses, id);
+  // Routes only win once the month is over: who would win if it ended now.
+  const pendingWinner = view.result
+    ? undefined
+    : view.seats
+        .filter((s) => !s.out)
+        .map((s) => ({ id: s.id, routes: winningRoutes(view, s.id).length, worth: s.worth }))
+        .filter((c) => c.routes >= ROUTES_TO_WIN)
+        .sort((a, b) => b.routes - a.routes || b.worth - a.worth)[0]?.id;
+  const order = turnOrder({ seats: view.seats.map((s) => s.id), month: view.month }).filter((id) => !view.seats.find((s) => s.id === id)?.out);
 
   function pickSquare(i: number) {
     setSelected((s) => (s === i && !(canAct && view.phase === 'fly') ? null : i));
@@ -577,6 +590,8 @@ export function TyPhuGame({ room, view, onLeave }: Props) {
                 {view.month > MAX_MONTHS - YEAR && !view.result && <span className="tag tag-gold">{T.finalYear}</span>}
               </header>
               <p className="tp-stage-event muted small">{T.eventDetails[view.event]}</p>
+              {pendingWinner && <span className="tag tag-gold tp-pending-win">{T.routePending(name(pendingWinner))}</span>}
+              {!view.result && <p className="tp-stage-next muted small">{T.orderLine(order.map(name).join(' → '))}</p>}
 
               <div className="tp-stage-main">
                 {view.auction ? (
@@ -1125,6 +1140,19 @@ function TradeDialog({
   const partner = others.some((s) => s.id === to) ? to : (others[0]?.id ?? '');
   const toggle = (list: string[], set: (l: string[]) => void, id: string) => set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   const empty = giveCash + getCash + giving.length + getting.length === 0;
+  const terms = { giveCash, getCash, give: giving, get: getting };
+  const problem = empty ? null : tradeProblem(view.businesses, terms);
+  const short = tradeShortfall(view.businesses, terms);
+  const hint =
+    problem === 'noBusiness'
+      ? T.tradeNoBusiness
+      : problem === 'oneSided'
+        ? T.tradeOneSided
+        : problem === 'underpriced'
+          ? short.from > 0
+            ? T.tradeAskMore(T.money(short.from))
+            : T.tradeOfferMore(T.money(short.to))
+          : null;
   const cashInput = (value: number, set: (n: number) => void) => (
     <label className="tp-cash-input">
       <span className="muted small">{T.cashField}</span>
@@ -1181,7 +1209,8 @@ function TradeDialog({
           </section>
         </div>
         <div className="tp-trade-actions">
-          <button className="btn btn-primary" disabled={!partner || empty} onClick={submit}>
+          {hint && <span className="muted small tp-trade-hint">{hint}</span>}
+          <button className="btn btn-primary" disabled={!partner || empty || !!problem} onClick={submit}>
             🤝 {T.sendOffer}
           </button>
         </div>
