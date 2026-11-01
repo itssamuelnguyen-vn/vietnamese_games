@@ -167,9 +167,15 @@ export function LotoGame({ room, view, onLeave }: Props) {
     if (!r.ok) toast(t.errors[r.error]);
     return r.ok;
   }
-  // Picking: tap a ticket to take it (or put it back), or take both of a colour.
+  // Picking: tap a free ticket to add it (two at most), tap one of yours to put it back, or take
+  // both of a colour in one go. The server has the last word on who holds what.
   function pick(tickets: number[]) {
     void send({ type: 'pick', tickets });
+  }
+  function tapTicket(tk: number) {
+    if (view.mine.includes(tk)) return pick(view.mine.filter((x) => x !== tk));
+    if (view.mine.length >= 2) return toast(T.twoMax);
+    pick([...view.mine, tk]);
   }
   async function rematch() {
     const r = isHost ? await api.start() : await api.rematch();
@@ -301,8 +307,8 @@ export function LotoGame({ room, view, onLeave }: Props) {
                               type="button"
                               className={`lt-pick-ticket ${mineNow ? 'mine' : ''}`}
                               aria-pressed={mineNow}
-                              disabled={(holder !== undefined && !mineNow) || (!mineNow && !canAfford(1))}
-                              onClick={() => pick(mineNow ? view.mine.filter((x) => x !== tk) : [tk])}
+                              disabled={(holder !== undefined && !mineNow) || (!mineNow && !canAfford(view.mine.length + 1))}
+                              onClick={() => tapTicket(tk)}
                               title={holder && !mineNow ? name(holder) : undefined}
                             >
                               {holder && !mineNow ? <Avatar id={holder} name={player(holder)?.name ?? name(holder)} size={20} color={color(holder)} /> : `${(tk % 2) + 1}`}

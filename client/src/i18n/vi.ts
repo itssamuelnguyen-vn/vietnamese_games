@@ -607,13 +607,14 @@ export const vi = {
 
   loto: {
     buyTitle: 'Chọn tờ đi nào!',
-    buyPrompt: 'Chọn 1 tờ, hoặc lấy trọn cặp 2 tờ cùng màu, rồi bấm Xong.',
+    buyPrompt: 'Chọn 1 hoặc 2 tờ bất kỳ còn trống, rồi bấm Xong.',
     buyingOthers: 'Mọi người đang mua vé…',
     waitingOthers: 'Đã mua vé, chờ mọi người…',
     colors: ['Hồng', 'Đỏ', 'Cam', 'Vàng', 'Xanh lá', 'Xanh cốm', 'Xanh dương', 'Tím'],
     ticketName: (color: string, n: number) => `${color} ${n}`,
     takePair: 'Lấy cả cặp',
-    pickHint: 'Chạm vào tờ muốn lấy (2 tờ cùng màu chia nhau đủ 90 số).',
+    pickHint: 'Chạm vào tờ muốn lấy, tối đa 2 tờ. Chạm lại để trả tờ.',
+    twoMax: 'Bạn đã có 2 tờ: chạm vào một tờ đang cầm để trả lại trước.',
     picked: (n: number, price: string | null) => `Bạn lấy ${n} tờ${price ? ` · ${price}` : ''}`,
     done: 'Xong',
     ticketCount: (n: number) => `${n} vé`,
@@ -657,7 +658,7 @@ export const vi = {
         items: [
           'Bàn có bộ 16 tờ, 8 màu, mỗi màu 2 tờ. Hai tờ cùng màu chia nhau đủ 90 số: số có ở tờ này thì không có ở tờ kia.',
           'Mỗi tờ có 9 hàng, mỗi hàng 5 số. Cột đầu là các số 1–9, cột kế là 10–19… cột cuối là 80–90.',
-          'Mỗi người lấy 1 tờ bất kỳ còn trống, hoặc trọn cặp 2 tờ cùng màu. Tờ đã có người lấy thì không lấy được nữa; hết tờ thì ngồi xem.',
+          'Mỗi người lấy 1 hoặc 2 tờ bất kỳ còn trống (khác màu cũng được). Mỗi tờ chỉ một người cầm: tờ đã có người lấy thì không ai lấy được nữa; hết tờ thì ngồi xem.',
         ],
       },
       {

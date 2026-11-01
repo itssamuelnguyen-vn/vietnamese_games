@@ -596,13 +596,14 @@ export const en: Strings = {
 
   loto: {
     buyTitle: 'Pick your tickets!',
-    buyPrompt: 'Take one ticket, or both tickets of a colour, then tap Done.',
+    buyPrompt: 'Take one or two free tickets, any two, then tap Done.',
     buyingOthers: 'Everyone is buying tickets…',
     waitingOthers: 'Tickets bought, waiting for the others…',
     colors: ['Pink', 'Red', 'Orange', 'Yellow', 'Green', 'Lime', 'Blue', 'Purple'],
     ticketName: (color: string, n: number) => `${color} ${n}`,
     takePair: 'Take both',
-    pickHint: 'Tap a ticket to take it (a colour’s two tickets share out all 90 numbers).',
+    pickHint: 'Tap tickets to take them, two at most. Tap one again to put it back.',
+    twoMax: 'You have two tickets: tap one of yours to put it back first.',
     picked: (n: number, price: string | null) => `You have ${n === 1 ? '1 ticket' : `${n} tickets`}${price ? ` · ${price}` : ''}`,
     done: 'Done',
     ticketCount: (n: number) => (n === 1 ? '1 ticket' : `${n} tickets`),
@@ -646,7 +647,7 @@ export const en: Strings = {
         items: [
           'The table has a set of 16 tickets in 8 colours, two of each. A colour’s two tickets share out all 90 numbers: a number on one is never on the other.',
           'A ticket has 9 rows of 5 numbers. The first column holds 1–9, the next 10–19… the last 80–90.',
-          'Each player takes any one free ticket, or both tickets of a colour. A ticket someone has taken can’t be taken again; once they’re gone, the rest watch.',
+          'Each player takes one or two free tickets, of any colours. A ticket belongs to one player only: once taken, nobody else can take it; when they’re all gone, the rest watch.',
         ],
       },
       {

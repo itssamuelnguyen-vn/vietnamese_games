@@ -48,17 +48,52 @@ describe('lô tô', () => {
     for (let k = 0; k < 8; k++) expect(new Set([...numbersOf(s.set[2 * k]), ...numbersOf(s.set[2 * k + 1])]).size).toBe(90);
   });
 
-  it('picks one free ticket or both of a colour, never two of different colours or one taken', () => {
+  it('picks up to two tickets, any two, never one someone else holds', () => {
     let s = game(['a', 'b']);
-    expect(() => act(s, 'a', { type: 'pick', tickets: [0, 2] })).toThrow('INVALID_MOVE');
     expect(() => act(s, 'a', { type: 'pick', tickets: [4, 5, 6] })).toThrow('INVALID_MOVE');
-    s = act(s, 'a', { type: 'pick', tickets: [5, 4] });
-    expect(s.picks.a).toEqual([4, 5]);
+    expect(() => act(s, 'a', { type: 'pick', tickets: [3, 3] })).toThrow('INVALID_MOVE');
+    expect(() => act(s, 'a', { type: 'pick', tickets: [16] })).toThrow('INVALID_MOVE');
+    // Two of different colours are fine.
+    s = act(s, 'a', { type: 'pick', tickets: [5, 0] });
+    expect(s.picks.a).toEqual([0, 5]);
     expect(() => act(s, 'b', { type: 'pick', tickets: [5] })).toThrow('INVALID_MOVE');
-    // Changing your mind frees the tickets.
+    // Changing your mind puts the tickets back on the table.
     s = act(s, 'a', { type: 'pick', tickets: [7] });
     s = act(s, 'b', { type: 'pick', tickets: [4, 5] });
     expect(lotoGame.playerView(s, 'a', { now: 0 }).holders).toEqual({ 4: 'b', 5: 'b', 7: 'a' });
+  });
+
+  it("a colour's two tickets taken by A and B: C can take neither, alone or with another", () => {
+    const green = [8, 9];
+    let s = game(['a', 'b', 'c']);
+    s = act(s, 'a', { type: 'pick', tickets: [green[0]] });
+    s = act(s, 'b', { type: 'pick', tickets: [green[1]] });
+    for (const tickets of [[green[0]], [green[1]], green, [green[0], 2], [2, green[1]]]) {
+      expect(lotoGame.applyMove(s, 'c', { type: 'pick', tickets }, { now: 0 })).toEqual({ ok: false, error: 'INVALID_MOVE' });
+    }
+    // C's refused picks changed nothing; another ticket is fine.
+    expect(s.picks).toEqual({ a: [green[0]], b: [green[1]] });
+    s = act(s, 'c', { type: 'pick', tickets: [2] });
+    // Nor can anyone else take what C holds, or what A and B hold, even after getting ready.
+    s = act(act(s, 'a', { type: 'ready' }), 'b', { type: 'ready' });
+    expect(lotoGame.applyMove(s, 'c', { type: 'pick', tickets: [2, green[0]] }, { now: 0 }).ok).toBe(false);
+    expect(Object.values(s.picks).flat().sort((x, y) => x - y)).toEqual([2, 8, 9]);
+  });
+
+  it('under thousands of random picks by 16 players, no ticket ever has two holders', () => {
+    const random = seeded(99);
+    const ids = Array.from({ length: 16 }, (_, i) => `p${i}`);
+    let s = game(ids);
+    for (let i = 0; i < 5000; i++) {
+      const id = ids[Math.floor(random() * ids.length)];
+      const n = Math.floor(random() * 4);
+      const tickets = Array.from({ length: n }, () => Math.floor(random() * LOTO_SET));
+      const r = lotoGame.applyMove(s, id, { type: 'pick', tickets }, { now: 0 });
+      if (r.ok) s = r.state;
+      const held = Object.values(s.picks).flat();
+      expect(new Set(held).size).toBe(held.length);
+      for (const ts of Object.values(s.picks)) expect(ts.length).toBeLessThanOrEqual(2);
+    }
   });
 
   it('deals once everyone is ready, then calls a number at a time', () => {
@@ -151,10 +186,10 @@ describe('lô tô', () => {
           s = lotoGame.timeout!(s, { now, random });
         }
       }
-      // No ticket held twice, nobody holds two tickets of different colours.
+      // No ticket held by two players, nobody with more than two.
       const all = Object.values(s.picks).flat();
       expect(new Set(all).size).toBe(all.length);
-      for (const ts of Object.values(s.picks)) if (ts.length === 2) expect(ts[1]).toBe(ts[0] + 1);
+      for (const ts of Object.values(s.picks)) expect(ts.length).toBeLessThanOrEqual(2);
       expect(s.result.winners.length).toBeGreaterThan(0);
       expect(s.busted).toEqual([]);
       expect(Object.values(s.result.nets).reduce((a, b) => a + b, 0)).toBe(0);

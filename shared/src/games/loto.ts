@@ -3,10 +3,11 @@ import { LOTO_TICKETS } from './loto-tickets';
 
 // Lô tô, the Vietnamese fairground and Tết number game, played with a table set of 16 tickets in
 // 8 colours, copied from a real printed set (loto-tickets.ts). The two tickets of a colour share out
-// the 90 numbers between them: every number is on one or the other, never both. Each player picks one ticket, or both of a colour (so no number is
-// on two of their tickets); the house calls the numbers 1 to 90 one by one and players mark (dò)
-// them. The first to have all five numbers of a row called shouts "Kinh!" and takes the pot;
-// several who shout on the same number share it. A wrong shout (kinh sai) puts that player out.
+// the 90 numbers between them: every number is on one or the other, never both. Each player takes up
+// to two tickets, any two, and a ticket can only be held by one player. The house calls the numbers
+// 1 to 90 one by one and players mark (dò) them. The first to have all five numbers of a row called
+// shouts "Kinh!" and takes the pot; several who shout on the same number share it. A wrong shout
+// (kinh sai) puts that player out.
 //
 // A ticket is a 9 × 9 grid: each row holds five numbers, and each column its own tens (1–9,
 // 10–19, … 80–90).
@@ -30,7 +31,6 @@ export type LotoTicket = (number | null)[][];
 
 // Ticket i of the set is colour Math.floor(i / 2); tickets 2k and 2k + 1 are a colour's pair.
 export const lotoColor = (ticket: number) => Math.floor(ticket / 2);
-export const lotoPartner = (ticket: number) => ticket ^ 1;
 
 export type LotoLogEntry =
   | { kind: 'buy'; player: string; tickets: number[] }
@@ -78,8 +78,8 @@ export interface LotoState {
   result: LotoResult | null;
 }
 
-// `pick`: the tickets to hold, replacing any earlier pick: none, any one free ticket, or both of a
-// colour (both free).
+// `pick`: the tickets to hold, replacing any earlier pick: none, or one or two free tickets (any two;
+// a ticket you already hold counts as free for you).
 export type LotoMove = { type: 'pick'; tickets: number[] } | { type: 'ready' } | { type: 'kinh' };
 
 export interface LotoView {
@@ -125,12 +125,12 @@ export function fullRow(tickets: LotoTicket[], called: number[]): { index: numbe
   return null;
 }
 
-// What's wrong with a pick, if anything. A pick is nothing, one free ticket, or both (free)
-// tickets of a colour, and must be affordable.
+// Whether a pick breaks the rules: at most two different tickets of the set, none held by anyone
+// else (each ticket of the set belongs to one player at most), and affordable. Moves are applied one
+// at a time, so two players reaching for the same ticket can't both get it: the second is refused.
 function pickProblem(s: LotoState, id: string, tickets: unknown): boolean {
   if (!Array.isArray(tickets) || tickets.length > LOTO_MAX_TICKETS || !tickets.every((t) => Number.isInteger(t) && t >= 0 && t < LOTO_SET)) return true;
   if (new Set(tickets).size !== tickets.length) return true;
-  if (tickets.length === 2 && lotoPartner(tickets[0]) !== tickets[1]) return true;
   const holders = holdersOf(s);
   if (tickets.some((t) => holders[t] !== undefined && holders[t] !== id)) return true;
   return s.wallets !== null && tickets.length * s.price > s.wallets[id];
@@ -303,7 +303,7 @@ export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
     return Object.fromEntries(state.seats.map((id) => [id, state.wallets![id] + state.result!.nets[id]]));
   },
 
-  // Bots take a free ticket, or now and then a whole free colour, and shout kinh when they have a row.
+  // Bots take one free ticket, or now and then two, and shout kinh when they have a row.
   botMove(state, playerId, { random = Math.random }) {
     if (state.result || state.out.includes(playerId)) return null;
     if (state.phase === 'buy') {
@@ -311,9 +311,10 @@ export const lotoGame: GameDefinition<LotoState, LotoMove, LotoView> = {
       if (held(state, playerId).length > 0) return { type: 'ready' };
       const holders = holdersOf(state);
       const free = Array.from({ length: LOTO_SET }, (_, t) => t).filter((t) => holders[t] === undefined);
-      const pairs = free.filter((t) => t % 2 === 0 && free.includes(t + 1));
-      const pair = pairs.length && random() < 0.4 ? pairs[Math.floor(random() * pairs.length)] : null;
-      const tickets = pair !== null ? [pair, pair + 1] : free.length ? [free[Math.floor(random() * free.length)]] : [];
+      const two = free.length >= 2 && random() < 0.4;
+      const first = free.length ? free[Math.floor(random() * free.length)] : null;
+      const rest = free.filter((t) => t !== first);
+      const tickets = first === null ? [] : two ? [first, rest[Math.floor(random() * rest.length)]] : [first];
       if (tickets.length === 2 && pickProblem(state, playerId, tickets)) tickets.pop();
       return tickets.length && !pickProblem(state, playerId, tickets) ? { type: 'pick', tickets } : null;
     }
