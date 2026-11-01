@@ -359,7 +359,7 @@ export class RoomManager {
     const seatedHost = room.players.some((p) => p.id === room.hostId);
     const ids = [...(seatedHost ? [room.hostId] : []), ...room.players.map((p) => p.id).filter((id) => id !== room.hostId)];
     const game = GAMES[room.gameType]!;
-    room.state = game.setup(ids, room.options, this.ctx(), room.state);
+    room.state = game.setup(ids, room.options, this.ctx(), room.state, this.playsForMoney(room) ? { ...room.wallets } : undefined);
     room.rematchVotes = [];
     room.departed = [];
     room.tallied = false;
@@ -570,14 +570,18 @@ export class RoomManager {
     room.tallied = true;
     // Spectators who arrived mid-game take the free seats, oldest first.
     this.fillSeats(room);
-    const scores = GAMES[room.gameType]!.points?.(room.state);
+    const game = GAMES[room.gameType]!;
+    const scores = game.points?.(room.state);
     if (!scores) return;
+    // Games played with the wallets as chips hand the balances back as they stand.
+    const after = this.playsForMoney(room) ? game.walletsAfter?.(room.state) : null;
     for (const [id, { points, place }] of Object.entries(scores)) {
       const name = [...room.players, ...room.departed].find((p) => p.id === id)?.name ?? room.tally[id]?.name ?? '?';
       const prev = room.tally[id] ?? { id, name, games: 0, wins: 0, points: 0 };
       room.tally[id] = { ...prev, name, games: prev.games + 1, wins: prev.wins + (place === 1 ? 1 : 0), points: prev.points + points };
       // Play money moves by the game's points times the stake; nobody goes below zero.
-      if (this.playsForMoney(room)) room.wallets[id] = Math.max(0, this.walletOf(room, id) + points * room.options.stakePerPoint);
+      if (after) room.wallets[id] = Math.max(0, after[id] ?? this.walletOf(room, id));
+      else if (this.playsForMoney(room)) room.wallets[id] = Math.max(0, this.walletOf(room, id) + points * room.options.stakePerPoint);
     }
   }
 

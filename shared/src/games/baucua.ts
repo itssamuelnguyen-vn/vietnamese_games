@@ -1,4 +1,4 @@
-import type { GameDefinition } from '../types';
+import { chipUnit, type GameDefinition } from '../types';
 
 // Bau cua tom ca, the Lunar New Year dice game: everyone bets play money on six animals, the
 // house shakes three dice under a bowl, and each die showing an animal pays its stake once more.
@@ -41,6 +41,8 @@ export interface BauCuaResult {
 
 export interface BauCuaState {
   seats: string[];
+  // The chips on offer: BC_CHIP_VALUES, scaled up when the room plays for money.
+  chipValues: number[];
   // The seated banker, or null for the house (also once a banker leaves).
   dealerId: string | null;
   // Chips not on the table; stakes move here from bets when the round is settled.
@@ -61,6 +63,7 @@ export interface BauCuaState {
 export type BauCuaMove = { type: 'bet'; symbol: BauCuaSymbol; amount: number } | { type: 'clear' } | { type: 'ready' };
 
 export interface BauCuaView {
+  chipValues: number[];
   dealerId: string | null;
   seats: { id: string; chips: number; staked: number; ready: boolean; out: boolean }[];
   bets: Record<string, Bets>;
@@ -91,7 +94,9 @@ export function bauCuaPayout(dice: Dice, symbol: BauCuaSymbol, stake: number): n
 const waitingOn = (s: BauCuaState) => punters(s).filter((id) => !s.ready.includes(id) && s.chips[id] + staked(s.bets[id] ?? {}) > 0);
 
 function finish(s: BauCuaState): BauCuaState {
-  const chips = Object.fromEntries(s.seats.map((id) => [id, s.chips[id]]));
+  // Bets still on the table before the roll go back to those who placed them.
+  const unrolled = (id: string) => (s.phase === 'bet' && !s.out.includes(id) ? staked(s.bets[id] ?? {}) : 0);
+  const chips = Object.fromEntries(s.seats.map((id) => [id, s.chips[id] + unrolled(id)]));
   const ranking = [...active(s).sort((a, b) => chips[b] - chips[a] || s.seats.indexOf(a) - s.seats.indexOf(b)), ...[...s.out].reverse()];
   return { ...s, result: { ranking, chips } };
 }
@@ -153,11 +158,14 @@ const fail = { ok: false as const, error: 'INVALID_MOVE' as const };
 export const bauCuaGame: GameDefinition<BauCuaState, BauCuaMove, BauCuaView> = {
   type: 'baucua',
 
-  setup(playerIds, options, { now }) {
+  // For money, chips are the players' wallets and bets are multiples of the room's chip unit.
+  setup(playerIds, options, { now }, _previous, wallets) {
+    const unit = wallets ? chipUnit(options) : 1;
     const base: BauCuaState = {
       seats: [...playerIds],
+      chipValues: BC_CHIP_VALUES.map((v) => v * unit),
       dealerId: playerIds.includes(options.dealer ?? '') ? options.dealer : null,
-      chips: Object.fromEntries(playerIds.map((id) => [id, BC_START_CHIPS])),
+      chips: Object.fromEntries(playerIds.map((id) => [id, wallets?.[id] ?? BC_START_CHIPS])),
       bets: {},
       ready: [],
       out: [],
@@ -179,7 +187,7 @@ export const bauCuaGame: GameDefinition<BauCuaState, BauCuaMove, BauCuaView> = {
     const bets = state.bets[playerId] ?? {};
     switch (move.type) {
       case 'bet': {
-        if (!BAUCUA_SYMBOLS.includes(move.symbol) || !BC_CHIP_VALUES.includes(move.amount) || state.ready.includes(playerId)) return fail;
+        if (!BAUCUA_SYMBOLS.includes(move.symbol) || !state.chipValues.includes(move.amount) || state.ready.includes(playerId)) return fail;
         if (state.chips[playerId] < move.amount) return fail;
         const next: BauCuaState = {
           ...state,
@@ -220,6 +228,7 @@ export const bauCuaGame: GameDefinition<BauCuaState, BauCuaMove, BauCuaView> = {
 
   playerView(state, _playerId, { now }) {
     return {
+      chipValues: state.chipValues,
       dealerId: state.dealerId,
       seats: state.seats.map((id) => ({
         id,
@@ -250,6 +259,10 @@ export const bauCuaGame: GameDefinition<BauCuaState, BauCuaMove, BauCuaView> = {
     return state.phase === 'bet' ? roll(state, now, random) : nextRound(state, now);
   },
 
+  walletsAfter(state) {
+    return state.result?.chips ?? null;
+  },
+
   points(state) {
     if (!state.result) return null;
     const n = state.result.ranking.length;
@@ -263,7 +276,8 @@ export const bauCuaGame: GameDefinition<BauCuaState, BauCuaMove, BauCuaView> = {
     const bets = state.bets[playerId] ?? {};
     const placed = BAUCUA_SYMBOLS.filter((s) => bets[s]).length;
     if (chips > 0 && (placed === 0 || (placed === 1 && random() < 0.4))) {
-      const amount = [...BC_CHIP_VALUES].reverse().find((v) => v <= chips && v <= Math.max(10, chips / 8)) ?? BC_CHIP_VALUES.find((v) => v <= chips);
+      const values = state.chipValues;
+      const amount = [...values].reverse().find((v) => v <= chips && v <= Math.max(values[0], chips / 8)) ?? values.find((v) => v <= chips);
       const free = BAUCUA_SYMBOLS.filter((s) => !bets[s]);
       if (amount) return { type: 'bet', symbol: free[Math.floor(random() * free.length)], amount };
     }

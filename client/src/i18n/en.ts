@@ -107,6 +107,8 @@ export const en: Strings = {
     walletStartLabel: 'Starting money per player',
     stakePerPointLabel: 'Stake per point',
     moneyNote: 'Play money is just a number in the game, with no real-world value. After each game wallets go up or down by points × the stake; a player who runs out watches.',
+    minBetLabel: 'Smallest bet',
+    chipMoneyNote: 'Play money is just a number in the game, with no real-world value. Everyone plays with what is in their wallet, and keeps what they end the game with; a player who runs out watches.',
     wallet: 'Wallet',
     broke: 'Broke',
     moneyChange: (amount: string, up: boolean) => `${up ? '+' : '−'}${amount}`,

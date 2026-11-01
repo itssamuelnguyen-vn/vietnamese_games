@@ -23,6 +23,7 @@ import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
 import { useSettledView } from '../useSettledView';
+import { shortAmount } from '../chips';
 
 interface Props {
   room: RoomView;
@@ -337,9 +338,9 @@ export function XiDachGame({ room, view, onLeave }: Props) {
           {betting && (
             <div className="bc-controls">
               <div className="chip-group" role="group" aria-label={X.bet}>
-                {XD_BET_VALUES.map((v) => (
-                  <button key={v} className={`bc-chip v${v}`} aria-pressed={mySeat!.bet === v} disabled={mySeat!.chips < v} onClick={() => send({ type: 'bet', amount: v })}>
-                    {v}
+                {view.betValues.map((v, i) => (
+                  <button key={v} className={`bc-chip v${XD_BET_VALUES[i]}`} aria-pressed={mySeat!.bet === v} disabled={mySeat!.chips < v} onClick={() => send({ type: 'bet', amount: v })}>
+                    {shortAmount(v)}
                   </button>
                 ))}
               </div>

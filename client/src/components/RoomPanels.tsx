@@ -220,8 +220,9 @@ export function TienLenOptionsPicker({ room }: { room: RoomView }) {
   );
 }
 
-// Points or play money, and for play money the starting wallet and the stake per point.
-function StakesPicker({ room, locked, onSet }: { room: RoomView; locked: boolean; onSet: (options: Partial<RoomOptions>) => void }) {
+// Points or play money, and for play money the starting wallet and the stake per point. Chip games
+// (xi dach, bau cua) play with the wallet itself, and the stake is their smallest bet.
+function StakesPicker({ room, locked, onSet, chips = false }: { room: RoomView; locked: boolean; onSet: (options: Partial<RoomOptions>) => void; chips?: boolean }) {
   const { t } = useI18n();
   const o = room.options;
   const amounts = (label: string, values: number[], value: number, key: 'walletStart' | 'stakePerPoint') => (
@@ -242,8 +243,8 @@ function StakesPicker({ room, locked, onSet }: { room: RoomView; locked: boolean
       {o.stakes === 'money' && (
         <>
           {amounts(t.room.walletStartLabel, WALLET_STARTS, o.walletStart, 'walletStart')}
-          {amounts(t.room.stakePerPointLabel, STAKES_PER_POINT, o.stakePerPoint, 'stakePerPoint')}
-          <p className="muted small stakes-note">{t.room.moneyNote}</p>
+          {amounts(chips ? t.room.minBetLabel : t.room.stakePerPointLabel, STAKES_PER_POINT, o.stakePerPoint, 'stakePerPoint')}
+          <p className="muted small stakes-note">{chips ? t.room.chipMoneyNote : t.room.moneyNote}</p>
         </>
       )}
     </>
@@ -468,5 +469,21 @@ export function AbsentPlayersNote({ room, ids }: { room: RoomView; ids?: string[
         </button>
       )}
     </div>
+  );
+}
+
+// Xi dach and bau cua: points or play money, and who deals.
+export function ChipGameOptionsPicker({ room, dealerNote }: { room: RoomView; dealerNote: string }) {
+  const { t } = useI18n();
+  const locked = room.hostId !== room.you || room.status === 'playing';
+  async function set(options: Partial<RoomOptions>) {
+    const r = await api.options(options);
+    if (!r.ok) toast(t.errors[r.error]);
+  }
+  return (
+    <>
+      <StakesPicker room={room} locked={locked} onSet={set} chips />
+      <DealerPicker room={room} note={dealerNote} />
+    </>
   );
 }

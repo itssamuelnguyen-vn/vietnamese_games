@@ -12,7 +12,7 @@ import { XiDachGame } from '../games/xidach/XiDachGame';
 import { WordChainGame } from '../games/wordchain/WordChainGame';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, DealerPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
+import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, addBot, copyInvite, inviteLink, removeBot } from './RoomPanels';
 import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -159,8 +159,8 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           {room.gameType === 'tienlen' && <TienLenOptionsPicker room={room} />}
           {(room.gameType === 'typhu' || room.gameType === 'noitu' || room.gameType === 'wordchain') && <TyPhuOptionsPicker room={room} />}
           {room.gameType === 'cangua' && <CaNguaOptionsPicker room={room} />}
-          {room.gameType === 'xidach' && <DealerPicker room={room} note={t.xidach.dealerNote} />}
-          {room.gameType === 'baucua' && <DealerPicker room={room} note={t.baucua.dealerNote} />}
+          {room.gameType === 'xidach' && <ChipGameOptionsPicker room={room} dealerNote={t.xidach.dealerNote} />}
+          {room.gameType === 'baucua' && <ChipGameOptionsPicker room={room} dealerNote={t.baucua.dealerNote} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>

@@ -86,8 +86,12 @@ export type Stakes = 'points' | 'money';
 export const STAKES: Stakes[] = ['points', 'money'];
 export const WALLET_STARTS = [50_000, 100_000, 200_000, 500_000, 1_000_000];
 export const STAKES_PER_POINT = [1_000, 2_000, 5_000, 10_000, 20_000];
-// Games that can be played for play money.
-export const MONEY_GAMES: GameType[] = ['tienlen'];
+// Games that can be played for play money. Tien len moves wallets by its points; xi dach and bau
+// cua play with the wallets themselves as chips.
+export const MONEY_GAMES: GameType[] = ['tienlen', 'xidach', 'baucua'];
+
+// In a room for money, chip games bet in multiples of this: a tenth of the room's stake.
+export const chipUnit = (options: Pick<RoomOptions, 'stakePerPoint'>) => Math.max(1, Math.round(options.stakePerPoint / 10));
 
 export interface RoomOptions {
   timeControl: TimeControlId;
@@ -189,7 +193,8 @@ export interface GameContext {
 export interface GameDefinition<S, M, V> {
   type: GameType;
   // playerIds[0] is the host; `previous` is the room's last game, if any (for rematches).
-  setup(playerIds: string[], options: RoomOptions, ctx: GameContext, previous: S | null): S;
+  // `wallets`: each player's play-money balance, when the room plays for money.
+  setup(playerIds: string[], options: RoomOptions, ctx: GameContext, previous: S | null, wallets?: Record<string, number>): S;
   applyMove(state: S, playerId: string, move: M, ctx: GameContext): MoveResult<S>;
   // A player left mid-game, or was offline long enough for the others to claim the win.
   forfeit(state: S, playerId: string, ctx: GameContext, reason: ForfeitReason): S;
@@ -202,6 +207,9 @@ export interface GameDefinition<S, M, V> {
   timeout?(state: S, ctx: GameContext): S;
   // Points each player earned in a finished game, for the room's running scoreboard.
   points?(state: S): Record<string, { points: number; place: number }> | null;
+  // Games played with the wallets as chips: what each player's wallet is once the game is over.
+  // Other games move wallets by their points instead.
+  walletsAfter?(state: S): Record<string, number> | null;
   // Games that support computer players: the bot's next move, or null while it has nothing to do.
   botMove?(state: S, playerId: string, ctx: GameContext): M | null;
   // How much longer than the room's usual pause bots wait before acting, for strictly turn-based

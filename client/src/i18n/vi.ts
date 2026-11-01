@@ -120,6 +120,8 @@ export const vi = {
     walletStartLabel: 'Tiền ban đầu mỗi người',
     stakePerPointLabel: 'Mức cược mỗi điểm',
     moneyNote: 'Tiền ảo chỉ là con số trong game, không có giá trị quy đổi thực tế. Mỗi ván, ví được cộng hoặc trừ bằng điểm × mức cược; hết tiền thì ra ngoài xem.',
+    minBetLabel: 'Cược nhỏ nhất',
+    chipMoneyNote: 'Tiền ảo chỉ là con số trong game, không có giá trị quy đổi thực tế. Mỗi người chơi bằng chính số tiền trong ví; hết game, còn bao nhiêu thì ví còn bấy nhiêu. Hết tiền thì ra ngoài xem.',
     wallet: 'Ví',
     broke: 'Hết tiền',
     moneyChange: (amount: string, up: boolean) => `${up ? '+' : '−'}${amount}`,

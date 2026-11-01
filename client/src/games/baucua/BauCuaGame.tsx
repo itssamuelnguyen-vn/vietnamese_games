@@ -11,6 +11,7 @@ import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
 import { useSettledView } from '../useSettledView';
+import { shortAmount } from '../chips';
 
 interface Props {
   room: RoomView;
@@ -71,7 +72,9 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
   const player = (id: string) => room.players.find((p) => p.id === id);
   const color = (id: string) => SEAT_COLORS[Math.max(0, view.seats.findIndex((s) => s.id === id)) % SEAT_COLORS.length];
   const receivedAt = useMemo(() => performance.now(), [room]);
-  const [chip, setChip] = useState(BC_CHIP_VALUES[1]);
+  // The chip picked, by position: the values themselves grow when the room plays for money.
+  const [chipIndex, setChipIndex] = useState(1);
+  const chip = view.chipValues[chipIndex] ?? view.chipValues[0];
   // Chip counts, history and log as the screen has shown them: nothing of a roll until the bowl lifts.
   const settled = useSettledView(view, (prev, next) => (freshEntries(prev.log, next.log).some((e) => e.kind === 'roll') ? BC_SHAKE_MS : 0));
 
@@ -269,9 +272,9 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
           {mySeat && !mySeat.out && !view.result && !iBank && (
             <div className="bc-controls">
               <div className="chip-group" role="group" aria-label={B.chipValue}>
-                {BC_CHIP_VALUES.map((v) => (
-                  <button key={v} className={`bc-chip v${v}`} aria-pressed={chip === v} disabled={!betting || mySeat.chips < v} onClick={() => setChip(v)}>
-                    {v}
+                {view.chipValues.map((v, i) => (
+                  <button key={v} className={`bc-chip v${BC_CHIP_VALUES[i]}`} aria-pressed={chip === v} disabled={!betting || mySeat.chips < v} onClick={() => setChipIndex(i)}>
+                    {shortAmount(v)}
                   </button>
                 ))}
               </div>

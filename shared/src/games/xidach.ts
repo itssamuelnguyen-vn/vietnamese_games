@@ -1,4 +1,4 @@
-import type { GameDefinition } from '../types';
+import { chipUnit, type GameDefinition } from '../types';
 
 // Xi dach, the Vietnamese take on twenty-one. Each player stakes play money against the house,
 // gets two cards and draws more ("rút") or stands ("dằn"), needing 16 or more to stand. Two aces
@@ -107,6 +107,8 @@ export interface XiDachResult {
 
 export interface XiDachState {
   seats: string[];
+  // The stakes on offer: XD_BET_VALUES, scaled up when the room plays for money.
+  betValues: number[];
   // The seated player dealing, or null for the automatic house (also once a dealer leaves).
   dealerId: string | null;
   chips: Record<string, number>;
@@ -133,6 +135,7 @@ export interface XiDachState {
 export type XiDachMove = { type: 'bet'; amount: number } | { type: 'ready' } | { type: 'hit' } | { type: 'stand' } | { type: 'check'; player: string };
 
 export interface XiDachView {
+  betValues: number[];
   seats: { id: string; chips: number; bet: number; ready: boolean; out: boolean; cards: number; stood: boolean }[];
   // Hands everyone may see: your own, those the dealer checked, and everyone's once revealed.
   hands: Record<string, XdCard[]>;
@@ -307,11 +310,14 @@ const fail = { ok: false as const, error: 'INVALID_MOVE' as const };
 export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
   type: 'xidach',
 
-  setup(playerIds, options, { now }) {
+  // For money, chips are the players' wallets and stakes are multiples of the room's chip unit.
+  setup(playerIds, options, { now }, _previous, wallets) {
+    const unit = wallets ? chipUnit(options) : 1;
     return {
       seats: [...playerIds],
+      betValues: XD_BET_VALUES.map((v) => v * unit),
       dealerId: playerIds.includes(options.dealer ?? '') ? options.dealer : null,
-      chips: Object.fromEntries(playerIds.map((id) => [id, XD_START_CHIPS])),
+      chips: Object.fromEntries(playerIds.map((id) => [id, wallets?.[id] ?? XD_START_CHIPS])),
       bets: {},
       ready: [],
       out: [],
@@ -336,7 +342,7 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
     switch (move.type) {
       case 'bet': {
         // Picks (or changes) the stake for this round.
-        if (state.phase !== 'bet' || playerId === state.dealerId || state.ready.includes(playerId) || !XD_BET_VALUES.includes(move.amount) || move.amount > state.chips[playerId]) return fail;
+        if (state.phase !== 'bet' || playerId === state.dealerId || state.ready.includes(playerId) || !state.betValues.includes(move.amount) || move.amount > state.chips[playerId]) return fail;
         return { ok: true, state: { ...state, bets: { ...state.bets, [playerId]: move.amount } } };
       }
       case 'ready': {
@@ -395,6 +401,7 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
   playerView(state, playerId, { now }) {
     const shown = state.phase === 'reveal' || state.result !== null;
     return {
+      betValues: state.betValues,
       dealerId: state.dealerId,
       seats: state.seats.map((id) => ({
         id,
@@ -433,6 +440,10 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
     return v.total >= XD_MIN_STAND ? stand(state, id, now, true) : hit(state, id, now);
   },
 
+  walletsAfter(state) {
+    return state.result?.chips ?? null;
+  },
+
   points(state) {
     if (!state.result) return null;
     const n = state.result.ranking.length;
@@ -447,7 +458,8 @@ export const xiDachGame: GameDefinition<XiDachState, XiDachMove, XiDachView> = {
       if (playerId === state.dealerId) return null;
       if (state.ready.includes(playerId) || state.chips[playerId] === 0) return null;
       if (!(state.bets[playerId] > 0)) {
-        const amount = [...XD_BET_VALUES].reverse().find((v) => v <= state.chips[playerId] && v <= Math.max(10, state.chips[playerId] / 10)) ?? XD_BET_VALUES[0];
+        const values = state.betValues;
+        const amount = [...values].reverse().find((v) => v <= state.chips[playerId] && v <= Math.max(values[0], state.chips[playerId] / 10)) ?? values[0];
         return { type: 'bet', amount: Math.min(amount, state.chips[playerId]) };
       }
       return { type: 'ready' };

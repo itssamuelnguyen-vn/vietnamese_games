@@ -345,7 +345,31 @@ describe('RoomManager', () => {
   });
 
   describe('play money', () => {
-    it('only tien len can be played for money, on the listed terms', () => {
+    it('xi dach and bau cua play with the wallets as chips, and hand back what is left', () => {
+      for (const type of ['xidach', 'baucua'] as const) {
+        const rooms = new RoomManager();
+        const created = rooms.create(A, 'An', type);
+        if (!created.ok) throw new Error(created.error);
+        const room = created.room;
+        rooms.join(B, 'Bob', room.code);
+        expect(rooms.setOptions(A, { stakes: 'money', walletStart: 100_000, stakePerPoint: 10_000 }).ok).toBe(true);
+        expect(rooms.start(A).ok).toBe(true);
+        const view = rooms.view(room, A, allOnline).game as { seats: { id: string; chips: number }[]; betValues?: number[]; chipValues?: number[] };
+        expect(view.seats.map((p) => p.chips)).toEqual([100_000, 100_000]);
+        // The smallest bet is the room's stake.
+        expect((view.betValues ?? view.chipValues)![0]).toBe(10_000);
+        // A stakes and leaves the table: the game ends with what each holds.
+        if (type === 'xidach') rooms.move(A, { type: 'bet', amount: 10_000 });
+        else rooms.move(A, { type: 'bet', symbol: 'cua', amount: 10_000 });
+        rooms.leave(B);
+        expect(room.status).toBe('finished');
+        // Nothing was rolled or dealt, so A's stake comes back.
+        expect(room.wallets[A]).toBe(100_000);
+        expect(room.wallets[B]).toBe(100_000);
+      }
+    });
+
+    it('only tien len and the chip games can be played for money, on the listed terms', () => {
       const rooms = new RoomManager();
       rooms.create(A, 'An', 'tienlen');
       expect(rooms.setOptions(A, { stakes: 'money', walletStart: 500_000, stakePerPoint: 10_000 }).ok).toBe(true);
