@@ -327,7 +327,7 @@ export const chessGame: GameDefinition<ChessState, ChessMove, ChessView> = {
   },
 
   points(state) {
-    return state.result ? duelPoints([state.white, state.black], state.result.winner) : null;
+    return duelPoints([state.white, state.black], state.result);
   },
 
   // A bot always grants takebacks, takes a draw only when it's clearly behind, and otherwise

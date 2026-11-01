@@ -5,7 +5,7 @@ import { useI18n } from '../../i18n';
 import { Avatar } from '../../components/Avatar';
 import { Ellipsis } from '../../components/Ellipsis';
 import { toast } from '../../components/Toaster';
-import { ChatCard, PlayersCard, RoomCodeCard } from '../../components/RoomPanels';
+import { ChatCard, PlayersCard, RoomCodeCard, ScoreboardPanel } from '../../components/RoomPanels';
 import { RulesButton } from '../../components/RulesDialog';
 import { playSound, type SoundKind } from '../../sound';
 import {
@@ -451,6 +451,7 @@ export function DuelScreen(props: DuelScreenProps) {
           </button>
         </div>
 
+        <ScoreboardPanel room={room} />
         <ChatCard room={room} recipient={opponent?.name} />
       </aside>
     </div>

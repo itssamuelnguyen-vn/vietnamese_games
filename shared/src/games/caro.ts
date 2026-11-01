@@ -375,7 +375,7 @@ export const caroGame: GameDefinition<CaroState, CaroMove, CaroView> = {
   },
 
   points(state) {
-    return state.result ? duelPoints([state.x, state.o], state.result.winner) : null;
+    return duelPoints([state.x, state.o], state.result);
   },
 
   // Bots answer draw offers and takeback requests, then play their move.

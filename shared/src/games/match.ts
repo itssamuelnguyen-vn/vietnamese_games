@@ -68,11 +68,13 @@ export function refundIncrements<S extends string>(clock: MatchClock<S> | null, 
   return { ...clock, remaining };
 }
 
-// Points for the room scoreboard in a two-player game: +1 for a win, -1 for a loss, 0 for a draw.
-export function duelPoints(players: [string, string], winner: string | null): Record<string, { points: number; place: number }> {
-  return Object.fromEntries(
-    players.map((id) => [id, { points: winner === null ? 0 : winner === id ? 1 : -1, place: winner !== null && winner !== id ? 2 : 1 }]),
-  );
+// Points for the room scoreboard in a two-player game: +1 for a win, -1 for a loss, 0 for a draw
+// (where nobody places first, so it doesn't count as a win for either). An aborted game, never
+// really played, doesn't count at all.
+export function duelPoints(players: [string, string], result: { winner: string | null; reason: string } | null): Record<string, { points: number; place: number }> | null {
+  if (!result || result.reason === 'aborted') return null;
+  const { winner } = result;
+  return Object.fromEntries(players.map((id) => [id, { points: winner === null ? 0 : winner === id ? 1 : -1, place: winner === id ? 1 : 2 }]));
 }
 
 // How long a bot thinks over a move: about this long, less when its clock is running low.

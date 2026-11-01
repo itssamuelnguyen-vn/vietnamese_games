@@ -367,7 +367,7 @@ export const xiangqiGame: GameDefinition<XiangqiState, XiangqiMove, XiangqiView>
   },
 
   points(state) {
-    return state.result ? duelPoints([state.red, state.black], state.result.winner) : null;
+    return duelPoints([state.red, state.black], state.result);
   },
 
   // A bot always grants takebacks, takes a draw only when it's clearly behind, and otherwise
