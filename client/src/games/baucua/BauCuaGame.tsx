@@ -10,6 +10,7 @@ import { RulesButton } from '../../components/RulesDialog';
 import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
+import { useSettledView } from '../useSettledView';
 
 interface Props {
   room: RoomView;
@@ -66,6 +67,8 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
   const color = (id: string) => SEAT_COLORS[Math.max(0, view.seats.findIndex((s) => s.id === id)) % SEAT_COLORS.length];
   const receivedAt = useMemo(() => performance.now(), [room]);
   const [chip, setChip] = useState(BC_CHIP_VALUES[1]);
+  // Chip counts, history and log as the screen has shown them: nothing of a roll until the bowl lifts.
+  const settled = useSettledView(view, (prev, next) => (freshEntries(prev.log, next.log).some((e) => e.kind === 'roll') ? BC_SHAKE_MS : 0));
 
   // The bowl shakes for a moment before it lifts on each new roll.
   const [shaking, setShaking] = useState(false);
@@ -124,7 +127,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
           room={room}
           colorOf={color}
           subtitle={(id) => {
-            const seat = view.seats.find((s) => s.id === id);
+            const seat = settled.seats.find((s) => s.id === id);
             if (!seat) return null;
             const float = floats.find((f) => f.id === id);
             return (
@@ -153,7 +156,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
           <header className="bc-head">
             <strong>{B.round(view.round, view.rounds)}</strong>
             <ol className="bc-history" aria-label={B.history}>
-              {view.history.slice(-6).map((dice, i) => (
+              {settled.history.slice(-6).map((dice, i) => (
                 <li key={i}>{dice.map((d) => SYMBOL_ICON[d]).join('')}</li>
               ))}
             </ol>
@@ -264,7 +267,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
                 ))}
               </div>
               <span className="bc-wallet">
-                🪙 {money(mySeat.chips)}
+                🪙 {money(settled.seats.find((s) => s.id === me)?.chips ?? mySeat.chips)}
                 {mySeat.staked > 0 && view.phase === 'bet' && <span className="muted"> · {B.staked} {money(mySeat.staked)}</span>}
               </span>
               <button className="btn btn-ghost" disabled={!betting || mySeat.staked === 0} onClick={() => send({ type: 'clear' })}>
@@ -282,7 +285,7 @@ export function BauCuaGame({ room, view, onLeave }: Props) {
         <section className="card panel tl-log-panel open">
           <h2>{B.logTitle}</h2>
           <ol className="tl-log">
-            {view.log.slice(-14).map((e, i) =>
+            {settled.log.slice(-14).map((e, i) =>
               e.kind === 'round' ? (
                 <li key={i} className="tl-log-round">
                   {describe(t, e, name)}

@@ -22,6 +22,7 @@ import { ChevronRightIcon, ExitIcon, PlayIcon, TrophyIcon } from '../../componen
 import { loadSetting, saveSetting } from '../../settings';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
+import { useSettledView } from '../useSettledView';
 
 interface Props {
   room: RoomView;
@@ -218,6 +219,8 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
     };
   }, [myTurn, t]);
 
+  // The log as the screen has shown it: a roll appears once the die has landed.
+  const settled = useSettledView(view, (prev, next) => (freshEntries(prev.log, next.log).some((e) => e.kind === 'roll') ? ROLL_MS : 0));
   const [logOpen, setLogOpen] = useState(() => loadSetting('vg:cnLog') !== 'closed');
   function toggleLog() {
     saveSetting('vg:cnLog', logOpen ? 'closed' : 'open');
@@ -226,7 +229,7 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
   const logRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
-  }, [view.log.length, logOpen]);
+  }, [settled.log.length, logOpen]);
 
   const choices = rolling ? [] : view.choices;
   const movable = new Set(choices.map((c) => c.horse));
@@ -497,11 +500,11 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
             <h2>{C.history}</h2>
             <ChevronRightIcon className="panel-chevron" />
           </button>
-          {view.log.length === 0 ? (
+          {settled.log.length === 0 ? (
             <p className="muted small">{C.noHistory}</p>
           ) : logOpen ? (
             <ol className="tl-log" id="cn-log" ref={logRef}>
-              {view.log.map((entry, i) => (
+              {settled.log.map((entry, i) => (
                 <li
                   key={i}
                   className={`tl-log-row ${entry.player === me ? 'mine' : ''} ${'kicked' in entry && entry.kicked ? 'chop' : entry.kind === 'climb' ? 'finish' : entry.kind === 'stuck' || entry.kind === 'sixes' ? 'pass' : ''}`}
@@ -512,7 +515,7 @@ export function CaNguaGame({ room, view, onLeave }: Props) {
               ))}
             </ol>
           ) : (
-            <p className="tl-log-latest muted small">{describe(t, view.log.at(-1)!, name)}</p>
+            <p className="tl-log-latest muted small">{describe(t, settled.log.at(-1)!, name)}</p>
           )}
         </section>
         <ScoreboardPanel room={room} />

@@ -22,6 +22,7 @@ import { RulesButton } from '../../components/RulesDialog';
 import { ExitIcon, PlayIcon, TrophyIcon } from '../../components/icons';
 import { playSound } from '../../sound';
 import { freshEntries } from '../freshLog';
+import { useSettledView } from '../useSettledView';
 
 interface Props {
   room: RoomView;
@@ -107,6 +108,12 @@ export function XiDachGame({ room, view, onLeave }: Props) {
   const player = (id: string) => room.players.find((p) => p.id === id);
   const color = (id: string) => SEAT_COLORS[Math.max(0, view.seats.findIndex((s) => s.id === id)) % SEAT_COLORS.length];
   const receivedAt = useMemo(() => performance.now(), [room]);
+  // Chip counts and the log as the screen has shown them: nothing of a reveal until the dealer's
+  // cards have all turned over.
+  const settled = useSettledView(view, (prev, next) => {
+    const dealer = freshEntries(prev.log, next.log).find((e) => e.kind === 'dealer');
+    return dealer && dealer.kind === 'dealer' ? dealer.hand.length * DEALER_CARD_MS : 0;
+  });
 
   // At the reveal the dealer's cards turn over one by one, then everyone's result shows.
   const [dealerShown, setDealerShown] = useState(view.phase === 'reveal' ? view.dealer.length : 1);
@@ -173,7 +180,7 @@ export function XiDachGame({ room, view, onLeave }: Props) {
           room={room}
           colorOf={color}
           subtitle={(id) => {
-            const seat = view.seats.find((s) => s.id === id);
+            const seat = settled.seats.find((s) => s.id === id);
             return seat ? (
               <>
                 🪙 {money(seat.chips)}
@@ -325,7 +332,7 @@ export function XiDachGame({ room, view, onLeave }: Props) {
         <section className="card panel tl-log-panel open">
           <h2>{X.logTitle}</h2>
           <ol className="tl-log">
-            {view.log.slice(-16).map((e, i) =>
+            {settled.log.slice(-16).map((e, i) =>
               e.kind === 'round' ? (
                 <li key={i} className="tl-log-round">
                   {describe(t, e, name)}
