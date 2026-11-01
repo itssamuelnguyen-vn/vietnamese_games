@@ -1,10 +1,10 @@
-import { GAME_CATALOG, type GameType, type BauCuaView, type XiDachView, type LotoView, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
+import { GAME_CATALOG, type GameType, type BauCuaView, type XiDachView, type LotoView, type MaSoiView, type WordChainView, type CaNguaView, type CaroView, type ChessView, type RoomView, type TienLenView, type TyPhuView, type XiangqiView } from '@vg/shared';
 import { lazy, Suspense, useEffect } from 'react';
 import { api } from '../socket';
 import { useI18n } from '../i18n';
 import { Avatar } from './Avatar';
 import { Ellipsis } from './Ellipsis';
-import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, LotoOptionsPicker, AddBotButton, BotTag, copyInvite, inviteLink, removeBot } from './RoomPanels';
+import { CaNguaOptionsPicker, ChatCard, ChessOptionsPicker, SeatToggle, TienLenOptionsPicker, TyPhuOptionsPicker, ChipGameOptionsPicker, LotoOptionsPicker, MaSoiOptionsPicker, MaSoiRolesCard, AddBotButton, BotTag, copyInvite, inviteLink, removeBot } from './RoomPanels';
 import { RulesButton } from './RulesDialog';
 import { startGame } from './roomActions';
 import { CopyIcon, CrownIcon, ExitIcon, GameArt, PlayIcon, ShareIcon } from './icons';
@@ -26,6 +26,7 @@ const SCREENS = {
   baucua: () => import('../games/baucua/BauCuaGame').then((m) => ({ default: m.BauCuaGame })),
   xidach: () => import('../games/xidach/XiDachGame').then((m) => ({ default: m.XiDachGame })),
   loto: () => import('../games/loto/LotoGame').then((m) => ({ default: m.LotoGame })),
+  masoi: () => import('../games/masoi/MaSoiGame').then((m) => ({ default: m.MaSoiGame })),
   wordchain: () => import('../games/wordchain/WordChainGame').then((m) => ({ default: m.WordChainGame })),
 };
 const screenOf = (type: GameType): keyof typeof SCREENS | null => (type === 'noitu' ? 'wordchain' : type in SCREENS ? (type as keyof typeof SCREENS) : null);
@@ -39,6 +40,7 @@ const CaNguaGame = lazy(SCREENS.cangua);
 const BauCuaGame = lazy(SCREENS.baucua);
 const XiDachGame = lazy(SCREENS.xidach);
 const LotoGame = lazy(SCREENS.loto);
+const MaSoiGame = lazy(SCREENS.masoi);
 const WordChainGame = lazy(SCREENS.wordchain);
 
 function GameLoading() {
@@ -78,6 +80,7 @@ function GameScreen({ room, leave }: { room: RoomView; leave: () => void }) {
   if (room.gameType === 'baucua') return <BauCuaGame room={room} view={room.game as BauCuaView} onLeave={leave} />;
   if (room.gameType === 'xidach') return <XiDachGame room={room} view={room.game as XiDachView} onLeave={leave} />;
   if (room.gameType === 'loto') return <LotoGame room={room} view={room.game as LotoView} onLeave={leave} />;
+  if (room.gameType === 'masoi') return <MaSoiGame room={room} view={room.game as MaSoiView} onLeave={leave} />;
   return null;
 }
 
@@ -200,6 +203,7 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
           {room.gameType === 'xidach' && <ChipGameOptionsPicker room={room} dealerNote={t.xidach.dealerNote} />}
           {room.gameType === 'baucua' && <ChipGameOptionsPicker room={room} dealerNote={t.baucua.dealerNote} />}
           {room.gameType === 'loto' && <LotoOptionsPicker room={room} />}
+          {room.gameType === 'masoi' && <MaSoiOptionsPicker room={room} />}
 
           <div className="seats-foot">
             <p className={`seats-status ${missing === 0 ? 'ready' : ''}`}>
@@ -224,6 +228,8 @@ function WaitingRoom({ room, onLeave }: { room: RoomView; onLeave: () => void })
             <RulesButton gameType="typhu" />
           </section>
         )}
+
+        {room.gameType === 'masoi' && <MaSoiRolesCard room={room} />}
 
         <ChatCard room={room} />
       </div>

@@ -10,7 +10,7 @@ const cards = (codes: string) => codes.split(' ').map(card);
 const combo = (codes: string) => classify(cards(codes))!;
 
 const ctx = { now: 0 };
-const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true };
+const options: RoomOptions = { timeControl: 'none', hostColor: 'random', handicap: 'none', turnTimer: 'none', houseRules: [], caroSize: '15', caroBlock: true, caNguaRules: [], stakes: 'points', walletStart: 200_000, stakePerPoint: 5_000, dealer: null, callSpeed: 'normal', caroLoserFirst: true, masoiRoles: ['seer', 'guard', 'witch', 'hunter'], masoiWolves: 0, masoiReveal: true, masoiTalk: 'normal' };
 
 function table(hands: Record<string, string>, extra: Partial<TienLenState> = {}): TienLenState {
   const seats = Object.keys(hands);

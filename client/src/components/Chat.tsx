@@ -74,7 +74,8 @@ function ChatBody({ room, recipient, text, setText }: ChatProps & { text: string
       ) : (
         <ol className="chat-list" ref={listRef}>
           {room.chat.map((m) => (
-            <li key={m.id} className={m.playerId === room.you ? 'mine' : ''}>
+            <li key={m.id} className={`${m.playerId === room.you ? 'mine' : ''} ${m.channel ? `chan chan-${m.channel}` : ''}`}>
+              {m.channel && <span className="chat-chan">{t.chat.channels[m.channel] ?? m.channel}</span>}
               {m.playerId !== room.you && <strong>{m.name}</strong>}
               {m.playerId !== room.you && ' · '}
               {m.text}
@@ -82,15 +83,24 @@ function ChatBody({ room, recipient, text, setText }: ChatProps & { text: string
           ))}
         </ol>
       )}
-      <form className="chat-form" onSubmit={send}>
+      <form className={`chat-form ${room.chatTo && room.chatTo !== 'public' ? `chan-${room.chatTo}` : ''}`} onSubmit={send}>
         <input
           value={text}
           maxLength={200}
-          placeholder={recipient ? t.chat.placeholderTo(recipient) : t.chat.placeholder}
+          disabled={room.chatTo === null}
+          placeholder={
+            room.chatTo === null
+              ? t.chat.locked
+              : room.chatTo !== 'public'
+                ? (t.chat.placeholderOn[room.chatTo] ?? t.chat.placeholder)
+                : recipient
+                  ? t.chat.placeholderTo(recipient)
+                  : t.chat.placeholder
+          }
           aria-label={t.chat.title}
           onChange={(e) => setText(e.target.value)}
         />
-        <button className="btn btn-dark btn-square" disabled={!text.trim() || sending} aria-label={t.chat.send}>
+        <button className="btn btn-dark btn-square" disabled={!text.trim() || sending || room.chatTo === null} aria-label={t.chat.send}>
           <SendIcon />
         </button>
       </form>

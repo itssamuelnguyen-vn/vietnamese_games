@@ -18,6 +18,8 @@ export type ErrorCode =
   | 'INVALID_OPTIONS'
   | 'MESSAGE_INVALID'
   | 'MESSAGE_TOO_FAST'
+  // A game with private channels has the chat closed for this person right now (ma sói at night).
+  | 'CHAT_LOCKED'
   | 'RATE_LIMITED'
   | 'SERVER_FULL'
   | 'CLAIM_TOO_EARLY'

@@ -17,7 +17,11 @@ import {
   bauCuaGame,
   xiDachGame,
   lotoGame,
+  maSoiGame,
   LOTO_SPEEDS,
+  MASOI_SPECIAL_ROLES,
+  MASOI_TALKS,
+  MASOI_WOLF_COUNTS,
   createWordChainGame,
   CARO_SIZE_IDS,
   CANGUA_RULES,
@@ -28,6 +32,7 @@ import {
   xiangqiGame,
   type BotLevel,
   type ChatMessage,
+  type ChatRoute,
   type TallyEntry,
   ABANDON_CLAIM_MS,
   type ErrorCode,
@@ -53,6 +58,7 @@ const GAMES: Partial<Record<GameType, GameDefinition<any, any, any>>> = {
   baucua: bauCuaGame,
   xidach: xiDachGame,
   loto: lotoGame,
+  masoi: maSoiGame,
   noitu: createWordChainGame('noitu', loadDictionary('vi', NOITU_FILES, 'noitu-common.txt')),
   wordchain: createWordChainGame('wordchain', loadDictionary('en', WORDCHAIN_FILES, 'wordchain-common.txt')),
 };
@@ -93,6 +99,9 @@ export interface Room {
   state: unknown;
   rematchVotes: string[];
   chat: ChatMessage[];
+  // The first chat message of the current game: in games with private channels, those from
+  // earlier games are open to everyone.
+  chatFrom: number;
   lastActivity: number;
 }
 
@@ -120,7 +129,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const MAX_NAME_LENGTH = 20;
 const MAX_SPECTATORS = 20;
 const HOST_COLORS: HostColor[] = ['random', 'white', 'black'];
-const CHAT_HISTORY = 50;
+const CHAT_HISTORY = 80;
 // Chat flood control: at most CHAT_BURST messages per CHAT_WINDOW_MS per person.
 const CHAT_BURST = 5;
 const CHAT_WINDOW_MS = 10_000;
@@ -198,6 +207,7 @@ export class RoomManager {
       state: null,
       rematchVotes: [],
       chat: [],
+      chatFrom: 0,
       lastActivity: Date.now(),
     };
     this.rooms.set(room.code, room);
@@ -375,6 +385,7 @@ export class RoomManager {
     room.rematchVotes = [];
     room.departed = [];
     room.tallied = false;
+    room.chatFrom = this.nextMessageId;
     // A game can be decided on the deal (tien len instant wins).
     room.status = game.isOver(room.state) ? 'finished' : 'playing';
     this.settle(room);
@@ -405,6 +416,10 @@ export class RoomManager {
       stakePerPoint = room.options.stakePerPoint,
       dealer = room.options.dealer,
       callSpeed = room.options.callSpeed,
+      masoiRoles = room.options.masoiRoles,
+      masoiWolves = room.options.masoiWolves,
+      masoiReveal = room.options.masoiReveal,
+      masoiTalk = room.options.masoiTalk,
     } = options as Partial<RoomOptions>;
     if (typeof timeControl !== 'string' || !Object.hasOwn(TIME_CONTROLS, timeControl)) {
       return { ok: false, error: 'INVALID_OPTIONS' };
@@ -418,6 +433,8 @@ export class RoomManager {
     if (stakes === 'money' && !MONEY_GAMES.includes(room.gameType)) return { ok: false, error: 'INVALID_OPTIONS' };
     // A newly picked dealer must be seated; one who later gets up leaves the dealing to the house.
     if (!LOTO_SPEEDS.includes(callSpeed)) return { ok: false, error: 'INVALID_OPTIONS' };
+    if (!Array.isArray(masoiRoles) || !masoiRoles.every((r) => MASOI_SPECIAL_ROLES.includes(r))) return { ok: false, error: 'INVALID_OPTIONS' };
+    if (!MASOI_WOLF_COUNTS.includes(masoiWolves) || typeof masoiReveal !== 'boolean' || !MASOI_TALKS.includes(masoiTalk)) return { ok: false, error: 'INVALID_OPTIONS' };
     if (dealer !== room.options.dealer && dealer !== null && !room.players.some((p) => p.id === dealer)) return { ok: false, error: 'INVALID_OPTIONS' };
     // New money terms start everyone afresh.
     const o = room.options;
@@ -438,6 +455,10 @@ export class RoomManager {
       stakePerPoint,
       dealer,
       callSpeed,
+      masoiRoles: MASOI_SPECIAL_ROLES.filter((r) => masoiRoles.includes(r)),
+      masoiWolves,
+      masoiReveal,
+      masoiTalk,
     };
     room.lastActivity = Date.now();
     return { ok: true, room };
@@ -526,12 +547,23 @@ export class RoomManager {
     if (recent.length >= CHAT_BURST) return { ok: false, error: 'MESSAGE_TOO_FAST' };
     this.chatTimes.set(playerId, [...recent, now]);
 
+    // Games with private channels decide where the message goes, or that it can't be sent now.
+    const route = this.chatRoute(room, playerId);
+    if (route.send === null) return { ok: false, error: 'CHAT_LOCKED' };
+    const channel = route.send === 'public' ? {} : { channel: route.send };
+
     const author = [...room.players, ...room.spectators].find((p) => p.id === playerId)!;
-    room.chat = [...room.chat, { id: this.nextMessageId++, playerId, name: author.name, text: clean, at: now }].slice(
+    room.chat = [...room.chat, { id: this.nextMessageId++, playerId, name: author.name, text: clean, at: now, ...channel }].slice(
       -CHAT_HISTORY,
     );
     room.lastActivity = Date.now();
     return { ok: true, room };
+  }
+
+  private chatRoute(room: Room, playerId: string): ChatRoute {
+    const game = GAMES[room.gameType]!;
+    if (room.status !== 'playing' || !game.chatRoute) return { send: 'public', read: 'all' };
+    return game.chatRoute(room.state, playerId);
   }
 
   view(
@@ -541,6 +573,7 @@ export class RoomManager {
     offlineSince: (id: string) => number | null = () => null,
   ): RoomView {
     const now = this.clock();
+    const route = this.chatRoute(room, playerId);
     const info = ({ id, name, bot = false, botLevel }: Player) => {
       const connected = bot || isConnected(id);
       const since = connected ? null : offlineSince(id);
@@ -561,7 +594,8 @@ export class RoomManager {
         ? Object.fromEntries([...room.players, ...room.spectators].map((p) => [p.id, this.walletOf(room, p.id)]))
         : null,
       rematchVotes: room.rematchVotes,
-      chat: room.chat,
+      chat: room.chat.filter((m) => !m.channel || m.id < room.chatFrom || route.read === 'all' || route.read.includes(m.channel)),
+      chatTo: route.send,
       game: room.state === null ? null : GAMES[room.gameType]!.playerView(room.state, playerId, this.ctx()),
     };
   }

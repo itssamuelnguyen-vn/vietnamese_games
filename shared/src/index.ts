@@ -13,3 +13,4 @@ export * from './games/baucua';
 export * from './games/xidach';
 export * from './games/loto';
 export * from './games/loto-tickets';
+export * from './games/masoi';
