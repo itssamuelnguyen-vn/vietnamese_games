@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { RoomOptions } from '../types';
-import { beats, classify, combosIn, hintPlays, instantWin, leftoverPenalties, quickPick, tienlenGame, type Card, type TienLenState } from './tienlen';
+import { HOUSE_RULES, type RoomOptions } from '../types';
+import { beats, classify, combosIn, hintPlays, instantWin, leftoverPenalties, planSize, quickPick, tienlenGame, type Card, type TienLenState } from './tienlen';
 
 const RANKS = '3456789TJQKA2';
 const SUITS = 'scdh'; // ♠ ♣ ♦ ♥
@@ -406,5 +406,84 @@ describe('tienlenGame', () => {
       expect(t.result?.ranking).toEqual(['a', 'b', 'c']);
       expect(t.result!.scores.c.penalties.map((p) => p.kind)).toContain('frozen');
     });
+  });
+});
+
+describe('bots', () => {
+  const bot = (state: TienLenState, id = 'a') => tienlenGame.botMove!(state, id, ctx);
+  const playOf = (state: TienLenState, id = 'a') => {
+    const move = bot(state, id);
+    return move?.type === 'play' ? labels([move.cards])[0] : move?.type;
+  };
+  const labels = (plays: Card[][]) => plays.map((p) => p.map((c) => RANKS[c >> 2] + SUITS[c & 3]).join(' '));
+
+  it('counts how many plays it takes to shed a hand', () => {
+    expect(planSize(cards('3s 4c 5d'))).toBe(1);
+    expect(planSize(cards('3s 3c 4s 4c 5d 5h'))).toBe(1);
+    expect(planSize(cards('3s 5c 7d'))).toBe(3);
+    expect(planSize(cards('3s 4c 5d 9s 9c 2h'))).toBe(3);
+  });
+
+  it('leads with the required card, in the combination that sheds the most', () => {
+    const s = table({ a: '3s 4c 5d 9s 9c Kh 2h', b: '6s 7s 8s 8c Jd Qd Ah' }, { mustPlay: card('3s') });
+    expect(playOf(s)).toBe('3s 4c 5d');
+  });
+
+  it('leads its lowest combination and keeps 2s for last', () => {
+    const s = table({ a: '6s 6c 9d Jh 2h', b: '3s 4s 5s 8c Td' });
+    expect(playOf(s)).toBe('6s 6c');
+    expect(playOf(table({ a: '9d 2h', b: '3s 4s 5s' }))).toBe('9d');
+  });
+
+  it('goes out in one play when it can', () => {
+    expect(playOf(table({ a: '7s 8c 9d Th', b: '3s 4s 5s' }))).toBe('7s 8c 9d Th');
+  });
+
+  it('beats cheaply, but passes rather than spend a 2 early', () => {
+    const trick = (codes: string, by = 'b') => ({ cards: cards(codes), combo: combo(codes), by, chop: false });
+    const s = table({ a: '5s 9c Jd Qd Kh Ah 2h', b: '3s 4s 6s 7s 8s 8c Td Th' }, { trick: trick('4c'), turn: 'a' });
+    expect(playOf(s)).toBe('5s');
+    const high = table({ a: '5s 6c 9d Jd Qh 2h', b: '3s 4s 6s 7s 8s 8c Td Th' }, { trick: trick('Ac'), turn: 'a' });
+    expect(playOf(high)).toBe('pass');
+    // With the other player down to two cards, it stops holding back.
+    const danger = table({ a: '5s 6c 9d Jd Qh 2h', b: '3s Td' }, { trick: trick('Ac'), turn: 'a' });
+    expect(playOf(danger)).toBe('2h');
+  });
+
+  it('chops a 2 with a bomb', () => {
+    const s = table(
+      { a: '5s 5c 5d 5h 9c Jd', b: '3s 4s 6s 7s 8s 8c Td Th' },
+      { trick: { cards: cards('2s'), combo: combo('2s'), by: 'b', chop: false }, turn: 'a' },
+    );
+    expect(playOf(s)).toBe('5s 5c 5d 5h');
+  });
+
+  it('under no-two-finish, never leaves itself holding only 2s', () => {
+    const s = table({ a: '9d 2h', b: '3s 4s 5s' }, { rules: ['no-two-finish'] });
+    expect(playOf(s)).toBe('2h');
+  });
+
+  it('play whole games to the end under every house rule, never stalling or breaking a rule', () => {
+    const seeded = (seed: number) => () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    for (let seed = 1; seed <= 64; seed++) {
+      const ids = Array.from({ length: 2 + (seed % 3) }, (_, i) => `bot:${i}`);
+      const houseRules = HOUSE_RULES.filter((_, i) => (seed >> i) & 1);
+      let s = tienlenGame.setup(ids, { ...options, houseRules }, { now: 0, random: seeded(seed) }, null);
+      for (let k = 0; !s.result; k++) {
+        expect(k).toBeLessThan(500);
+        const move = bot(s, s.turn!);
+        expect(move).toBeTruthy();
+        const r = tienlenGame.applyMove(s, s.turn!, move!, ctx);
+        if (!r.ok) throw new Error(`seed ${seed}: ${JSON.stringify(move)} ${r.error}`);
+        s = r.state;
+      }
+      expect(s.result.ranking).toHaveLength(ids.length);
+      expect(s.stuck).toEqual([]);
+    }
   });
 });
